@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 """
 
 from pathlib import Path
+import os.path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,14 +20,32 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
+# Docker support, see README
+IS_DOCKER = "IS_DOCKER" in os.environ
+
+if not IS_DOCKER:
+    import environ
+    env = environ.Env()
+    env.read_env(env.str('ENV_PATH', str(BASE_DIR.parent) + '/.env'))
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-$hea@6a3or!juf%@nnfreqfa=f&ylexfxa0$6!dv7=s(zxh$ql'
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
+if not IS_DOCKER:
+    DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
+PUBLIC_URLS = os.environ.get('APPLICATION_URLS')
+if PUBLIC_URLS:
+    ALLOWED_HOSTS.extend(PUBLIC_URLS.split(','))
+
+INTERNAL_IPS = [
+    "127.0.0.1",
+    'localhost',
+]
 
 # Application definition
 
@@ -75,8 +94,12 @@ WSGI_APPLICATION = 'bookshelf.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('PG_DATABASE'),
+        'USER': os.environ.get('PG_USER'),
+        'PASSWORD': os.environ.get('PG_PASSWD'),
+        'HOST': os.environ.get('PG_DATABASE_ADDRESS'),
+        'PORT': os.environ.get('PG_DATABASE_PORT'),
     }
 }
 
@@ -107,7 +130,7 @@ LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
 
-USE_I18N = True
+USE_I18N = False
 
 USE_TZ = True
 
@@ -121,3 +144,10 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Account for email sending
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST = os.environ.get('EMAIL_HOST')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
