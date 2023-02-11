@@ -56,6 +56,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    'authentication.apps.AuthenticationConfig',
+
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
 ]
 
 MIDDLEWARE = [
@@ -92,17 +99,35 @@ WSGI_APPLICATION = 'bookshelf.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.environ.get('PG_DATABASE'),
+#         'USER': os.environ.get('PG_USER'),
+#         'PASSWORD': os.environ.get('PG_PASSWD'),
+#         'HOST': os.environ.get('PG_DATABASE_ADDRESS'),
+#         'PORT': os.environ.get('PG_DATABASE_PORT'),
+#     }
+# }
+
+# TODO temporary use sqlite, will be further switched to postgres
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('PG_DATABASE'),
-        'USER': os.environ.get('PG_USER'),
-        'PASSWORD': os.environ.get('PG_PASSWD'),
-        'HOST': os.environ.get('PG_DATABASE_ADDRESS'),
-        'PORT': os.environ.get('PG_DATABASE_PORT'),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
+AUTH_USER_MODEL = 'authentication.User'
+LOGIN_REDIRECT_URL = '/'
+
+AUTHENTICATION_BACKENDS = [
+    # Needed to login by username in Django admin, regardless of `allauth`
+    'django.contrib.auth.backends.ModelBackend',
+
+    # `account` specific authentication methods, such as login by e-mail
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -151,3 +176,22 @@ EMAIL_HOST = os.environ.get('EMAIL_HOST')
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+
+# ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = True
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
+ACCOUNT_LOGOUT_ON_GET = True
+
+# allauth provider specific settings
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'APP': {
+            'client_id': os.environ.get('GOOGLE_CLIENT_ID'),
+            'secret': os.environ.get('GOOGLE_SECRET'),
+            'key': ''
+        }
+    }
+}
