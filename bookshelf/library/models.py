@@ -27,10 +27,24 @@ class Language(models.Model):
 
 class Name(models.Model):
     """
-    Names for authors (pseudonyms, translated names, names in the different fist name and surname order, etc.)
+    Names for authors (pseudonyms, translated names, names in the different first name and surname order, etc.)
     Book titles (translated titles, different variants of translation, etc.)
     Series names (translated titles, different variants of translation, etc.)
 
     """
 
+    name = models.CharField(max_length=255, verbose_name='Name')
+    language = models.ForeignKey(
+        'Language',
+        on_delete=models.CASCADE,
+        related_name='name',
+        verbose_name='Language',
+    )
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = 'Names'
+
+
+class Author(models.Model):
     name = models.CharField(max_length=255, verbose_name='Name')
