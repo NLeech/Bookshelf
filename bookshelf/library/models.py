@@ -156,8 +156,9 @@ class Author(models.Model):
 
 class Book(models.Model):
     tittle = models.CharField(max_length=255, verbose_name='Tittle')
-    annotation = models.TextField(null=False, blank=True, default='', verbose_name='Annotation')
+    description = models.TextField(null=False, blank=True, default='', verbose_name='Description')
     language = models.ForeignKey('Language', on_delete=models.RESTRICT, related_name='books', verbose_name='Language')
+    isbn = models.DecimalField(max_digits=13, decimal_places=0, default=0, verbose_name='ISBN')
 
     authors = models.ManyToManyField('Author', related_name='books', verbose_name='Authors')
     series = models.ManyToManyField('BookSeries', related_name='books', verbose_name='Series')
