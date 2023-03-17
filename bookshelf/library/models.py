@@ -4,12 +4,6 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 
 
-def get_author_full_name(first_name: str, middle_name: str, last_name: str) -> str:
-    full_name = f'{last_name}, {first_name} {middle_name}'.strip()
-    # remove duplicate spaces if the first name is empty
-    return re.sub(r' +', ' ', full_name)
-
-
 class Language(models.Model):
     """
     Language and language code (ISO 639-1 Code)
@@ -125,59 +119,45 @@ class BookSeries(models.Model):
         verbose_name_plural = 'Series'
 
 
-class AuthorName(models.Model):
+class Author(models.Model):
     """
-    Author names (pseudonyms, translated names, names in the different first name and surname order, etc.)
+    Author names, including pseudonyms, translated names, etc.
+
 
     """
     first_name = models.CharField(max_length=255, blank=True, verbose_name='First name')
     middle_name = models.CharField(max_length=255, blank=True, verbose_name='Middle name')
     last_name = models.CharField(max_length=255, verbose_name='Last name')
-
-    author = models.ForeignKey(
-        'Author',
+    main_author = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
         on_delete=models.CASCADE,
         related_name='different_names',
-        verbose_name='Author'
+        verbose_name='Main author'
     )
-    language = models.ForeignKey(
-        'Language',
-        on_delete=models.RESTRICT,
-        verbose_name='Language',
-    )
+
+    @staticmethod
+    def _get_author_full_name(first_name: str, middle_name: str, last_name: str) -> str:
+        full_name = f'{last_name}, {first_name} {middle_name}'.strip()
+        # remove duplicate spaces if the first name is empty
+        return re.sub(r' +', ' ', full_name)
 
     @property
     def full_name(self):
-        return get_author_full_name(self.first_name, self.middle_name, self.last_name)
+        return self._get_author_full_name(self.first_name, self.middle_name, self.last_name)
 
-    def __str__(self):
-        return f'{self.full_name} ({self.author})'
+    def clean_fields(self, exclude=None):
+        super().clean_fields(exclude=exclude)
 
-    class Meta:
-        ordering = ['author', 'last_name', 'first_name', 'middle_name']
-        verbose_name_plural = 'Author names'
-        constraints = [
-            models.UniqueConstraint(
-                fields=[
-                    'last_name',
-                    'first_name',
-                    'middle_name',
-                    'author',
-                    'language',
-                ],
-                name='unique_author_name'
-            ),
-        ]
+        # Author can't be linked with itself
+        if self.main_author is not None and self.id == self.main_author.id:
+            raise ValidationError('Author cannot be linked with itself')
 
-
-class Author(models.Model):
-    first_name = models.CharField(max_length=255, blank=True, verbose_name='First name')
-    middle_name = models.CharField(max_length=255, blank=True, verbose_name='Middle name')
-    last_name = models.CharField(max_length=255, verbose_name='Last name')
-
-    @property
-    def full_name(self):
-        return get_author_full_name(self.first_name, self.middle_name, self.last_name)
+        # The author cannot be linked to another author who is already linked to the main author.
+        # Only two levels of hierarchy are possible: the main author and their different names.
+        if self.main_author is not None and self.main_author.main_author is not None:
+            raise ValidationError('Author cannot be linked to another author who is already linked to the main author')
 
     def __str__(self):
         return f'{self.full_name}'
