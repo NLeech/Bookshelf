@@ -13,7 +13,7 @@ from library.models import BookSeries, Genre, Author
         (Author,),
     ]
 )
-class RecursiveHierarchyTest(TestCase):
+class LoopHierarchyTest(TestCase):
     def test_wrong_parent(self):
         instance = self.model()
         instance.name = 'Test'
