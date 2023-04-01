@@ -59,6 +59,7 @@ INSTALLED_APPS = [
 
     'authentication.apps.AuthenticationConfig',
     'library.apps.LibraryConfig',
+    'third_part_libraries.apps.ThirdPartLibrariesConfig',
 
     'allauth',
     'allauth.account',
@@ -100,24 +101,24 @@ WSGI_APPLICATION = 'bookshelf.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': os.environ.get('PG_DATABASE'),
-#         'USER': os.environ.get('PG_USER'),
-#         'PASSWORD': os.environ.get('PG_PASSWD'),
-#         'HOST': os.environ.get('PG_DATABASE_ADDRESS'),
-#         'PORT': os.environ.get('PG_DATABASE_PORT'),
-#     }
-# }
-
-# TODO temporary use sqlite, will be further switched to postgres
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('PG_DATABASE'),
+        'USER': os.environ.get('PG_USER'),
+        'PASSWORD': os.environ.get('PG_PASSWD'),
+        'HOST': os.environ.get('PG_DATABASE_ADDRESS'),
+        'PORT': os.environ.get('PG_DATABASE_PORT'),
     }
 }
+
+# TODO temporary use sqlite, will be further switched to postgres
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 
 AUTH_USER_MODEL = 'authentication.User'
 LOGIN_REDIRECT_URL = '/'
