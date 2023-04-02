@@ -28,4 +28,4 @@ class FlibustaAuthor(models.Model):
                                     on_delete=models.CASCADE, verbose_name='Main author')
 
     def __str__(self):
-        return f'({self.id}) {self.last_name} {self.first_name}, {self.middle_name} ({self.main_author})'
+        return f'({self.id}) {self.last_name}, {self.first_name}, {self.middle_name} ({self.main_author})'
