@@ -1,11 +1,14 @@
 import re
 import ast
-import  itertools
+import itertools
+import logging
 from typing import TextIO, Iterable
 from dataclasses import dataclass
 from django.db import transaction
 
 from third_part_libraries.models import FlibustaAuthor
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -24,6 +27,9 @@ class AuthorEntry:
     homepage: str
     gender: str
     master_id: int
+
+    def __str__(self):
+        return f'({self.id}) {self.last_name}, {self.first_name}, {self.middle_name}'
 
 
 class FlibustaInterface:
@@ -60,9 +66,9 @@ class FlibustaInterface:
                 match = re.findall(r".*INSERT INTO.+VALUES\s*(.+)$", sql, re.I | re.M)
                 if len(match) == 0:
                     continue
-                    
+
                 data = ast.literal_eval('(' + match[0] + ')')
-                
+
                 for entry in data:
                     yield AuthorEntry(*entry)
 
@@ -78,10 +84,9 @@ class FlibustaInterface:
             try:
                 main_author = FlibustaAuthor.objects.get(id=author_data.master_id)
             except FlibustaAuthor.DoesNotExist:
-                # todo log it
-                pass
+                logger.error(f'Wrong main author id ({author_data.master_id}) for the author: {author_data}')
 
-        return FlibustaAuthor.objects.create(
+        author = FlibustaAuthor.objects.create(
             id=author_data.id,
             first_name=author_data.first_name,
             middle_name=author_data.middle_name,
@@ -91,6 +96,10 @@ class FlibustaInterface:
             homepage=author_data.homepage,
             main_author=main_author,
         )
+
+        logger.info(f'Author created: {author}')
+
+        return author
 
     def load_authors_to_database(self, dump: TextIO) -> None:
         """
@@ -129,5 +138,5 @@ class FlibustaInterface:
 
         :param file_name:
         """
-        with open(file_name,  'r', encoding="utf8") as file:
+        with open(file_name, 'r', encoding="utf8") as file:
             self.load_authors_to_database(file)
