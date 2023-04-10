@@ -247,3 +247,6 @@ SOCIALACCOUNT_PROVIDERS = {
         }
     }
 }
+
+# URL for Flibusta authors' dump
+FLIBUSTA_AUTHORS_URL = 'https://flibusta.is/sql/lib.libavtorname.sql.gz'

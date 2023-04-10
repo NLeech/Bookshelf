@@ -1,10 +1,14 @@
+import io
 import re
 import ast
 import itertools
 import logging
-from typing import TextIO, Iterable
+import requests
+import gzip
+from typing import Iterable
 from dataclasses import dataclass
 from django.db import transaction
+from django.conf import settings
 
 from third_part_libraries.models import FlibustaAuthor
 
@@ -32,6 +36,10 @@ class AuthorEntry:
         return f'({self.id}) {self.last_name}, {self.first_name}, {self.middle_name}'
 
 
+class UpdateError(Exception):
+    pass
+
+
 class FlibustaInterface:
     """
     Interface for the Flibusta library.
@@ -39,15 +47,27 @@ class FlibustaInterface:
 
     """
 
-    def _get_authors_dump(self) -> TextIO:
+    @staticmethod
+    def _get_authors_dump() -> io.StringIO:
         """
         Get database dump with authors from Flibusta site
         :return: raw SQL dump
 
         """
-        pass
+        response = requests.get(settings.FLIBUSTA_AUTHORS_URL)
 
-    def _get_authors_from_dump(self, dump: TextIO) -> Iterable:
+        if response.status_code == 200:
+            dump = gzip.decompress(response.content)
+            dump = io.StringIO(dump.decode('utf-8'))
+            # io.TextIOBase(dump, encoding='utf8')
+            return dump
+        else:
+            raise UpdateError(f"Error getting authors' dump from {settings.FLIBUSTA_AUTHORS_URL} "
+                              f"response: {response.status_code} "
+                              f"reason: {response.reason}")
+
+    @staticmethod
+    def _get_authors_from_dump( dump: io.StringIO) -> Iterable:
         """
         Generator, returns entry from MySQL backup dump
         :param dump: MySQL dumps
@@ -72,7 +92,8 @@ class FlibustaInterface:
                 for entry in data:
                     yield AuthorEntry(*entry)
 
-    def _create_author(self, author_data: AuthorEntry) -> FlibustaAuthor:
+    @staticmethod
+    def _create_author(author_data: AuthorEntry) -> FlibustaAuthor:
         """
         Create author if author with given id didn't find in the database
         :param author_data: author's data
@@ -101,7 +122,7 @@ class FlibustaInterface:
 
         return author
 
-    def load_authors_to_database(self, dump: TextIO) -> None:
+    def load_authors(self, dump: io.StringIO) -> None:
         """
         Load authors from Flibusta MySQL authors table dump and store authors to database.
         Existing entries in the database are not updated
@@ -133,10 +154,13 @@ class FlibustaInterface:
 
         pass
 
-    def load_authors_from_file(self, file_name: str) -> None:
+    def update_authors(self) -> None:
         """
+        Get database dump with authors from Flibusta site and store new authors to database.
 
-        :param file_name:
         """
-        with open(file_name, 'r', encoding="utf8") as file:
-            self.load_authors_to_database(file)
+        try:
+            dump = self._get_authors_dump()
+            self.load_authors(dump)
+        except Exception as e:
+            logger.error(str(e))
