@@ -171,6 +171,7 @@ class Author(models.Model):
                     'last_name',
                     'first_name',
                     'middle_name',
+                    'main_author',
                 ],
                 name='unique_author'
             ),

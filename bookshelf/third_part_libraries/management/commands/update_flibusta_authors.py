@@ -12,4 +12,4 @@ class Command(BaseCommand):
         interface = FlibustaInterface()
         interface.update_authors()
 
-        logger.info("Flibusta authors was updated successfully!")
+        logger.info("Flibusta authors were updated successfully!")

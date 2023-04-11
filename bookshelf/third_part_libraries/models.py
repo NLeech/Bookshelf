@@ -1,5 +1,7 @@
 from django.db import models
 
+from library.models import Author
+
 """
   `AvtorId` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `FirstName` varchar(99) CHARACTER SET utf8 NOT NULL DEFAULT '',
@@ -26,6 +28,8 @@ class FlibustaAuthor(models.Model):
     homepage = models.CharField(max_length=255, blank=True, default='', verbose_name='Homepage')
     main_author = models.ForeignKey('self', null=True, blank=True, related_name='different_names',
                                     on_delete=models.CASCADE, verbose_name='Main author')
+    library_author = models.ForeignKey(Author, null=True, blank=True, related_name='library_authors',
+                                       on_delete=models.CASCADE, verbose_name='Linked library author')
 
     def __str__(self):
         return f'({self.id}) {self.last_name}, {self.first_name}, {self.middle_name} ({self.main_author})'
