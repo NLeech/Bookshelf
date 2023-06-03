@@ -17,6 +17,9 @@ class User(AbstractUser):
 
     REQUIRED_FIELDS = ["username"]
 
+    def __str__(self):
+        return self.email
+
 
 class Group(BaseGroup):
     """A proxy groups model for inclusion in admin site with the custom user model."""
