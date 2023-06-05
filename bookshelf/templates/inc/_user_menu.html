@@ -1,0 +1,13 @@
+{% extends "authentication/inc/_auth_links.html" %}
+
+{% block user_menu %}
+    <li class="nav-item dropdown">
+        <a class="nav-link  active dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            {{ user }}
+        </a>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'account_change_password' %}">Change password</a></li>
+        </ul>
+    </li>
+
+{% endblock %}

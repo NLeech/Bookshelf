@@ -1,0 +1,41 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>{% block title %}Bookshelf{% endblock %}</title>
+
+    <link rel="stylesheet" href="{% static 'bootstrap-5.2.3/css/bootstrap.min.css' %}">
+    <script src="{% static 'bootstrap-5.2.3/js/bootstrap.bundle.min.js' %}"></script>
+
+</head>
+<body>
+
+{% include "inc/_navbar.html" %}
+
+{% block messages %}
+    {% if messages %}
+        <ul class="messages" style="list-style-type:none;">
+            {% for message in messages %}
+                <li>
+                    {% if message.tags == "error" %}
+                        {# The bootstrap alerts don't have an 'error' alert, they have a 'danger' alert instead.#}
+                        <div class="alert alert-danger mx-3" role="alert">
+                    {% else %}
+                        <div class="alert alert-{{ message.tags }} mx-3" role="alert">
+                    {% endif %}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    {{ message }}
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endblock %}
+
+<div class="mx-3">
+    {% block content %}{% endblock %}
+</div>
+</body>
+</html>
