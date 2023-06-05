@@ -61,6 +61,8 @@ INSTALLED_APPS = [
     'library.apps.LibraryConfig',
     'third_part_libraries.apps.ThirdPartLibrariesConfig',
 
+    'crispy_forms',
+    'crispy_bootstrap5',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
@@ -221,6 +223,9 @@ LOGGING = {
         },
     },
 }
+
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # Account for email sending
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
