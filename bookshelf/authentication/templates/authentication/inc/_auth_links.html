@@ -1,0 +1,24 @@
+<ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+    {% if user.is_anonymous %}
+        <div class="nav-item">
+            <a class="nav-link active" href="{% url 'account_signup' %}">Sign up</a>
+        </div>
+
+        <div class="nav-item">
+            <a class="nav-link active" href="#"> | </a>
+        </div>
+
+        <div class="nav-item">
+            <a class="nav-link active" href="{% url 'account_login' %}">Sign in</a>
+        </div>
+    {% else %}
+        {% block user_menu %}
+            <div class="nav-item ">
+                <a class="nav-link active" href="#">{{ user }}</a>
+            </div>
+        {% endblock %}
+        <div class="nav-item ">
+            <a class="nav-link active" href="{% url 'account_logout' %}">Logout</a>
+        </div>
+    {% endif %}
+</ul>

@@ -16,8 +16,17 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+from authentication.views import PasswordSetView, PasswordChangeView
+
+
 urlpatterns = [
     path('', include('library.urls')),
+
+    # fix issue : https://github.com/pennersr/django-allauth/issues/2195
+    path('accounts/password/set/', PasswordSetView.as_view(), name="account_set_password"),
+    path('accounts/password/change/', PasswordChangeView.as_view(), name="account_change_password"),
+
+    path('accounts/', include('allauth.urls')),
     path('admin/', admin.site.urls),
     path('__debug__/', include('debug_toolbar.urls')),
 ]
