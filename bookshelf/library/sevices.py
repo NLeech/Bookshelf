@@ -43,7 +43,7 @@ def update_authors_from_flibusta() -> None:
             for flibusta_pseudonym in new_flibusta_pseudonyms:
                 create_author(flibusta_pseudonym, main_author)
 
-    # update pseudonyms
+    # update pseudonyms (after the first stage of updating, only pseudonyms remained in the FlibustaAuthor table)
     new_flibusta_pseudonyms = FlibustaAuthor.objects.filter(library_author=None).select_related('main_author')
     with transaction.atomic():
         for flibusta_pseudonym in new_flibusta_pseudonyms:
