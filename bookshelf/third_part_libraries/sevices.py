@@ -67,7 +67,7 @@ class FlibustaInterface:
                               f"reason: {response.reason}")
 
     @staticmethod
-    def _get_authors_from_dump( dump: io.StringIO) -> Iterable:
+    def _get_authors_from_dump(dump: io.StringIO) -> Iterable:
         """
         Generator, returns entry from MySQL backup dump
         :param dump: MySQL dumps
@@ -95,7 +95,7 @@ class FlibustaInterface:
     @staticmethod
     def _create_author(author_data: AuthorEntry) -> FlibustaAuthor:
         """
-        Create author if author with given id didn't find in the database
+        Create an author if an author with the given ID is not found in the database.
         :param author_data: author's data
         :return: Found or created author
 
@@ -124,8 +124,8 @@ class FlibustaInterface:
 
     def load_authors(self, dump: io.StringIO) -> None:
         """
-        Load authors from Flibusta MySQL authors table dump and store authors to database.
-        Existing entries in the database are not updated
+        Load authors from the Flibusta MySQL authors table dump and store them in the database.
+        Existing entries in the database will not be updated.
         :param dump: MySQL dump
 
         """
@@ -134,7 +134,7 @@ class FlibustaInterface:
         authors_first_stage = self._get_authors_from_dump(dump)
         authors_first_stage, authors_second_stage = itertools.tee(authors_first_stage)
 
-        # the first pass - load only main authors (without master_id)
+        # the first pass load only main authors (without master_id)
         with transaction.atomic():
             for author in authors_first_stage:
                 if author.id in existed_ids:
@@ -143,7 +143,7 @@ class FlibustaInterface:
                 if not author.master_id:
                     self._create_author(author)
 
-        # the second pass - load authors' pseudonyms (entries which have master_id filled)
+        # the second pass load authors' pseudonyms (entries that have the master_id filled)
         with transaction.atomic():
             for author in authors_second_stage:
                 if author.id in existed_ids:
@@ -156,7 +156,7 @@ class FlibustaInterface:
 
     def update_authors(self) -> None:
         """
-        Get database dump with authors from Flibusta site and store new authors to database.
+        Get a database dump containing authors from the Flibusta site and store the new authors in the database.
 
         """
         try:
