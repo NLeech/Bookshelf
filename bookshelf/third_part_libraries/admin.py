@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from third_part_libraries.models import FlibustaAuthor
+from third_part_libraries.models import FlibustaAuthor, FlibustaGenre
 
 
 class FlibustaAuthorInline(admin.StackedInline):
@@ -15,6 +15,16 @@ class FlibustaAuthorInline(admin.StackedInline):
     #
     # def has_delete_permission(self, request, obj=None):
     #     return False
+
+
+class FlibustaGenreAdmin(admin.ModelAdmin):
+    fields = ('genre_code', 'genre_desc', 'genre_meta')
+    ordering = ('id',)
+
+    list_display = ('id', 'genre_code', 'genre_desc', 'genre_meta')
+    list_display_links = ('id', 'genre_code', 'genre_desc', 'genre_meta')
+
+    search_fields = ('id', 'genre_code', 'genre_desc', 'genre_meta')
 
 
 class FlibustaAuthorAdmin(admin.ModelAdmin):
@@ -49,3 +59,4 @@ class FlibustaAuthorAdmin(admin.ModelAdmin):
 
 
 admin.site.register(FlibustaAuthor, FlibustaAuthorAdmin)
+admin.site.register(FlibustaGenre, FlibustaGenreAdmin)

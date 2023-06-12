@@ -3,17 +3,22 @@ from django.db import models
 from library.models import Author
 
 """
-  `AvtorId` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `FirstName` varchar(99) CHARACTER SET utf8 NOT NULL DEFAULT '',
-  `MiddleName` varchar(99) CHARACTER SET utf8 NOT NULL DEFAULT '',
-  `LastName` varchar(99) CHARACTER SET utf8 NOT NULL DEFAULT '',
-  `NickName` varchar(33) CHARACTER SET utf8 NOT NULL DEFAULT '',
-  `uid` int(11) NOT NULL DEFAULT '0',
-  `Email` varchar(255) CHARACTER SET utf8 NOT NULL,
-  `Homepage` varchar(255) CHARACTER SET utf8 NOT NULL,
-  `Gender` char(1) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
-  `MasterId` int(10) NOT NULL DEFAULT '0',
+  `GenreCode` varchar(45) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
+  `GenreDesc` varchar(99) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
+  `GenreMeta` varchar(45) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
 """
+
+
+class FlibustaGenre(models.Model):
+    """
+    Contains a genre list from https://flibusta.is/sql/
+    """
+    genre_code = models.CharField(max_length=100, unique=True, verbose_name='Genre code')
+    genre_desc = models.CharField(max_length=200, verbose_name='Genre description')
+    genre_meta = models.CharField(max_length=100, verbose_name='Genre meta')
+
+    def __str__(self):
+        return f'({self.id}) {self.genre_code}, {self.genre_desc}'
 
 
 class FlibustaAuthor(models.Model):
