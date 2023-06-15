@@ -116,14 +116,6 @@ DATABASES = {
     }
 }
 
-# TODO temporary use sqlite, will be further switched to postgres
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
 AUTH_USER_MODEL = 'authentication.User'
 LOGIN_REDIRECT_URL = '/'
 
@@ -255,3 +247,4 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # URL for Flibusta authors' dump
 FLIBUSTA_AUTHORS_URL = 'https://flibusta.is/sql/lib.libavtorname.sql.gz'
+FLIBUSTA_GENRE_URL = 'https://flibusta.is/sql/lib.libgenrelist.sql.gz'
