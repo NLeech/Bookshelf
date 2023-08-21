@@ -2,12 +2,6 @@ from django.db import models
 
 from library.models import Author
 
-"""
-  `GenreCode` varchar(45) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
-  `GenreDesc` varchar(99) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
-  `GenreMeta` varchar(45) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
-"""
-
 
 class FlibustaGenre(models.Model):
     """
@@ -38,3 +32,5 @@ class FlibustaAuthor(models.Model):
 
     def __str__(self):
         return f'({self.id}) {self.last_name}, {self.first_name}, {self.middle_name} ({self.main_author})'
+
+

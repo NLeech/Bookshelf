@@ -5,7 +5,7 @@ import itertools
 import logging
 import requests
 import gzip
-from typing import Iterable
+from typing import Generator
 from dataclasses import dataclass
 from django.db import transaction
 from django.conf import settings
@@ -82,7 +82,7 @@ class FlibustaInterface:
                               f"reason: {response.reason}")
 
     @staticmethod
-    def _get_entries_from_dump(dump: io.StringIO) -> Iterable:
+    def _get_entries_from_dump(dump: io.StringIO) -> Generator:
         """
         Generator, returns entry from MySQL backup dump
         :param dump: a MySQL dump
@@ -163,7 +163,7 @@ class FlibustaInterface:
         :param dump: MySQL dump
 
         """
-        existed_ids = FlibustaAuthor.objects.values_list('id', flat=True)
+        existed_ids = set(FlibustaAuthor.objects.values_list('id', flat=True))
 
         authors_first_stage = self._get_entries_from_dump(dump)
         authors_first_stage, authors_second_stage = itertools.tee(authors_first_stage)
