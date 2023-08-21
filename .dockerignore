@@ -1,6 +1,10 @@
 .env
 .git/
 .idea/
+.gitattributes
+.gitignore
+**/__pycache__
+*.pyc
 venv/
 env/
-__pycache__/
+postgres/
