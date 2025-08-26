@@ -22,13 +22,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 IS_DOCKER = "IS_DOCKER" in os.environ
 
+if not IS_DOCKER:
+    import environ
+    env = environ.Env()
+    env.read_env(env.str('ENV_PATH', str(BASE_DIR.parent) + '/.env'))
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-!dtwd(0fxq&)w_tg*&i6se5-x!47m0l32c@mxs!lvms+3ehmlu'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-!dtwd(0fxq&)w_tg*&i6se5-x!47m0l32c@mxs!lvms+3ehmlu')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
+if not IS_DOCKER:
+    DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+
+INTERNAL_IPS = ALLOWED_HOSTS.copy()
+
+PUBLIC_URLS = os.environ.get('APPLICATION_URLS')
+if PUBLIC_URLS:
+    ALLOWED_HOSTS.extend(PUBLIC_URLS.split(','))
+
 
 
 # Application definition
@@ -58,6 +72,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
+
 ]
 
 ROOT_URLCONF = 'bookshelf.urls'
@@ -65,10 +81,11 @@ ROOT_URLCONF = 'bookshelf.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
+                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
@@ -90,6 +107,15 @@ DATABASES = {
     }
 }
 
+LOGIN_REDIRECT_URL = '/'
+
+AUTHENTICATION_BACKENDS = [
+    # Needed to login by username in Django admin, regardless of `allauth`
+    'django.contrib.auth.backends.ModelBackend',
+
+    # `account` specific authentication methods, such as login by e-mail
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -131,3 +157,6 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
