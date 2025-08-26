@@ -55,12 +55,13 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    'authentication.apps.AuthenticationConfig',
+
+    'debug_toolbar',
     'crispy_forms',
     'crispy_bootstrap5',
     'allauth',
     'allauth.account',
-    'allauth.socialaccount',
-    'allauth.socialaccount.providers.google',
 
 ]
 
@@ -72,7 +73,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
     'debug_toolbar.middleware.DebugToolbarMiddleware',
+    # Add the account middleware:
+    "allauth.account.middleware.AccountMiddleware",
 
 ]
 
@@ -107,6 +111,7 @@ DATABASES = {
     }
 }
 
+AUTH_USER_MODEL = 'authentication.User'
 LOGIN_REDIRECT_URL = '/'
 
 AUTHENTICATION_BACKENDS = [
