@@ -10,12 +10,6 @@ class LowerEmailField(models.EmailField):
 
 class User(AbstractUser):
     email = LowerEmailField(unique=True)
-    username = models.CharField(max_length=50, unique=True)
-
-    USERNAME_FIELD = "email"
-    EMAIL_FIELD = "email"
-
-    REQUIRED_FIELDS = ["username"]
 
     def __str__(self):
         return self.email
