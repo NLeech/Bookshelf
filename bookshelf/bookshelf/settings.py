@@ -43,10 +43,7 @@ PUBLIC_URLS = os.environ.get('APPLICATION_URLS')
 if PUBLIC_URLS:
     ALLOWED_HOSTS.extend(PUBLIC_URLS.split(','))
 
-
-
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -63,6 +60,8 @@ INSTALLED_APPS = [
     'crispy_bootstrap5',
     'allauth',
     'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
 
 ]
 
@@ -119,7 +118,7 @@ AUTHENTICATION_BACKENDS = [
     # Needed to login by username in Django admin, regardless of `allauth`
     'django.contrib.auth.backends.ModelBackend',
 
-    # `account` specific authentication methods, such as login by e-mail
+    # `allauth` specific authentication methods, such as login by email
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
@@ -178,3 +177,14 @@ ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+
+SOCIALACCOUNT_PROVIDERS = {
+  'google': {
+      'EMAIL_AUTHENTICATION': True,
+      'APP': {
+          'client_id': os.environ.get('GOOGLE_CLIENT_ID'),
+          'secret': os.environ.get('GOOGLE_SECRET'),
+          'key': ''
+      }
+  }
+}
