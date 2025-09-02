@@ -26,7 +26,7 @@ class AuthorAdmin(admin.ModelAdmin):
     list_select_related = ('main_author',)
 
     def get_queryset(self, request):
-        # add filter for autocomplete field 'main_author'
+        # add a filter for autocomplete field 'main_author'
         # The author cannot be linked to another author who is already linked to the main author.
         if request.GET.get('field_name') == 'main_author':
             return super().get_queryset(request).filter(main_author=None).select_related('main_author')
