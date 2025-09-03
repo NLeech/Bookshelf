@@ -1,7 +1,7 @@
 import logging
 from django.core.management.base import BaseCommand
 
-from third_part_libraries.sevices import FlibustaInterface
+from third_party_libraries.services import FlibustaInterface
 
 logger = logging.getLogger(__name__)
 
