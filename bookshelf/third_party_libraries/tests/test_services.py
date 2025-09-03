@@ -3,16 +3,30 @@ import os
 from unittest.mock import patch, MagicMock
 
 from django.test import TestCase
-from parameterized import parameterized
-from django.conf import settings
 import gzip
 
 from third_party_libraries.models import FlibustaAuthor, FlibustaGenre
-from third_party_libraries.sevices import FlibustaInterface, AuthorEntry, GenreEntry, UpdateError
+from third_party_libraries.services import FlibustaInterface, AuthorEntry, GenreEntry, UpdateError
+
+
+class BaseTestCase(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        # Get the directory containing this test file
+        test_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Build paths to the data files
+        authors_file = os.path.join(test_dir, 'avtors_example.txt')
+        genre_file = os.path.join(test_dir, 'genrelist_example.txt')
+
+        with open(authors_file, 'r', encoding='utf-8') as f:
+            cls.authors_dump = f.read()
+        with open(genre_file, 'r', encoding='utf-8') as f:
+            cls.genre_dump = f.read()
 
 
 class GetDumpTest(TestCase):
-    @patch('third_party_libraries.sevices.requests.get')
+    @patch('third_party_libraries.services.requests.get')
     def test_get_dump_success(self, mock_get):
         """
         Test that _get_dump successfully decompresses and returns a StringIO object.
@@ -34,14 +48,14 @@ class GetDumpTest(TestCase):
         self.assertIsInstance(result, io.StringIO)
         self.assertEqual(result.read(), "test data")
 
-    @patch('third_party_libraries.sevices.requests.get')
+    @patch('third_party_libraries.services.requests.get')
     def test_get_dump_failure(self, mock_get):
         """
         Test that _get_dump raises an UpdateError on a non-200 response.
         """
         mock_response = MagicMock()
         mock_response.status_code = 404
-        mock_response.reason = "This is a test response: Not Found"
+        mock_response.reason = "This is a test 404 response: Not Found"
         mock_get.return_value = mock_response
 
         url = "http://example.com/dump.gz"
@@ -50,21 +64,7 @@ class GetDumpTest(TestCase):
         mock_get.assert_called_once_with(url)
 
 
-class GetEntriesFromDumpTest(TestCase):
-    @classmethod
-    def setUpTestData(cls):
-        # Get the directory containing this test file
-        test_dir = os.path.dirname(os.path.abspath(__file__))
-
-        # Build paths to the data files
-        authors_file = os.path.join(test_dir, 'avtors_example.txt')
-        genre_file = os.path.join(test_dir, 'genrelist_example.txt')
-
-        with open(authors_file, 'r', encoding='utf-8') as f:
-            cls.authors_dump = f.read()
-        with open(genre_file, 'r', encoding='utf-8') as f:
-            cls.genre_dump = f.read()
-
+class GetEntriesFromDumpTest(BaseTestCase):
     def test_get_entries_from_authors_dump(self):
         """
         Test that _get_entries_from_dump correctly parses an authors dump.
@@ -125,12 +125,7 @@ class CreateAuthorTest(TestCase):
         self.assertIsNone(author.main_author)
 
 
-class LoadAuthorsTest(TestCase):
-    @classmethod
-    def setUpTestData(cls):
-        with open('D:/Work/Python/Total_Recall/Bookshelf/bookshelf/third_party_libraries/tests/avtors_example.txt', 'r', encoding='utf-8') as f:
-            cls.authors_dump = f.read()
-
+class LoadAuthorsTest(BaseTestCase):
     def test_load_authors(self):
         """
         Test that load_authors correctly loads authors and their pseudonyms.
@@ -176,12 +171,7 @@ class LoadAuthorsTest(TestCase):
         self.assertEqual(FlibustaAuthor.objects.count(), 19)
 
 
-class LoadGenreTest(TestCase):
-    @classmethod
-    def setUpTestData(cls):
-        with open('D:/Work/Python/Total_Recall/Bookshelf/bookshelf/third_party_libraries/tests/genrelist_example.txt', 'r', encoding='utf-8') as f:
-            cls.genre_dump = f.read()
-
+class LoadGenreTest(BaseTestCase):
     def test_load_genre(self):
         """
         Test that load_genre correctly loads genres.
@@ -210,15 +200,13 @@ class LoadGenreTest(TestCase):
         self.assertEqual(FlibustaGenre.objects.count(), 12)
 
 
-class UpdateGenreTest(TestCase):
-    @patch('third_party_libraries.sevices.FlibustaInterface._get_genre_dump')
+class UpdateGenreTest(BaseTestCase):
+    @patch('third_party_libraries.services.FlibustaInterface._get_genre_dump')
     def test_update_genre_success(self, mock_get_dump):
         """
         Test that update_genre calls _get_genre_dump and load_genre.
         """
-        with open('D:/Work/Python/Total_Recall/Bookshelf/bookshelf/third_party_libraries/tests/genrelist_example.txt', 'r', encoding='utf-8') as f:
-            genre_dump = f.read()
-        dump_io = io.StringIO(genre_dump)
+        dump_io = io.StringIO(self.genre_dump)
         mock_get_dump.return_value = dump_io
 
         interface = FlibustaInterface()
@@ -227,12 +215,12 @@ class UpdateGenreTest(TestCase):
         mock_get_dump.assert_called_once()
         self.assertEqual(FlibustaGenre.objects.count(), 12)
 
-    @patch('third_party_libraries.sevices.FlibustaInterface._get_genre_dump')
+    @patch('third_party_libraries.services.FlibustaInterface._get_genre_dump')
     def test_update_genre_exception(self, mock_get_dump):
         """
         Test that update_genre handles exceptions gracefully.
         """
-        mock_get_dump.side_effect = Exception("Test error")
+        mock_get_dump.side_effect = Exception("Test exception raising: Genre dump not found")
 
         interface = FlibustaInterface()
         # We expect the exception to be caught and logged, not raised
@@ -242,15 +230,13 @@ class UpdateGenreTest(TestCase):
         self.assertEqual(FlibustaGenre.objects.count(), 0)
 
 
-class UpdateAuthorsTest(TestCase):
-    @patch('third_party_libraries.sevices.FlibustaInterface._get_authors_dump')
+class UpdateAuthorsTest(BaseTestCase):
+    @patch('third_party_libraries.services.FlibustaInterface._get_authors_dump')
     def test_update_authors_success(self, mock_get_dump):
         """
         Test that update_authors calls _get_authors_dump and load_authors.
         """
-        with open('D:/Work/Python/Total_Recall/Bookshelf/bookshelf/third_party_libraries/tests/avtors_example.txt', 'r', encoding='utf-8') as f:
-            authors_dump = f.read()
-        dump_io = io.StringIO(authors_dump)
+        dump_io = io.StringIO(self.authors_dump)
         mock_get_dump.return_value = dump_io
 
         interface = FlibustaInterface()
@@ -259,12 +245,12 @@ class UpdateAuthorsTest(TestCase):
         mock_get_dump.assert_called_once()
         self.assertEqual(FlibustaAuthor.objects.count(), 19)
 
-    @patch('third_party_libraries.sevices.FlibustaInterface._get_authors_dump')
+    @patch('third_party_libraries.services.FlibustaInterface._get_authors_dump')
     def test_update_authors_exception(self, mock_get_dump):
         """
         Test that update_authors handles exceptions gracefully.
         """
-        mock_get_dump.side_effect = Exception("Test error")
+        mock_get_dump.side_effect = Exception("Test exception raising: Authors dump not found")
 
         interface = FlibustaInterface()
         # We expect the exception to be caught and logged, not raised
