@@ -142,6 +142,11 @@ class Author(models.Model):
     first_name = models.CharField(max_length=255, blank=True, verbose_name='First name')
     middle_name = models.CharField(max_length=255, blank=True, verbose_name='Middle name')
     last_name = models.CharField(max_length=255, verbose_name='Last name')
+
+    nickname = models.CharField(max_length=50, blank=True, default='', verbose_name='Nickname')
+    email = models.CharField(max_length=255, blank=True, default='', verbose_name='E-mail')
+    homepage = models.CharField(max_length=255, blank=True, default='', verbose_name='Homepage')
+
     main_author = models.ForeignKey(
         'self',
         null=True,

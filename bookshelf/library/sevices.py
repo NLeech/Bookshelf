@@ -1,8 +1,8 @@
 import logging
 from django.db import transaction
 
-from third_party_libraries.models import FlibustaAuthor
-from library.models import Author
+from third_party_libraries.models import FlibustaAuthor, FlibustaGenre
+from library.models import Author, Genre
 
 
 def get_or_create_author(flibusta_author: FlibustaAuthor, main_author: Author = None) -> Author:
@@ -21,6 +21,9 @@ def get_or_create_author(flibusta_author: FlibustaAuthor, main_author: Author = 
         middle_name=flibusta_author.middle_name,
         last_name=flibusta_author.last_name,
         main_author=main_author,
+        defaults={'nickname': flibusta_author.nickname,
+                  'email': flibusta_author.email,
+                  'homepage': flibusta_author.homepage}
     )
 
     flibusta_author.library_author = author
@@ -60,6 +63,30 @@ def update_authors_from_flibusta() -> None:
             get_or_create_author(flibusta_pseudonym, flibusta_pseudonym.main_author.library_author)
 
 
+def update_genres_from_flibusta():
+    """
+    Update the Genre table from the FlibustaGenre table.
+    If a genre from the FlibustaGenre table does not exist in the Genre table, create it.
+    This function should be called after updating the FlibustaGenre table from Flibusta.
+    """
+    with transaction.atomic():
+        for flibusta_genre in FlibustaGenre.objects.all():
+            # metagenre first, then genre
+            metagenre, created = Genre.objects.get_or_create(
+                code=flibusta_genre.genre_meta,
+                defaults={
+                    'name': flibusta_genre.genre_meta,
+                }
+            )
+            if created:
+                logging.info(f'Created new genre {metagenre}')
 
-
-
+            genre, created = Genre.objects.get_or_create(
+                code=flibusta_genre.genre_code,
+                defaults={
+                    'name': flibusta_genre.genre_desc,
+                    'parent': metagenre,
+                }
+            )
+            if created:
+                logging.info(f'Created new genre {genre}')
