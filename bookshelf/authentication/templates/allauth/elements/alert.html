@@ -1,6 +1,7 @@
 {% load allauth %}
 <div role="alert"
-     class="alert alert-xs {% if attrs.level == "error" %}alert-warning{% else %}alert-info{% endif %}">
+     class="alert alert-xs alert-dismissible {% if attrs.level == "error" %}alert-warning{% else %}alert-info{% endif %}">
     {% slot message %}
     {% endslot %}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>

@@ -1,0 +1,195 @@
+/*
+ * Custom Styles for Bookshelf Project
+ *
+ * This file is intended for overriding and extending Bootstrap styles.
+ * Use CSS variables for colors to allow easy modification of the theme.
+ */
+
+/* --- Color Variables --- */
+:root {
+    /*--bs-primary: #0d6efd;      !* Default Bootstrap Primary Blue *!*/
+    --bs-primary: #208090;      /* Default Bootstrap Primary Blue */
+    --bs-secondary: #6c757d;    /* Default Bootstrap Secondary Gray */
+    --bs-success: #198754;      /* Default Bootstrap Success Green */
+    --bs-danger: #dc3545;       /* Default Bootstrap Danger Red */
+    --bs-warning: #ffc107;      /* Default Bootstrap Warning Yellow */
+    --bs-info: #0dcaf0;         /* Default Bootstrap Info Cyan */
+    --bs-light: #f8f9fa;        /* Default Bootstrap Light Gray */
+    --bs-dark: #212529;         /* Default Bootstrap Dark Gray */
+    --bs-white: #fff;           /* White */
+
+    /* Custom shades for body backgrounds based on Bootstrap's variables */
+    --bs-body-bg-secondary: #e2e6ea; /* A lighter gray for secondary backgrounds */
+    --bs-body-bg-tertiary: #d7dbdf;  /* A slightly darker gray for tertiary backgrounds */
+
+    /* Hover colors for links */
+    --bs-link-hover-color: color-mix(in srgb, var(--bs-light) 80%, black); /* Example: using primary color for link hover */
+
+}
+
+/* --- General Body Styles --- */
+body {
+    /* Ensure the body takes full height and uses custom background if needed */
+    background-color: var(--bs-light); /* Example: using a custom light background */
+}
+
+/* --- Navbar Styles --- */
+.navbar {
+    /* Example: Customizing navbar background color */
+    background-color: var(--bs-dark) !important; /* Force dark background for navbar */
+}
+
+.navbar-brand {
+    color: var(--bs-white) !important; /* White brand text */
+}
+
+.nav-link {
+    color: var(--bs-light) !important; /* Light text for nav links */
+}
+
+.nav-link.active {
+    color: var(--bs-white) !important; /* Active nav link to be white */
+}
+
+.nav-link:hover {
+    color: var(--bs-link-hover-color) !important; /* Custom hover color for nav links */
+}
+
+.nav-pills{
+    --bs-nav-pills-link-active-bg: var(--bs-primary)
+}
+
+/* --- Button Styles --- */
+/* Overriding Bootstrap buttons to use custom variables */
+/* Note: Using color-mix for dynamic hover color generation.
+   Ensure browser compatibility if targeting older browsers. */
+.btn-primary {
+    --bs-btn-bg: var(--bs-primary);
+    --bs-btn-border-color: var(--bs-primary);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--bs-primary) 80%, black); /* Slightly darker on hover */
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--bs-primary) 80%, black);
+}
+
+.btn-secondary {
+    --bs-btn-bg: var(--bs-secondary);
+    --bs-btn-border-color: var(--bs-secondary);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--bs-secondary) 80%, black);
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--bs-secondary) 80%, black);
+}
+
+.btn-success {
+    --bs-btn-bg: var(--bs-success);
+    --bs-btn-border-color: var(--bs-success);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--bs-success) 80%, black);
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--bs-success) 80%, black);
+}
+
+.btn-danger {
+    --bs-btn-bg: var(--bs-danger);
+    --bs-btn-border-color: var(--bs-danger);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--bs-danger) 80%, black);
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--bs-danger) 80%, black);
+}
+
+.btn-warning {
+    --bs-btn-bg: var(--bs-warning);
+    --bs-btn-border-color: var(--bs-warning);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--bs-warning) 80%, black);
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--bs-warning) 80%, black);
+}
+
+.btn-outline-light {
+    --bs-btn-color: var(--bs-light);
+    --bs-btn-border-color: var(--bs-light);
+    --bs-btn-hover-color: var(--bs-dark);
+    --bs-btn-hover-bg: var(--bs-light);
+    --bs-btn-hover-border-color: var(--bs-light);
+}
+
+/* Adding hover states for other outline buttons */
+.btn-outline-primary {
+    --bs-btn-color: var(--bs-primary);
+    --bs-btn-border-color: var(--bs-primary);
+    --bs-btn-hover-color: var(--bs-white);
+    --bs-btn-hover-bg: var(--bs-primary);
+    --bs-btn-hover-border-color: var(--bs-primary);
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: var(--bs-secondary);
+    --bs-btn-border-color: var(--bs-secondary);
+    --bs-btn-hover-color: var(--bs-white);
+    --bs-btn-hover-bg: var(--bs-secondary);
+    --bs-btn-hover-border-color: var(--bs-secondary);
+}
+
+.btn-outline-success {
+    --bs-btn-color: var(--bs-success);
+    --bs-btn-border-color: var(--bs-success);
+    --bs-btn-hover-color: var(--bs-white);
+    --bs-btn-hover-bg: var(--bs-success);
+    --bs-btn-hover-border-color: var(--bs-success);
+}
+
+.btn-outline-danger {
+    --bs-btn-color: var(--bs-danger);
+    --bs-btn-border-color: var(--bs-danger);
+    --bs-btn-hover-color: var(--bs-white);
+    --bs-btn-hover-bg: var(--bs-danger);
+    --bs-btn-hover-border-color: var(--bs-danger);
+}
+
+.btn-outline-warning {
+    --bs-btn-color: var(--bs-warning);
+    --bs-btn-border-color: var(--bs-warning);
+    --bs-btn-hover-color: var(--bs-dark); /* Warning text usually dark on hover */
+    --bs-btn-hover-bg: var(--bs-warning);
+    --bs-btn-hover-border-color: var(--bs-warning);
+}
+
+.btn-link {
+    --bs-btn-color: var(--bs-primary);
+    --bs-btn-hover-color: color-mix(in srgb, var(--bs-primary) 80%, black); /* Slightly darker on hover */
+}
+
+
+/* --- Alert Styles --- */
+.alert {
+    margin-left: auto; /* Center the alert */
+    margin-right: auto; /* Center the alert */
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+}
+
+.alert-dismissible .btn-close {
+    font-size: 0.8rem;
+    padding: 0.25rem;
+}
+
+.alert-primary { --bs-alert-bg: var(--bs-primary); }
+.alert-secondary { --bs-alert-bg: var(--bs-secondary); }
+.alert-success { --bs-alert-bg: var(--bs-success); }
+.alert-danger { --bs-alert-bg: var(--bs-danger); }
+.alert-warning { --bs-alert-bg: var(--bs-warning); }
+.alert-info { --bs-alert-bg: var(--bs-info); }
+.alert-light { --bs-alert-bg: var(--bs-light); }
+.alert-dark { --bs-alert-bg: var(--bs-dark); }
+
+/* --- Panel Styles (e.g., bg-white shadow rounded-4) --- */
+.bg-white.shadow.rounded-4 {
+    background-color: var(--bs-white) !important;
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important; /* Default Bootstrap shadow */
+    border-radius: 0.5rem !important; /* Default Bootstrap rounded-4 */
+}
+
+/* --- Entrance Layout Background --- */
+.bg-body-secondary {
+    background-color: var(--bs-body-bg-secondary) !important;
+}
+
+/* --- Header Theme Dark --- */
+header[data-bs-theme="dark"] .navbar.bg-body-tertiary {
+    background-color: var(--bs-dark) !important; /* Ensure dark theme applies */
+}
+
+/* You can add more custom styles below */
