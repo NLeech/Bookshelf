@@ -1,12 +1,21 @@
 {% extends 'base.html'  %}
-{% load allauth %}
 
 {% block head_title %}Bookshelf{% endblock %}
 
 {% block content %}
-    {% element h1 %}
-        Bookshelf
-    {% endelement %}
-    <p>Under construction.</p>
+
+   <!-- Search Bar -->
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <form method="get" action="{% url 'library:home' %}" class="d-flex">
+                    {% csrf_token %}
+                    <input type="text" class="form-control me-2" name="q" placeholder="Search books..." required>
+                    <button class="btn btn-primary" type="submit">Search</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
 {% endblock content %}
 
