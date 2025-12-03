@@ -1,58 +1,36 @@
-/*
- * Custom Styles for Bookshelf Project
- *
- * This file is intended for overriding and extending Bootstrap styles.
- * Use CSS variables for colors to allow easy modification of the theme.
- */
 
 /* --- Color Variables --- */
 :root {
-    /*--bs-primary: #0d6efd;      !* Default Bootstrap Primary Blue *!*/
     --bs-primary: #208090;      /* Default Bootstrap Primary Blue */
     --bs-secondary: #6c757d;    /* Default Bootstrap Secondary Gray */
     --bs-success: #198754;      /* Default Bootstrap Success Green */
     --bs-danger: #dc3545;       /* Default Bootstrap Danger Red */
     --bs-warning: #ffc107;      /* Default Bootstrap Warning Yellow */
     --bs-info: #0dcaf0;         /* Default Bootstrap Info Cyan */
-    --bs-light: #f8f9fa;        /* Default Bootstrap Light Gray */
-    --bs-dark: #212529;         /* Default Bootstrap Dark Gray */
+    --bs-light: #fafafa;        /* Default Bootstrap Light Gray */
+    --bs-dark: #1f2121;         /* Default Bootstrap Dark Gray */
     --bs-white: #fff;           /* White */
+    --bs-border-color: #e8e8e8;
 
     /* Custom shades for body backgrounds based on Bootstrap's variables */
     --bs-body-bg-secondary: #e2e6ea; /* A lighter gray for secondary backgrounds */
     --bs-body-bg-tertiary: #d7dbdf;  /* A slightly darker gray for tertiary backgrounds */
 
-    /* Hover colors for links */
-    --bs-link-hover-color: color-mix(in srgb, var(--bs-light) 80%, black); /* Example: using primary color for link hover */
-
 }
 
 /* --- General Body Styles --- */
 body {
-    /* Ensure the body takes full height and uses custom background if needed */
-    background-color: var(--bs-light); /* Example: using a custom light background */
-}
-
-/* --- Navbar Styles --- */
-.navbar {
-    /* Example: Customizing navbar background color */
-    background-color: var(--bs-dark) !important; /* Force dark background for navbar */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .navbar-brand {
-    color: var(--bs-white) !important; /* White brand text */
+    font-weight: 600;
+    font-size: 1.3rem;
 }
 
 .nav-link {
-    color: var(--bs-light) !important; /* Light text for nav links */
-}
-
-.nav-link.active {
-    color: var(--bs-white) !important; /* Active nav link to be white */
-}
-
-.nav-link:hover {
-    color: var(--bs-link-hover-color) !important; /* Custom hover color for nav links */
+    margin: 0 0.5rem;
+    transition: color 0.2s;
 }
 
 .nav-pills{
@@ -175,21 +153,3 @@ body {
 .alert-light { --bs-alert-bg: var(--bs-light); }
 .alert-dark { --bs-alert-bg: var(--bs-dark); }
 
-/* --- Panel Styles (e.g., bg-white shadow rounded-4) --- */
-.bg-white.shadow.rounded-4 {
-    background-color: var(--bs-white) !important;
-    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important; /* Default Bootstrap shadow */
-    border-radius: 0.5rem !important; /* Default Bootstrap rounded-4 */
-}
-
-/* --- Entrance Layout Background --- */
-.bg-body-secondary {
-    background-color: var(--bs-body-bg-secondary) !important;
-}
-
-/* --- Header Theme Dark --- */
-header[data-bs-theme="dark"] .navbar.bg-body-tertiary {
-    background-color: var(--bs-dark) !important; /* Ensure dark theme applies */
-}
-
-/* You can add more custom styles below */
