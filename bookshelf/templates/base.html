@@ -32,13 +32,7 @@
                         <span class="navbar-toggler-icon"></span>
                     </button>
                     <div class="collapse navbar-collapse" id="navbarText">
-                        <ul role="navigation"
-                            aria-label="Project links"
-                            class="navbar-nav me-auto mb-2 mb-lg-0">
-                            <li class="nav-item">
-                                <a class="nav-link active" href="#">API</a>
-                            </li>
-                        </ul>
+                        {% include 'navbar_links.html' %}
                         {% include 'authentication/include/navbar_auth_links.html' %}
                     </div>
                 </div>
