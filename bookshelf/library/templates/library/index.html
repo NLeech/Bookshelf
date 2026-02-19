@@ -3,19 +3,72 @@
 {% block head_title %}Bookshelf{% endblock %}
 
 {% block content %}
+<div class="main-layout-container">
+    <!-- Left Sidebar: Letter Tree -->
+    <aside class="sidebar-pane">
+        <h6 class="text-muted text-uppercase small fw-bold">Select Letter</h6>
+        <ul class="tree-list ps-0">
+            <li class="tree-item fw-bold">A
+                <ul class="tree-list">
+                    <li class="tree-item">Aa</li>
+                    <li class="tree-item">Ab</li>
+                    <li class="tree-item">Ac</li>
+                </ul>
+            </li>
+            <li class="tree-item fw-bold">B
+                <ul class="tree-list">
+                    <li class="tree-item">Ba</li>
+                    <li class="tree-item">Bb</li>
+                </ul>
+            </li>
+            <li class="tree-item fw-bold">C</li>
+            <!-- ... more letters ... -->
+        </ul>
+    </aside>
 
-   <!-- Search Bar -->
-    <div class="container mt-4">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
-                <form method="get" action="{% url 'library:home' %}" class="d-flex">
-                    {% csrf_token %}
-                    <input type="text" class="form-control me-2" name="q" placeholder="Search books..." required>
-                    <button class="btn btn-primary" type="submit">Search</button>
-                </form>
+    <!-- Right Content: Search and Results -->
+    <main class="content-pane position-relative">
+        <!-- Collapse Toggle Button -->
+        <button id="toggle-sidebar-btn" class="btn btn-secondary btn-sm" onclick="toggleSidebar()" title="Toggle Sidebar">
+            &lt;
+        </button>
+
+            <div class="row mb-4">
+                <div class="col-12">
+                    <form method="get" action="{% url 'library:home' %}" class="d-flex">
+                        {% csrf_token %}
+                        <input type="text" class="form-control me-2" name="q" placeholder="Search authors, series, or books..." required>
+                        <button class="btn btn-primary" type="submit">Search</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Placeholder for results -->
+            <div id="results-area">
+{#                <p class="text-muted">Select a letter from the left or search to see results.</p>#}
+                <div style="height: 1000px; background: linear-gradient(to bottom, #eee, #fff);">
+                    <!-- This div is just to demonstrate the independent scrollbar -->
+                    Scroll down to see more content...
+                </div>
             </div>
         </div>
-    </div>
-
+    </main>
+</div>
 {% endblock content %}
+
+{% block extra_body %}
+<script>
+    function toggleSidebar() {
+        const sidebar = document.querySelector('.sidebar-pane');
+        const btn = document.querySelector('#toggle-sidebar-btn');
+        sidebar.classList.toggle('collapsed');
+        
+        if (sidebar.classList.contains('collapsed')) {
+            btn.innerHTML = '&gt;';
+        } else {
+            btn.innerHTML = '&lt;';
+        }
+    }
+</script>
+{% endblock extra_body %}
 
