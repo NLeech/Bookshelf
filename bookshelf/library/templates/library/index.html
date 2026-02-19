@@ -6,23 +6,40 @@
 <div class="main-layout-container">
     <!-- Left Sidebar: Letter Tree -->
     <aside class="sidebar-pane">
-        <h6 class="text-muted text-uppercase small fw-bold">Select Letter</h6>
         <ul class="tree-list ps-0">
-            <li class="tree-item fw-bold">A
-                <ul class="tree-list">
-                    <li class="tree-item">Aa</li>
-                    <li class="tree-item">Ab</li>
-                    <li class="tree-item">Ac</li>
-                </ul>
+            <!-- Letter A -->
+            <li class="tree-item fw-bold">
+                <div class="tree-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#collapseA" aria-expanded="false">
+                    <span class="tree-arrow">▸</span> A
+                </div>
+                <div class="collapse" id="collapseA">
+                    <ul class="tree-list">
+                        <li class="tree-item">Aa</li>
+                        <li class="tree-item">Ab</li>
+                        <li class="tree-item">Ac</li>
+                    </ul>
+                </div>
             </li>
-            <li class="tree-item fw-bold">B
-                <ul class="tree-list">
-                    <li class="tree-item">Ba</li>
-                    <li class="tree-item">Bb</li>
-                </ul>
+
+            <!-- Letter B -->
+            <li class="tree-item fw-bold">
+                <div class="tree-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#collapseB" aria-expanded="false">
+                    <span class="tree-arrow">▸</span> B
+                </div>
+                <div class="collapse" id="collapseB">
+                    <ul class="tree-list">
+                        <li class="tree-item">Ba</li>
+                        <li class="tree-item">Bb</li>
+                    </ul>
+                </div>
             </li>
-            <li class="tree-item fw-bold">C</li>
-            <!-- ... more letters ... -->
+
+            <!-- Letter C (No sub-items for example) -->
+            <li class="tree-item fw-bold">
+                <div class="tree-toggle no-children">
+                    <span class="tree-arrow invisible">▸</span> C
+                </div>
+            </li>
         </ul>
     </aside>
 

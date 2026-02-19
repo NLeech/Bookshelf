@@ -191,6 +191,26 @@ body {
     color: var(--bs-primary);
 }
 
+.tree-toggle {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    user-select: none;
+    padding: 0.2rem 0;
+}
+
+.tree-arrow {
+    display: inline-block;
+    width: 1.5rem;
+    transition: transform 0.2s ease;
+    text-align: center;
+}
+
+/* Rotate the arrow when the target is NOT collapsed */
+.tree-toggle:not(.collapsed) .tree-arrow {
+    transform: rotate(90deg);
+}
+
 /* Collapsible Sidebar Logic */
 .sidebar-pane {
     transition: margin-left 0.3s ease, width 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
