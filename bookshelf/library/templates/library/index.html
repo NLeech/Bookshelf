@@ -4,39 +4,54 @@
 
 {% block content %}
 <div class="main-layout-container">
-    <!-- Left Sidebar: Letter Tree -->
+    <!-- Left Sidebar: Tree -->
     <aside class="sidebar-pane">
         <ul class="tree-list ps-0">
             <!-- Letter A -->
-            <li class="tree-item fw-bold">
-                <div class="tree-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#collapseA" aria-expanded="false">
-                    <span class="tree-arrow">▸</span> A
+            <li>
+                <div class="tree-toggle tree-item">
+                    <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseA" aria-expanded="false" role="button">▸</span>
+                    <a href="#" class="text-decoration-none text-reset">A</a>
                 </div>
                 <div class="collapse" id="collapseA">
                     <ul class="tree-list">
-                        <li class="tree-item">Aa</li>
-                        <li class="tree-item">Ab</li>
-                        <li class="tree-item">Ac</li>
+                        <li>
+                            <div class="tree-item">
+                                <a href="#" class="text-decoration-none text-reset">Aa</a>
+                            </div>
+                        </li>
+                        <li>
+                            <div class="tree-toggle tree-item">
+                                <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseAb" aria-expanded="false" role="button">▸</span>
+                                <a href="#" class="text-decoration-none text-reset">Ab</a>
+                            </div>
+                            <div class="collapse" id="collapseAb">
+                                <ul class="tree-list">
+                                    <li><div class="tree-item fw-normal">Aba</div></li>
+                                    <li><div class="tree-item fw-normal">Abb</div></li>
+                                </ul>
+                            </div>
+                        </li>
                     </ul>
                 </div>
             </li>
 
             <!-- Letter B -->
-            <li class="tree-item fw-bold">
-                <div class="tree-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#collapseB" aria-expanded="false">
-                    <span class="tree-arrow">▸</span> B
+            <li class="fw-bold">
+                <div class="tree-toggle tree-item">
+                    <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseB" aria-expanded="false" role="button">▸</span> B
                 </div>
                 <div class="collapse" id="collapseB">
                     <ul class="tree-list">
-                        <li class="tree-item">Ba</li>
-                        <li class="tree-item">Bb</li>
+                        <li><div class="tree-item fw-normal">Ba</div></li>
+                        <li><div class="tree-item fw-normal">Bb</div></li>
                     </ul>
                 </div>
             </li>
 
-            <!-- Letter C (No sub-items for example) -->
-            <li class="tree-item fw-bold">
-                <div class="tree-toggle no-children">
+            <!-- Letter C -->
+            <li class="fw-bold">
+                <div class="tree-toggle tree-item">
                     <span class="tree-arrow invisible">▸</span> C
                 </div>
             </li>
@@ -68,7 +83,6 @@
                     Scroll down to see more content...
                 </div>
             </div>
-        </div>
     </main>
 </div>
 {% endblock content %}

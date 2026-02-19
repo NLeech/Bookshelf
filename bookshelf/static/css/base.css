@@ -161,7 +161,7 @@ body {
 }
 
 .sidebar-pane {
-    width: 250px;
+    width: 100px;
     height: 100%;
     overflow-y: auto;
     border-right: 1px solid var(--bs-border-color);
@@ -182,9 +182,11 @@ body {
     padding-left: 1rem;
 }
 
+/* tree-item should now be applied only to the clickable label, not the LI container */
 .tree-item {
     cursor: pointer;
     padding: 0.2rem 0;
+    transition: color 0.15s ease;
 }
 
 .tree-item:hover {
@@ -192,11 +194,9 @@ body {
 }
 
 .tree-toggle {
-    cursor: pointer;
     display: flex;
     align-items: center;
     user-select: none;
-    padding: 0.2rem 0;
 }
 
 .tree-arrow {
@@ -206,20 +206,20 @@ body {
     text-align: center;
 }
 
-/* Rotate the arrow when the target is NOT collapsed */
-.tree-toggle:not(.collapsed) .tree-arrow {
+/*!* Rotate the arrow when it is NOT collapsed *!*/
+.tree-arrow:not(.collapsed) {
     transform: rotate(90deg);
 }
 
 /* Collapsible Sidebar Logic */
 .sidebar-pane {
     transition: margin-left 0.3s ease, width 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
-    width: 250px;
+    width: 120px;
     opacity: 1;
 }
 
 .sidebar-pane.collapsed {
-    margin-left: 0px;
+    margin-left: 0;
     width: 0;
     padding-left: 0;
     padding-right: 0;
