@@ -1,0 +1,170 @@
+{% extends 'base.html'  %}
+
+{% block head_title %}Authors{% endblock %}
+
+{% block content %}
+<div class="main-layout-container">
+    <!-- Left Sidebar: Tree -->
+    <aside class="sidebar-pane">
+        <ul class="tree-list ps-0">
+            {% for letter in alphabet %}
+                <div class="tree-toggle tree-item">
+                    <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseA" aria-expanded="false" role="button">▸</span>
+{#                    <a href="#" class="text-decoration-none text-reset">A</a>#}
+                    <button hx-get="{% url 'library:authors_list' %}?filter={{ letter }}"
+                            hx-target="#authors_list"
+                            hx-swap="innerHTML"
+                            class="btn btn-link p-0 border-0 text-decoration-none text-reset">
+                        {{ letter }}
+                    </button>
+                </div>
+                <div class="collapse" id="collapseA">
+                    <ul class="tree-list">
+                        <li>
+                            <div class="tree-item d-flex align-items-center">
+                                <span class="tree-arrow"></span> <!-- Spacer for alignment -->
+                                <a href="#" class="text-decoration-none text-reset">Aa</a>
+                            </div>
+                        </li>
+                        <li>
+                            <div class="tree-toggle tree-item">
+                                <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseAb" aria-expanded="false" role="button">▸</span>
+                                <a href="#" class="text-decoration-none text-reset">Ab</a>
+                            </div>
+                            <div class="collapse" id="collapseAb">
+                                <ul class="tree-list">
+                                    <li>
+                                        <div class="tree-item d-flex align-items-center">
+                                            <span class="tree-arrow"></span>
+                                            <div class="fw-normal">Aba</div>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="tree-item d-flex align-items-center">
+                                            <span class="tree-arrow"></span>
+                                            <div class="fw-normal">Abb</div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            {% endfor %}
+
+{#            <!-- Letter A -->#}
+{#            <li>#}
+{#                <div class="tree-toggle tree-item">#}
+{#                    <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseA" aria-expanded="false" role="button">▸</span>#}
+{#                    <a href="#" class="text-decoration-none text-reset">A</a>#}
+{#                </div>#}
+{#                <div class="collapse" id="collapseA">#}
+{#                    <ul class="tree-list">#}
+{#                        <li>#}
+{#                            <div class="tree-item d-flex align-items-center">#}
+{#                                <span class="tree-arrow"></span> <!-- Spacer for alignment -->#}
+{#                                <a href="#" class="text-decoration-none text-reset">Aa</a>#}
+{#                            </div>#}
+{#                        </li>#}
+{#                        <li>#}
+{#                            <div class="tree-toggle tree-item">#}
+{#                                <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseAb" aria-expanded="false" role="button">▸</span>#}
+{#                                <a href="#" class="text-decoration-none text-reset">Ab</a>#}
+{#                            </div>#}
+{#                            <div class="collapse" id="collapseAb">#}
+{#                                <ul class="tree-list">#}
+{#                                    <li>#}
+{#                                        <div class="tree-item d-flex align-items-center">#}
+{#                                            <span class="tree-arrow"></span>#}
+{#                                            <div class="fw-normal">Aba</div>#}
+{#                                        </div>#}
+{#                                    </li>#}
+{#                                    <li>#}
+{#                                        <div class="tree-item d-flex align-items-center">#}
+{#                                            <span class="tree-arrow"></span>#}
+{#                                            <div class="fw-normal">Abb</div>#}
+{#                                        </div>#}
+{#                                    </li>#}
+{#                                </ul>#}
+{#                            </div>#}
+{#                        </li>#}
+{#                    </ul>#}
+{#                </div>#}
+{#            </li>#}
+{##}
+{#            <!-- Letter B -->#}
+{#            <li class="fw-bold">#}
+{#                <div class="tree-toggle tree-item">#}
+{#                    <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseB" aria-expanded="false" role="button">▸</span> B#}
+{#                </div>#}
+{#                <div class="collapse" id="collapseB">#}
+{#                    <ul class="tree-list">#}
+{#                        <li><div class="tree-item fw-normal">Ba</div></li>#}
+{#                        <li><div class="tree-item fw-normal">Bb</div></li>#}
+{#                    </ul>#}
+{#                </div>#}
+{#            </li>#}
+{##}
+{#            <!-- Letter C -->#}
+{#            <li class="fw-bold">#}
+{#                <div class="tree-toggle tree-item">#}
+{#                    <span class="tree-arrow invisible">▸</span> C#}
+{#                </div>#}
+{#            </li>#}
+        </ul>
+    </aside>
+
+    <!-- Right Content: Authors -->
+    <main class="content-pane position-relative">
+        <!-- Collapse Toggle Button -->
+        <button id="toggle-sidebar-btn" class="btn btn-secondary btn-sm" onclick="toggleSidebar()" title="Toggle Sidebar">
+            &lt;
+        </button>
+
+        <!-- Search Form -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <form method="get" action="{% url 'library:home' %}" class="d-flex">
+                    {% csrf_token %}
+                    <input type="text" class="form-control me-2" name="q" placeholder="Search authors, series, or books..." required>
+                    <button class="btn btn-primary" type="submit">Search</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Placeholder for results -->
+        <div id="authors_list">
+            {% partialdef authors_list-result inline %}
+                <ul>
+                    {% for author in authors %}
+                        <li>{{ author }}</li>
+                    {% empty %}
+                        <li>No authors found.</li>
+                    {% endfor %}
+                </ul>
+            {% endpartialdef authors_list-result%}
+{#            <div style="height: 1000px; background: linear-gradient(to bottom, #eee, #fff);">#}
+{#                <!-- This div is just to demonstrate the independent scrollbar -->#}
+{#                Scroll down to see more content...#}
+{#            </div>#}
+        </div>
+    </main>
+</div>
+{% endblock content %}
+
+{% block extra_body %}
+<script>
+    function toggleSidebar() {
+        const sidebar = document.querySelector('.sidebar-pane');
+        const btn = document.querySelector('#toggle-sidebar-btn');
+        sidebar.classList.toggle('collapsed');
+        
+        if (sidebar.classList.contains('collapsed')) {
+            btn.innerHTML = '&gt;';
+        } else {
+            btn.innerHTML = '&lt;';
+        }
+    }
+</script>
+{% endblock extra_body %}
+
