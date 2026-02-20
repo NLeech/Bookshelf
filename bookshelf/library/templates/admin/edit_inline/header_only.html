@@ -1,0 +1,27 @@
+{% load i18n admin_urls %}
+<div class="inline-group" id="{{ inline_admin_formset.formset.prefix }}-group">
+  <h2>{{ inline_admin_formset.opts.verbose_name_plural|capfirst }}</h2>
+{{ inline_admin_formset.formset.management_form }}
+{{ inline_admin_formset.formset.non_form_errors }}
+
+{% for inline_admin_form in inline_admin_formset %}
+    <div class="inline-related{% if inline_admin_form.original or inline_admin_form.show_empty_form %} has_original{% endif %}{% if forloop.last and inline_admin_formset.has_add_permission %} last-related{% endif %}" id="{{ inline_admin_formset.formset.prefix }}-{% if not forloop.last %}{{ forloop.counter0 }}{% else %}empty{% endif %}">
+      <h3>
+          <span class="inline_label">
+              {% if inline_admin_form.original %}{{ inline_admin_form.original }}
+                  {% if inline_admin_formset.opts.show_change_link and inline_admin_form.model_admin.has_registered_model %}
+                      <a href="{% url inline_admin_form.model_admin.opts|admin_urlname:'change' inline_admin_form.original.pk|admin_urlquote %}" class="inlinechangelink">{% translate "Change" %}</a>
+                  {% endif %}
+              {% endif %}
+          </span>
+      </h3>
+      {% for fieldset in inline_admin_form %}
+        {% for line in fieldset %}
+            {% for field in line %}
+                {% if field.field.is_hidden %} {{ field.field }} {% endif %}
+            {% endfor %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+{% endfor %}
+</div>
