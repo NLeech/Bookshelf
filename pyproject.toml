@@ -3,7 +3,7 @@ name = "bookshelf"
 version = "0.0.1"
 description = "Online library with OPDS support"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "crispy-bootstrap5>=2025.6",
     "cryptography>=46.0.5",
