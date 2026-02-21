@@ -9,16 +9,17 @@
         <ul class="tree-list ps-0">
             {% for letter in alphabet %}
                 <div class="tree-toggle tree-item">
-                    <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseA" aria-expanded="false" role="button">▸</span>
+                    <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapse{{ letter }}" aria-expanded="false" role="button">▸</span>
 {#                    <a href="#" class="text-decoration-none text-reset">A</a>#}
                     <button hx-get="{% url 'library:authors_list' %}?filter={{ letter }}"
                             hx-target="#authors_list"
                             hx-swap="innerHTML"
+{#                            hx-swap="outerHTML"#}
                             class="btn btn-link p-0 border-0 text-decoration-none text-reset">
                         {{ letter }}
                     </button>
                 </div>
-                <div class="collapse" id="collapseA">
+                <div class="collapse" id="collapse{{ letter }}">
                     <ul class="tree-list">
                         <li>
                             <div class="tree-item d-flex align-items-center">
@@ -132,21 +133,32 @@
             </div>
         </div>
 
-        <!-- Placeholder for results -->
-        <div id="authors_list">
+        <div id="authors_list_container">
+            <ul id="authors_list" class="list-unstyled">
             {% partialdef authors_list-result inline %}
-                <ul>
-                    {% for author in authors %}
-                        <li>{{ author }}</li>
-                    {% empty %}
-                        <li>No authors found.</li>
-                    {% endfor %}
-                </ul>
+
+                {% for author in page_obj %}
+                    <li class="py-1 border-bottom">{{ author }}</li>
+                {% empty %}
+                        No authors found.
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <li
+                        hx-get="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ page_obj.next_page_number }}"
+                        hx-trigger="intersect threshold:1.0"
+                        hx-swap="outerHTML"
+                        class="loading-indicator list-group-item border-0 text-center py-4"
+                    >
+                        <div class="d-flex justify-content-center align-items-center text-primary">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            <span>Loading more authors...</span>
+                        </div>
+                    </li>
+                {% endif %}
+
             {% endpartialdef authors_list-result%}
-{#            <div style="height: 1000px; background: linear-gradient(to bottom, #eee, #fff);">#}
-{#                <!-- This div is just to demonstrate the independent scrollbar -->#}
-{#                Scroll down to see more content...#}
-{#            </div>#}
+            </ul>
         </div>
     </main>
 </div>
