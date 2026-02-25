@@ -4,12 +4,14 @@
             {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" 
+                       href="{% url 'library:authors_list' %}?filter={{ filter }}&page=1"
                        hx-get="{% url 'library:authors_list' %}?filter={{ filter }}&page=1"
                        hx-target="#authors_list"
                        hx-swap="innerHTML">&laquo; First</a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" 
+                       href="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ page_obj.previous_page_number }}"
                        hx-get="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ page_obj.previous_page_number }}"
                        hx-target="#authors_list"
                        hx-swap="innerHTML">Previous</a>
@@ -32,6 +34,7 @@
                 {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                     <li class="page-item">
                         <a class="page-link" 
+                           href="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ num }}"
                            hx-get="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ num }}"
                            hx-target="#authors_list"
                            hx-swap="innerHTML">{{ num }}</a>
@@ -39,6 +42,7 @@
                 {% elif num == 1 or num == page_obj.paginator.num_pages %}
                     <li class="page-item">
                         <a class="page-link" 
+                           href="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ num }}"
                            hx-get="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ num }}"
                            hx-target="#authors_list"
                            hx-swap="innerHTML">{{ num }}</a>
@@ -53,12 +57,14 @@
             {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" 
+                       href="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ page_obj.next_page_number }}"
                        hx-get="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ page_obj.next_page_number }}"
                        hx-target="#authors_list"
                        hx-swap="innerHTML">Next</a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" 
+                       href="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ page_obj.paginator.num_pages }}"
                        hx-get="{% url 'library:authors_list' %}?filter={{ filter }}&page={{ page_obj.paginator.num_pages }}"
                        hx-target="#authors_list"
                        hx-swap="innerHTML">Last &raquo;</a>
