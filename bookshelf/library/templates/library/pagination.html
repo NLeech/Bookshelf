@@ -79,11 +79,27 @@
             {% endif %}
 
             <li class="page-item">
-                <button type="button" class="btn btn-link page-link"
-                        data-bs-toggle="modal"
-                        data-bs-target="#jumpToPageModal">
-                    Jump to Page
-                </button>
+                <div class="jump-to-page-container" style="position: relative; display: inline-block;">
+                    <button type="button"
+                            id="jump-to-page-btn"
+                            class="btn btn-link page-link"
+                            onclick="document.getElementById('jump-to-page-dialog').style.display = document.getElementById('jump-to-page-dialog').style.display === 'block' ? 'none' : 'block'">
+                        Jump to Page
+                    </button>
+
+                    <div id="jump-to-page-dialog" class="jump-to-page-dialog" style="display: none; position: absolute; top: 100%; left: 0; margin-top: 5px; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 1000;">
+                        <form hx-get="{% url 'library:authors_list' %}"
+                              hx-target="#authors_list"
+                              hx-swap="innerHTML">
+                            {% csrf_token %}
+                            <input type="hidden" name="filter" value="{{ filter }}">
+                            <div style="display: flex; gap: 5px;">
+                                <input type="number" name="page" class="form-control" placeholder="Page number" style="width: 100px;">
+                                <button type="submit" class="btn btn-primary btn-sm">OK</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </li>
         </ul>
     </nav>
