@@ -1,9 +1,9 @@
 import logging
+from collections import defaultdict
 from dataclasses import dataclass, field
-from sys import prefix
 
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Case, When, Value, CharField
 from django.db.models.functions import Left, Lower
 
 from third_party_libraries.models import FlibustaAuthor, FlibustaGenre
@@ -30,54 +30,118 @@ class AlphabetTree:
 def get_alphabet_tree() -> AlphabetTree:
     """
     Get a tree structure for storing authors grouped by the first letters of their last names.
+    Optimized to use a single database query for the entire tree structure.
     :return: the root of the tree
     """
+    min_quantity = 50
+
+    # Single query to get all prefix counts up to MAX_TREE_DEPTH for each category
+    counts = (
+        Author.objects
+        .annotate(
+            category=Case(
+                When(last_name__regex=r'^[[:alpha:]]', then=Value('alpha')),
+                When(last_name__regex=r'^[0-9]', then=Value('digit')),
+                default=Value('other'),
+                output_field=CharField(),
+            ),
+            prefix=Left(Lower('last_name'), MAX_TREE_DEPTH)
+        )
+        .values('category', 'prefix')
+        .annotate(authors_quantity=Count('id'))
+    )
+
+    # Intermediate storage for aggregation
+    # p1 -> {total: N, star: N, sub: {p2: {total: N, star: N, sub: {p3: count}}}}
+    level1_data = defaultdict(lambda: {
+        'total': 0,
+        'star': 0,
+        'sub': defaultdict(lambda: {
+            'total': 0,
+            'star': 0,
+            'sub': defaultdict(int)
+        })
+    })
+
+    digit_count = 0
+    other_count = 0
+
+    for item in counts:
+        category = item['category']
+        prefix = item['prefix']
+        quantity = item['authors_quantity']
+
+        if not prefix:
+            other_count += quantity
+            continue
+
+        if category == 'alpha':
+            p1 = prefix[0]
+            level1_data[p1]['total'] += quantity
+
+            if len(prefix) > 1 and prefix[1].isalpha():
+                p2 = prefix[:2]
+                level1_data[p1]['sub'][p2]['total'] += quantity
+
+                if len(prefix) > 2 and prefix[2].isalpha():
+                    p3 = prefix[:3]
+                    level1_data[p1]['sub'][p2]['sub'][p3] += quantity
+                else:
+                    level1_data[p1]['sub'][p2]['star'] += quantity
+            else:
+                level1_data[p1]['star'] += quantity
+        elif category == 'digit':
+            digit_count += quantity
+        else:
+            other_count += quantity
 
     root = AlphabetTree(name='')
 
-    # first level -
-    # by the first letter of the last name
-    results = (
-        Author.objects
-        .filter(last_name__regex=r'^[[:alpha:]]')
-        .annotate(name = Left(Lower('last_name'), 1))
-        .values('name')
-        .annotate(authors_quantity=Count('id'))
-        .order_by('name')
-    )
-    root.entries.extend(
-        [
-            AlphabetTree(name=result['name'], authors_quantity=result['authors_quantity']) for result in results
-        ]
-    )
+    # Build the tree from aggregated data
+    for p1 in sorted(level1_data.keys()):
+        data1 = level1_data[p1]
+        node1 = AlphabetTree(name=p1, authors_quantity=data1['total'])
+        root.entries.append(node1)
 
-    populate_branches(tree=root, level=2)
+        if node1.authors_quantity > min_quantity:
+            # Expand to level 2
+            for p2 in sorted(data1['sub'].keys()):
+                data2 = data1['sub'][p2]
+                node2 = AlphabetTree(name=p2, authors_quantity=data2['total'])
+                node1.entries.append(node2)
 
-    # digits and other symbols are at the end of the list
-    result = (
-        Author.objects
-        .filter(last_name__regex=r'^[0-9]')
-        .count()
-    )
+                if node2.authors_quantity > min_quantity:
+                    # Expand to level 3
+                    for p3 in sorted(data2['sub'].keys()):
+                        node3 = AlphabetTree(name=p3, authors_quantity=data2['sub'][p3])
+                        node2.entries.append(node3)
 
-    if result > 0:
+                    if data2['star'] > 0:
+                        node2.entries.append(AlphabetTree(
+                            name=p2 + '*',
+                            regex=fr'^{p2}([^[:alpha:]].*)?$',
+                            authors_quantity=data2['star']
+                        ))
+
+            if data1['star'] > 0:
+                node1.entries.append(AlphabetTree(
+                    name=p1 + '*',
+                    regex=fr'^{p1}([^[:alpha:]].*)?$',
+                    authors_quantity=data1['star']
+                ))
+
+    if digit_count > 0:
         root.entries.append(AlphabetTree(
             name='0-9',
             regex=r'^[0-9]',
-            authors_quantity=result,
+            authors_quantity=digit_count,
         ))
 
-    result = (
-        Author.objects
-        .filter(last_name__regex=r'^[^[:alpha:][:digit:]]')
-        .count()
-    )
-
-    if result > 0:
+    if other_count > 0:
         root.entries.append(AlphabetTree(
             name='Other symbols',
             regex=r'^[^[:alpha:][:digit:]]',
-            authors_quantity=result,
+            authors_quantity=other_count,
         ))
 
     return root
@@ -86,12 +150,7 @@ def get_alphabet_tree() -> AlphabetTree:
 def populate_branches(tree: AlphabetTree, level: int, min_quantity: int = 50) -> None:
     """
     Populate the branches of the tree with authors grouped by the first letters of their last names.
-    :param tree: the tree to populate
-    :param level: the level of the tree to populate (2 - by the first two letters, etc.)
-    :param min_quantity: the minimum quantity of authors in a branch to populate it with sub-branches.
-            If the quantity of authors in a branch is less than min_quantity,
-            the branch will not be populated with sub-branches.
-            This is done to avoid creating too many branches with a small number of authors in them.
+    This function is maintained for backward compatibility. New code should use get_alphabet_tree.
     """
     for element in tree.entries:
         if element.authors_quantity > min_quantity:
@@ -114,7 +173,6 @@ def populate_branches(tree: AlphabetTree, level: int, min_quantity: int = 50) ->
                 populate_branches(element, level + 1, min_quantity)
 
             # other symbols or nothing after the first letters
-            # regex = r'^' + element.name + r'[^[:alpha:]]?'
             regex = r'^' + element.name + r'([^[:alpha:]].*)?$'
             result = (
                 Author.objects
