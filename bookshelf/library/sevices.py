@@ -24,7 +24,7 @@ class AlphabetTree:
         return f'{self.name.capitalize()}'
 
 
-def recursive_defaultdict(depth: int) -> defaultdict:
+def _recursive_defaultdict(depth: int) -> defaultdict:
     """
     Create a recursive defaultdict for storing the tree structure.
     :param depth: depth of the tree (number of levels)
@@ -40,17 +40,26 @@ def recursive_defaultdict(depth: int) -> defaultdict:
     return defaultdict(lambda: {
         'total': 0,
         'star': 0,
-        'sub': recursive_defaultdict(depth - 1)
+        'sub': _recursive_defaultdict(depth - 1)
     })
 
 
-def add_prefix_level(prev_level: defaultdict, prefix: str, quantity: int, level: int, max_level) -> None:
+def _add_prefix_level(prev_level: defaultdict, prefix: str, quantity: int, level: int, max_level) -> None:
+    """
+    Recursively make the tree structure for a given prefix and quantity.
+    :param prev_level:  the level of the tree to which the prefix should be added
+    :param prefix:  full prefix of the last name (up to max_level characters) for which the quantity is calculated
+    :param quantity: quantity of authors with the given prefix
+    :param level: level of the tree to which the prefix should be added (starting from 2)
+    :param max_level:
+    :return:
+    """
     current_prefix = prefix[:level]
     prev_level['sub'][current_prefix]['total'] += quantity
 
     if len(prefix) > level and prefix[level].isalpha():
         if level < max_level:
-            add_prefix_level(prev_level['sub'][current_prefix] , prefix, quantity, level + 1, max_level)
+            _add_prefix_level(prev_level['sub'][current_prefix], prefix, quantity, level + 1, max_level)
     else:
         prev_level['sub'][current_prefix]['star'] += quantity
 
@@ -98,7 +107,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> Alphab
     )
 
     # Intermediate storage for aggregation
-    level1_data = recursive_defaultdict(max_tree_depth)
+    level1_data = _recursive_defaultdict(max_tree_depth)
 
     digit_count = 0
     other_count = 0
@@ -118,7 +127,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> Alphab
             level1_data[p1]['total'] += quantity
 
             if len(prefix) > 1 and prefix[1].isalpha():
-                add_prefix_level(level1_data[p1], prefix, quantity, 2, max_tree_depth)
+                _add_prefix_level(level1_data[p1], prefix, quantity, 2, max_tree_depth)
             else:
                 level1_data[p1]['star'] += quantity
         elif category == 'digit':
