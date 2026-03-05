@@ -113,7 +113,7 @@ class GetAlphabetTreeTest(TestCase):
         Author.objects.bulk_create(extra_authors)
         
         # min_quantity=5 should trigger expansion of 'a' and 'ab'
-        root = get_alphabet_tree(min_quantity=5)
+        root = get_alphabet_tree(max_tree_depth=3, min_quantity=5)
         
         a_node = next(e for e in root.entries if e.name == 'a')
         ab_node = next(e for e in a_node.entries if e.name == 'ab')
