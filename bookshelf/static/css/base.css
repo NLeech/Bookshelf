@@ -214,7 +214,7 @@ body {
 /* Collapsible Sidebar Logic */
 .sidebar-pane {
     transition: margin-left 0.3s ease, width 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
-    width: 120px;
+    width: 200px;
     opacity: 1;
 }
 
@@ -236,4 +236,3 @@ body {
     border-radius: 0 5px 5px 0;
     padding: 10px 5px;
 }
-

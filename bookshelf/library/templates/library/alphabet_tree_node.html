@@ -1,0 +1,33 @@
+{% for node in nodes %}
+    {% with counter_str=forloop.counter|stringformat:"s" %}
+    {% with current_id=id_prefix|default:"node"|add:"-"|add:counter_str %}
+    <div class="tree-toggle tree-item">
+        {% if node.entries %}
+            <span class="tree-arrow collapsed"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#collapse{{ current_id }}"
+                  aria-expanded="false"
+                  role="button">▸
+            </span>
+
+        {% else %}
+            <span class="tree-arrow invisible">▸</span>
+        {% endif %}
+
+        <button hx-get="{% url 'library:authors_list' %}?{% if node.regex %}regex={{ node.regex|urlencode }}{% else %}filter={{ node.name|urlencode }}{% endif %}"
+                hx-target="#authors_list"
+                hx-swap="innerHTML"
+                class="btn btn-link p-0 border-0 text-decoration-none text-reset">
+            {{ node.name }} ({{ node.authors_quantity }})
+        </button>
+    </div>
+    {% if node.entries %}
+        <div class="collapse" id="collapse{{ current_id }}">
+            <ul class="tree-list">
+                {% include "library/alphabet_tree_node.html" with nodes=node.entries id_prefix=current_id %}
+            </ul>
+        </div>
+    {% endif %}
+    {% endwith %}
+    {% endwith %}
+{% endfor %}

@@ -5,6 +5,7 @@ from django.views import generic
 from django.conf import settings
 
 from .models import Author
+from .sevices import get_alphabet_tree
 
 # Create your views here.
 class HomePageView(generic.TemplateView):
@@ -19,15 +20,22 @@ class AuthorListView(generic.ListView):
 
     def get_queryset(self):
         filter_string = self.request.GET.get('filter', '')
-        if filter_string:
-            return Author.objects.filter(last_name__startswith=filter_string).prefetch_related('books')
-        else:
-            return Author.objects.prefetch_related('books')
+        regex_string = self.request.GET.get('regex', '')
+
+        qs = Author.objects.prefetch_related('books')
+
+        if regex_string:
+            return qs.filter(last_name__iregex=regex_string)
+        elif filter_string:
+            return qs.filter(last_name__istartswith=filter_string)
+
+        return qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['alphabet'] = string.ascii_uppercase
+        context['alphabet_tree'] = get_alphabet_tree()
         context['filter'] = self.request.GET.get('filter', '')
+        context['regex'] = self.request.GET.get('regex', '')
         return context
 
     def render_to_response(self, context, **response_kwargs):
