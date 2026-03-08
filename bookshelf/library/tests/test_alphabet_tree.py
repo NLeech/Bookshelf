@@ -126,23 +126,29 @@ class GetAlphabetTreeTest(TestCase):
         ab_star_node = next(e for e in ab_node.entries if e.name == 'ab*')
         self.assertEqual(ab_star_node.authors_quantity, 4) # 'Ab', 'Ab ', 'Ab1', 'Ab!'
 
-    def test_max_tree_depth_limit(self):
+    @parameterized.expand([
+        (1, ['a']),
+        (2, ['a', 'aa']),
+        (3, ['a', 'aa', 'aaa']),
+        (4, ['a', 'aa', 'aaa', 'aaaa']),
+        (0, ['a']),   # Should default to 1
+        (-1, ['a']),  # Should default to 1
+    ])
+    def test_different_tree_depths(self, max_depth, expected_path):
         """
-        Test that the tree does not expand beyond max_tree_depth.
+        Test that the tree expands exactly up to max_tree_depth for various values.
         """
-        # Level 1: 'a'
-        # Level 2: 'aa'
-        # Level 3: 'aaa'
-        # Level 4: 'aaaa' (should NOT be created if max_tree_depth=3)
-        authors = [Author(last_name=f'Aaaa{i}') for i in range(10)]
+        # Create authors with long last names to ensure expansion is possible
+        authors = [Author(last_name=f'Aaaaaa{i}') for i in range(10)]
         Author.objects.bulk_create(authors)
-        
-        root = get_alphabet_tree(max_tree_depth=3, min_quantity=2)
-        
-        a_node = next(e for e in root.entries if e.name == 'a')
-        aa_node = next(e for e in a_node.entries if e.name == 'aa')
-        aaa_node = next(e for e in aa_node.entries if e.name == 'aaa')
-        
-        # aaa_node should have NO children because depth limit is reached
-        self.assertEqual(len(aaa_node.entries), 0)
-        self.assertEqual(aaa_node.authors_quantity, 10)
+
+        root = get_alphabet_tree(max_tree_depth=max_depth, min_quantity=2)
+
+        current_node = root
+        for node_name in expected_path:
+            node_names = [e.name for e in current_node.entries]
+            self.assertIn(node_name, node_names, f"Node '{node_name}' not found in {node_names} for max_depth={max_depth}")
+            current_node = next(e for e in current_node.entries if e.name == node_name)
+
+        # Verify that the last node in the path has no children because depth limit is reached
+        self.assertEqual(len(current_node.entries), 0, f"Node '{current_node.name}' should have no children for max_depth={max_depth}")

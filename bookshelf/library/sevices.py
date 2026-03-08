@@ -64,6 +64,31 @@ def _add_prefix_level(prev_level: defaultdict, prefix: str, quantity: int, level
         prev_level['sub'][current_prefix]['star'] += quantity
 
 
+def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict, min_quantity: int) -> None:
+    """
+    Recursively build the alphabet tree from aggregated prefix data.
+    :param parent: the parent node to attach children to
+    :param prefix: the current prefix string for this node
+    :param data: dict with 'total', 'star', and optionally 'sub' keys
+    :param min_quantity: threshold above which a node is expanded further
+    """
+    node = AlphabetTree(name=prefix, authors_quantity=data['total'])
+    parent.entries.append(node)
+
+    if node.authors_quantity <= min_quantity or 'sub' not in data:
+        return
+
+    for sub_prefix in sorted(data['sub'].keys()):
+        _build_tree_node(node, sub_prefix, data['sub'][sub_prefix], min_quantity)
+
+    if data['star'] > 0:
+        node.entries.append(AlphabetTree(
+            name=prefix + '*',
+            regex=fr'^{prefix}([^[:alpha:]].*)?$',
+            authors_quantity=data['star']
+        ))
+
+
 def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> AlphabetTree:
     """
     Get a tree structure for storing authors grouped by the first letters of their last names.
@@ -139,36 +164,8 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> Alphab
 
     # Build the tree from aggregated data
     for p1 in sorted(level1_data.keys()):
-        data1 = level1_data[p1]
-        node1 = AlphabetTree(name=p1, authors_quantity=data1['total'])
-        root.entries.append(node1)
+        _build_tree_node(root, p1, level1_data[p1], min_quantity)
 
-        if node1.authors_quantity > min_quantity:
-            # Expand to level 2
-            for p2 in sorted(data1['sub'].keys()):
-                data2 = data1['sub'][p2]
-                node2 = AlphabetTree(name=p2, authors_quantity=data2['total'])
-                node1.entries.append(node2)
-
-                if node2.authors_quantity > min_quantity:
-                    # Expand to level 3
-                    for p3 in sorted(data2['sub'].keys()):
-                        node3 = AlphabetTree(name=p3, authors_quantity=data2['sub'][p3]['total'])
-                        node2.entries.append(node3)
-
-                    if data2['star'] > 0:
-                        node2.entries.append(AlphabetTree(
-                            name=p2 + '*',
-                            regex=fr'^{p2}([^[:alpha:]].*)?$',
-                            authors_quantity=data2['star']
-                        ))
-
-            if data1['star'] > 0:
-                node1.entries.append(AlphabetTree(
-                    name=p1 + '*',
-                    regex=fr'^{p1}([^[:alpha:]].*)?$',
-                    authors_quantity=data1['star']
-                ))
 
     if digit_count > 0:
         root.entries.append(AlphabetTree(
