@@ -45,21 +45,37 @@ class GetAlphabetTreeTest(TestCase):
     def test_low_quantity_alpha_moved_to_other(self):
         """
         Test that alpha nodes with quantity < min_first_level_quantity are moved to 'other'.
+        Check that high-quantity nodes stay at root and other_node regex is properly constructed.
         """
-        Author.objects.create(last_name='Abbott') # 1 'a'
-        Author.objects.create(last_name='Zebra')  # 1 'z'
-        
-        # min_first_level_quantity=2 should move both to 'other'
+        # Create high-quantity prefix 'b' (3 authors)
+        Author.objects.create(last_name='Baker')
+        Author.objects.create(last_name='Brown')
+        Author.objects.create(last_name='Bell')
+
+        # Create low-quantity prefixes 'a' and 'z' (1 author each)
+        Author.objects.create(last_name='Abbott')
+        Author.objects.create(last_name='Zebra')
+
+        # Create non-alpha
+        Author.objects.create(last_name='!@#')
+
+        # min_first_level_quantity=2: 'b' should stay at root, 'a' and 'z' should move to 'other'
         root = get_alphabet_tree(min_first_level_quantity=2)
-        
-        # Root should only contain 'other' (since no high-quantity nodes)
-        names = [e.name for e in root.entries]
-        self.assertEqual(names, ['other'])
-        
-        other_node = root.entries[0]
+
+        root_names = [e.name for e in root.entries]
+        self.assertIn('b', root_names)
+        self.assertIn('other', root_names)
+        self.assertNotIn('a', root_names)
+        self.assertNotIn('z', root_names)
+
+        other_node = next(e for e in root.entries if e.name == 'other')
         child_names = [e.name for e in other_node.entries]
         self.assertIn('a', child_names)
         self.assertIn('z', child_names)
+        self.assertIn('* (all non-alpha last names)', child_names)
+
+        # Check regex: should include non-alpha pattern AND the moved prefixes
+        self.assertEqual(other_node.regex, '^([^[:alpha:][:digit:]]|a|z)')
 
     def test_digits_always_at_root(self):
         """

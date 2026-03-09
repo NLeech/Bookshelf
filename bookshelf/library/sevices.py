@@ -183,12 +183,21 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
         other_node.authors_quantity += other_count
 
     # Alpha nodes: high-quantity go to root, low-quantity go to other_node
+    moved_prefixes = []
     for p1 in sorted(level1_data.keys()):
         if level1_data[p1]['total'] >= min_first_level_quantity:
             _build_tree_node(root, p1, level1_data[p1], min_quantity)
         else:
             _build_tree_node(other_node, p1, level1_data[p1], min_quantity)
             other_node.authors_quantity += level1_data[p1]['total']
+            moved_prefixes.append(p1)
+
+    if moved_prefixes:
+        prefixes_pattern = '|'.join(moved_prefixes)
+        other_node.regex = fr'^([^[:alpha:][:digit:]]|{prefixes_pattern})'
+    else:
+        other_node.regex = r'^[^[:alpha:][:digit:]]'
+
 
     if digit_count > 0:
         root.entries.append(AlphabetTree(
