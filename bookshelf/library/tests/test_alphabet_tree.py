@@ -29,16 +29,19 @@ class GetAlphabetTreeTest(TestCase):
         
         self.assertIn('a', names)
         self.assertIn('0-9', names)
-        self.assertIn('Other symbols', names)
+        self.assertIn('Other', names)
         
         a_node = next(e for e in root.entries if e.name == 'a')
         self.assertEqual(a_node.authors_quantity, 1)
+        self.assertEqual(a_node.filter, 'a')
         
         digit_node = next(e for e in root.entries if e.name == '0-9')
         self.assertEqual(digit_node.authors_quantity, 1)
+        self.assertEqual(digit_node.filter, '')
         
-        other_node = next(e for e in root.entries if e.name == 'Other symbols')
+        other_node = next(e for e in root.entries if e.name == 'Other')
         self.assertEqual(other_node.authors_quantity, 1)
+        self.assertEqual(other_node.filter, '')
 
     def test_case_insensitivity(self):
         """
@@ -50,6 +53,7 @@ class GetAlphabetTreeTest(TestCase):
         root = get_alphabet_tree()
         self.assertEqual(len(root.entries), 1)
         self.assertEqual(root.entries[0].name, 'a')
+        self.assertEqual(root.entries[0].filter, 'a')
         self.assertEqual(root.entries[0].authors_quantity, 2)
 
     @parameterized.expand([
@@ -70,6 +74,7 @@ class GetAlphabetTreeTest(TestCase):
             self.assertGreater(len(a_node.entries), 0)
             aa_node = next(e for e in a_node.entries if e.name == 'aa')
             self.assertEqual(aa_node.authors_quantity, total_authors)
+            self.assertEqual(aa_node.filter, 'aa')
         else:
             self.assertEqual(len(a_node.entries), 0)
 
@@ -98,6 +103,7 @@ class GetAlphabetTreeTest(TestCase):
         
         aaa_node = next(e for e in aa_node.entries if e.name == 'aaa')
         self.assertEqual(aaa_node.authors_quantity, 3)
+        self.assertEqual(aaa_node.filter, 'aaa')
 
     def test_star_nodes(self):
         """
@@ -125,16 +131,17 @@ class GetAlphabetTreeTest(TestCase):
         
         ab_star_node = next(e for e in ab_node.entries if e.name == 'ab*')
         self.assertEqual(ab_star_node.authors_quantity, 4) # 'Ab', 'Ab ', 'Ab1', 'Ab!'
+        self.assertEqual(ab_star_node.filter, '')
 
     @parameterized.expand([
-        (1, ['a']),
-        (2, ['a', 'aa']),
-        (3, ['a', 'aa', 'aaa']),
-        (4, ['a', 'aa', 'aaa', 'aaaa']),
-        (0, ['a']),   # Should default to 1
-        (-1, ['a']),  # Should default to 1
+        (1, ['a'], ['a']),
+        (2, ['a', 'aa'], ['a', 'aa']),
+        (3, ['a', 'aa', 'aaa'], ['a', 'aa', 'aaa']),
+        (4, ['a', 'aa', 'aaa', 'aaaa'], ['a', 'aa', 'aaa', 'aaaa']),
+        (0, ['a'], ['a']),   # Should default to 1
+        (-1, ['a'], ['a']),  # Should default to 1
     ])
-    def test_different_tree_depths(self, max_depth, expected_path):
+    def test_different_tree_depths(self, max_depth, expected_names, expected_filters):
         """
         Test that the tree expands exactly up to max_tree_depth for various values.
         """
@@ -145,10 +152,11 @@ class GetAlphabetTreeTest(TestCase):
         root = get_alphabet_tree(max_tree_depth=max_depth, min_quantity=2)
 
         current_node = root
-        for node_name in expected_path:
+        for node_name, node_filter in zip(expected_names, expected_filters):
             node_names = [e.name for e in current_node.entries]
             self.assertIn(node_name, node_names, f"Node '{node_name}' not found in {node_names} for max_depth={max_depth}")
             current_node = next(e for e in current_node.entries if e.name == node_name)
+            self.assertEqual(current_node.filter, node_filter)
 
         # Verify that the last node in the path has no children because depth limit is reached
         self.assertEqual(len(current_node.entries), 0, f"Node '{current_node.name}' should have no children for max_depth={max_depth}")
