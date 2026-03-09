@@ -14,7 +14,7 @@
             <span class="tree-arrow invisible">▸</span>
         {% endif %}
 
-        <button hx-get="{% url 'library:authors_list' %}?{% if node.regex %}regex={{ node.regex|urlencode }}{% else %}filter={{ node.name|urlencode }}{% endif %}"
+        <button hx-get="{% url 'library:authors_list' %}?{% if node.regex %}regex={{ node.regex|urlencode }}{% else %}filter={{ node.filter|urlencode }}{% endif %}"
                 hx-target="#authors_list"
                 hx-swap="innerHTML"
                 class="btn btn-link p-0 border-0 text-decoration-none text-reset">

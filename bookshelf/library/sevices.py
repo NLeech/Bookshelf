@@ -16,6 +16,7 @@ class AlphabetTree:
     A tree structure for storing authors grouped by the first letters of their last names.
     """
     name: str = field(compare=True)
+    filter: str = field(default='', compare=False, repr=True)
     regex: str = field(default='', compare=False, repr=False)
     authors_quantity: int = field(default=0, compare=False, repr=True)
     entries: list['AlphabetTree'] = field(default_factory=list, compare=False, repr=False)
@@ -72,7 +73,7 @@ def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict, min_quantity
     :param data: dict with 'total', 'star', and optionally 'sub' keys
     :param min_quantity: threshold above which a node is expanded further
     """
-    node = AlphabetTree(name=prefix, authors_quantity=data['total'])
+    node = AlphabetTree(name=prefix, filter=prefix, authors_quantity=data['total'])
     parent.entries.append(node)
 
     if node.authors_quantity <= min_quantity or 'sub' not in data:
@@ -84,6 +85,7 @@ def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict, min_quantity
     if data['star'] > 0:
         node.entries.append(AlphabetTree(
             name=prefix + '*',
+            filter='',
             regex=fr'^{prefix}([^[:alpha:]].*)?$',
             authors_quantity=data['star']
         ))
@@ -160,7 +162,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> Alphab
         else:
             other_count += quantity
 
-    root = AlphabetTree(name='')
+    root = AlphabetTree(name='', filter='')
 
     # Build the tree from aggregated data
     for p1 in sorted(level1_data.keys()):
@@ -170,6 +172,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> Alphab
     if digit_count > 0:
         root.entries.append(AlphabetTree(
             name='0-9',
+            filter='',
             regex=r'^[0-9]',
             authors_quantity=digit_count,
         ))
@@ -177,6 +180,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> Alphab
     if other_count > 0:
         root.entries.append(AlphabetTree(
             name='Other',
+            filter='',
             regex=r'^[^[:alpha:][:digit:]]',
             authors_quantity=other_count,
         ))
@@ -269,5 +273,3 @@ def update_genres_from_flibusta():
             )
             if created:
                 logging.info(f'Created new genre {genre}')
-
-
