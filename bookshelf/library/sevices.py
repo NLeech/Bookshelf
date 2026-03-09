@@ -176,7 +176,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> Alphab
 
     if other_count > 0:
         root.entries.append(AlphabetTree(
-            name='Other symbols',
+            name='Other',
             regex=r'^[^[:alpha:][:digit:]]',
             authors_quantity=other_count,
         ))
