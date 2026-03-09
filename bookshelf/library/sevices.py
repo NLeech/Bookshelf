@@ -91,7 +91,7 @@ def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict, min_quantity
         ))
 
 
-def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> AlphabetTree:
+def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first_level_quantity: int = 10) -> AlphabetTree:
     """
     Get a tree structure for storing authors grouped by the first letters of their last names.
     Tree example:
@@ -106,12 +106,17 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> Alphab
 
     ...
 
-    - 0-9 (authors with last names starting with a digit, witout further grouping)
-    - Other symbols (authors with last names starting with a non-alphanumeric character, without further grouping)
+    - 0-9 (all digits last names)
+    - other
+        - * (all non-alpha last names)
+        - ы (alpha prefixes with quantity < min_first_level_quantity)
 
     The tree is built in a way that if the number of authors in a branch is greater than min_quantity,
     the branch is expanded to the next level.
     The tree is built up to max_tree_depth levels. max_tree_depth should be at least 1, otherwise it will be set to 1.
+    :param max_tree_depth: max depth of the tree
+    :param min_quantity: threshold above which a node is expanded further
+    :param min_first_level_quantity: threshold for first level nodes. If less, the node is moved to 'other'
     :return: the root of the tree
     """
 
@@ -165,9 +170,25 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> Alphab
     root = AlphabetTree(name='', filter='')
 
     # Build the tree from aggregated data
-    for p1 in sorted(level1_data.keys()):
-        _build_tree_node(root, p1, level1_data[p1], min_quantity)
+    other_node = AlphabetTree(name='other', filter='')
 
+    # 1. Non-alpha authors go to other_node
+    if other_count > 0:
+        other_node.entries.append(AlphabetTree(
+            name='* (all non-alpha last names)',
+            filter='',
+            regex=r'^[^[:alpha:][:digit:]]',
+            authors_quantity=other_count,
+        ))
+        other_node.authors_quantity += other_count
+
+    # Alpha nodes: high-quantity go to root, low-quantity go to other_node
+    for p1 in sorted(level1_data.keys()):
+        if level1_data[p1]['total'] >= min_first_level_quantity:
+            _build_tree_node(root, p1, level1_data[p1], min_quantity)
+        else:
+            _build_tree_node(other_node, p1, level1_data[p1], min_quantity)
+            other_node.authors_quantity += level1_data[p1]['total']
 
     if digit_count > 0:
         root.entries.append(AlphabetTree(
@@ -177,13 +198,8 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50) -> Alphab
             authors_quantity=digit_count,
         ))
 
-    if other_count > 0:
-        root.entries.append(AlphabetTree(
-            name='Other',
-            filter='',
-            regex=r'^[^[:alpha:][:digit:]]',
-            authors_quantity=other_count,
-        ))
+    if other_node.entries:
+        root.entries.append(other_node)
 
     return root
 
