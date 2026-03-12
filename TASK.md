@@ -1,25 +1,42 @@
-Develop a web application — an online library for storing, cataloging, and providing access to electronic books in EPUB format.
+Develop a web application — an online library for storing, cataloging, and providing access to electronic books in EPUB and FB2 format.
 
 ---
 
 ## Core Functionality
 
-- **EPUB Book Management**  
-  Store and organize electronic books in EPUB format.
+- **EPUB and FB2 Book Management**  
+  Store and organize electronic books in EPUB and FB2 formats.
+
+- **Book Metadata**  
+  Store and display metadata such as title, author(s), description, cover image, language, and ISBN.
+ 
+- **Search and Filtering**  
+  Allow users to search for books by title, author, genre, and other metadata fields.
+
+- **Synchronisation**
+  - Mirror of the Flibusta library database (see Flibusta.md).
+  - Initial import of books and subsequent synchronization with the Flibusta library (only for selected genres and languages).
 
 - **User Authentication**  
   - Only authenticated users can view and download book content.  
-  - Only authenticated users have access to personal features like download history and reading lists.
+  - Only authenticated users have access to personal features described below:
   - All other features are accessible without authentication.
 
-- **Download History**  
+- **Download history**  
   Each user can view a personal history of downloaded books.
 
 - **Reading List**  
   Users can create a personalized list of books they plan to read.
 
+- **Favorite Authors**
+  - Users can mark authors as favorites for easy access to their works.
+  - Users can subscribe to authors to receive notifications about new books.
+
 - **OPDS Interface Support**  
   Enables integration with external applications and e-readers.
+  
+- **Integrated book reader**  
+  Provide an online reader for EPUB and FB2 formats, allowing users to read books directly in the browser.
 
 ---
 
@@ -51,5 +68,5 @@ Database: PostgreSQL
 Virtualization: Docker
 Background Task Queue: Celery
 Broker: Redis
-Frontend: Bootstrap (Webpack, Vue - optional, not at the first stage)
+Frontend: Bootstrap, HTMX (Webpack, Vue or React - optional, not at the first stage)
 Server: Nginx
