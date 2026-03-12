@@ -25,7 +25,7 @@ IS_DOCKER = "IS_DOCKER" in os.environ
 if not IS_DOCKER:
     import environ
     env = environ.Env()
-    env.read_env(env.str('ENV_PATH', str(BASE_DIR.parent) + '/.env'))
+    env.read_env(env.str('ENV_PATH', str(BASE_DIR.parent) + '/.env_'))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-!dtwd(0fxq&)w_tg*&i6se5-x!47m0l32c@mxs!lvms+3ehmlu')
@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'authentication.apps.AuthenticationConfig',
     'library.apps.LibraryConfig',
     'third_party_libraries.apps.ThirdPartyLibrariesConfig',
+    'flibusta.apps.FlibustaConfig',
 
     'debug_toolbar',
     'crispy_forms',
