@@ -1,6 +1,6 @@
 # Flibusta library dump description.
 
-The library dump is located at [https://flibusta.is/sql//](https://flibusta.is/sql//) and is updated daily. 
+The library dump is located at [https://flibusta.is/sql/](https://flibusta.is/sql/) and is updated daily. 
 It contains the following files:
 
 lib.libavtorname.sql.gz - contains compressed SQL dump of the `libavtorname` table. 
