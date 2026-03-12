@@ -159,25 +159,25 @@ Example of a record in the `libgenre` table:
 INSERT INTO `libgenre` VALUES (9,9,97),(22,22,61),(23,23,61),(27,27,30),(34,34,30),(38,38,42),(39,39,24),(40,40,24),(41,41,24),(42,42,24),(43,43,24),(44,44,24),(45,45,24),(46,46,24),(47,47,24),(48,48,24),(49,49,24),(50,50,24),(51,51,24),(52,52,24),(53,53,24),(54,54,24),(55,55,24),(56,56,24),(57,57,24),(58,58,24),(59,59,24),(60,60,24),(61,61,24),(62,62,24),(63,63,24),(64,64,24),(66,66,24),(67,67,24),(68,68,24);
 ```
 ---
-lib.libgenre.sql.gz - contains compressed SQL dump of the `libgenre` table.
-Table `libgenre` contains information about the relationship between books and genres.
-Each record in the table represents a relationship between a book and a genre,
-one book can belong to multiple genres and one genre can include multiple books.
+lib.libseq.sql.gz - contains compressed SQL dump of the `libseq` table.
+Table `libseq` contains information about the relationship between books and series.
+Each record in the table represents a relationship between a book and a series,
+one book can belong to multiple series and one series can include multiple books.
 The table has the following structure:
 ```sql
-CREATE TABLE `libgenre` (
-  `Id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `BookId` int(10) unsigned NOT NULL DEFAULT '0',
-  `GenreId` int(10) unsigned NOT NULL DEFAULT '0',
-  PRIMARY KEY (`Id`),
-  UNIQUE KEY `u` (`BookId`,`GenreId`),
-  KEY `igenre` (`GenreId`),
-  KEY `ibook` (`BookId`)
-) ENGINE=MyISAM AUTO_INCREMENT=1631881 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci ROW_FORMAT=DYNAMIC;
+CREATE TABLE `libseq` (
+  `BookId` int(11) NOT NULL,
+  `SeqId` int(11) NOT NULL,
+  `SeqNumb` int(11) NOT NULL,
+  `Level` tinyint(4) NOT NULL DEFAULT '0',
+  `Type` tinyint(1) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`BookId`,`SeqId`),
+  KEY `SeqId` (`SeqId`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 ```
-Example of a record in the `libgenre` table:
+Example of a record in the `libseq` table:
 ```sql
-INSERT INTO `libgenre` VALUES (9,9,97),(22,22,61),(23,23,61),(27,27,30),(34,34,30),(38,38,42),(39,39,24),(40,40,24),(41,41,24),(42,42,24),(43,43,24),(44,44,24),(45,45,24),(46,46,24),(47,47,24),(48,48,24),(49,49,24),(50,50,24),(51,51,24),(52,52,24),(53,53,24),(54,54,24),(55,55,24),(56,56,24),(57,57,24),(58,58,24),(59,59,24),(60,60,24),(61,61,24),(62,62,24),(63,63,24),(64,64,24),(66,66,24),(67,67,24),(68,68,24),(69,69,24),(70,70,24),(71,71,24),(72,72,24),(73,73,24),(74,74,24),(75,75,24);
+INSERT INTO `libseq` VALUES (430537,10200,0,101,1),(536947,55937,0,0,0),(536947,34423,0,0,1),(536945,5648,0,0,1),(182,2935,2,0,0),(183,2935,1,0,0),(536945,46871,3,0,0),(536945,34423,0,0,1),(823725,38053,5,0,0),(584064,27213,3,0,0),(543219,45228,0,0,1),(536943,53039,10,0,1),(358383,55936,0,0,0),(535877,55936,0,0,0),(661399,72144,0,0,1),(187929,55936,0,0,0),(187930,55936,0,0,0),(607088,31758,0,0,1),(402600,55936,0,0,0),(203502,40849,0,0,0),(536937,55935,2,0,0),(536936,13482,0,0,1),(537158,49341,3,0,0);
 ```
 ---
 lib.libjoinedbooks.sql.gz - contains compressed SQL dump of the `libjoinedbooks` table.
