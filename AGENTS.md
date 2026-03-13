@@ -4,7 +4,7 @@
 Bookshelf is a Django-based online library application supporting EPUB books, OPDS interface, user authentication, 
 download history, and reading lists.
 
-**Tech Stack:** Django 6+, DRF, PostgreSQL, Celery/Redis, Bootstrap, HTMX, Docker
+**Tech Stack:** Django 6+, DRF, PostgreSQL, Celery/Redis, Bootstrap, HTMX, Docker, uv 
 
 ---
 
