@@ -2,10 +2,10 @@ import gzip
 import io
 import logging
 import os
-from typing import Generator, List, Any, Dict, Type, Tuple, Optional
+from typing import Generator, List, Any, Type, Optional
 
 import requests
-from django.db import models, transaction, DataError
+from django.db import models, transaction, DataError, IntegrityError
 from django.conf import settings
 
 from .models import (
@@ -42,6 +42,41 @@ MAPPING_LIB_SEQ = ['book_id', 'sequence_id', 'seq_numb', 'level', 'type']
 
 # libjoinedbooks: Id, Time, BadId, GoodId, realId
 MAPPING_LIB_JOINED_BOOKS = ['id', 'time', 'bad_id', 'good_id', 'real_id']
+
+
+def import_dump(path: str = '', table_filter: str = '', batch_size: int = 5000) -> None:
+    """
+    Get and import Flibusta SQL dumps into Django models.
+    :param path: Load dump files from local directory instead of downloading them.
+                Directory should contain .gz files with original names (e.g. 'lib.libbook.sql.gz').
+    :param table_filter: Table name to import (e.g. 'libbook'). If not provided, all tables will be imported.
+    :param batch_size: B
+    """
+    importer = FlibustaImporter(batch_size=batch_size)
+
+    # Define the import sequence
+    # (Model, Mapping, Filename, TableName)
+    tasks = [
+        (FlibustaGenre, MAPPING_LIB_GENRE_LIST, 'lib.libgenrelist.sql.gz', 'libgenrelist'),
+        (FlibustaSequence, MAPPING_LIB_SEQ_NAME, 'lib.libseqname.sql.gz', 'libseqname'),
+        (FlibustaAuthor, MAPPING_LIB_AVTOR_NAME, 'lib.libavtorname.sql.gz', 'libavtorname'),
+        (FlibustaBook, MAPPING_LIB_BOOK, 'lib.libbook.sql.gz', 'libbook'),
+        (FlibustaBookAuthor, MAPPING_LIB_AVTOR, 'lib.libavtor.sql.gz', 'libavtor'),
+        (FlibustaBookGenre, MAPPING_LIB_GENRE, 'lib.libgenre.sql.gz', 'libgenre'),
+        (FlibustaBookSequence, MAPPING_LIB_SEQ, 'lib.libseq.sql.gz', 'libseq'),
+        (FlibustaJoinedBook, MAPPING_LIB_JOINED_BOOKS, 'lib.libjoinedbooks.sql.gz', 'libjoinedbooks'),
+    ]
+
+    for model, mapping, filename, table_name in tasks:
+        if table_filter and table_filter != table_name:
+            continue
+
+        logger.info(f"Starting import for {table_name} ({filename})...")
+        try:
+            importer.import_table(model, mapping, filename, path=path)
+            logger.info(f"Successfully imported {table_name}")
+        except Exception as e:
+            logger.error(f"Failed to import {table_name}: {e}")
 
 
 def parse_mysql_string(s: str) -> Optional[Any]:
@@ -150,7 +185,7 @@ class FlibustaImporter:
         """
         Parse a raw tuple string (e.g. "123, 'String', 'String, with comma', NULL") into a list of values.
         :param raw_tuple: String representing the raw tuple from the SQL dump.
-        :return:
+        :return: List of parsed values, with proper unescaping and type conversion.
         """
 
         values = []
@@ -230,18 +265,34 @@ class FlibustaImporter:
             logger.error(f"Error importing {filename}: {e}")
             raise
 
-    def _bulk_save(self, model, batch):
+    def _bulk_save(self, model: Type[models.Model], batch: List[models.Model]) -> None:
+        """
+        Save a batch of model instances to the database using bulk_create,
+        Any conflicts (e.g. due to unique constraints) will be ignored,
+        other errors (e.g. data error, FK violations, etc.) will be logged and skipped.
+        :param model: model class to save data into.
+        :param batch: list of model instances to save.
+        """
+
         try:
             model.objects.bulk_create(batch, ignore_conflicts=True, batch_size=self.batch_size)
-        except DataError as e:
-            # The batch contains some records that violate database constraints (e.g. field too long).
+        except (DataError, IntegrityError) as e:
+            # The batch can contain some records that violate database constraints
+            # (not ignored due to ignore_conflicts=False - e.g. field too long, foreign key violations, etc.).
             # load the batch individually to find the bad records and skip them
             logger.warning(f"Bulk create failed for {model.__name__}, attempting individual saves to skip the error...")
+
             for obj in batch:
                 try:
                     with transaction.atomic():
                         obj.save()
-                except DataError as err:
-                    # Log the object details to see what caused the error
-                    fields_data = {f.name: getattr(obj, f.name) for f in obj._meta.fields if not f.is_relation or f.many_to_one}
-                    logger.error(f"Failed to save {model.__name__} instance. Error: {err}. Data: {fields_data}")
+
+                except (IntegrityError, DataError, model.DoesNotExist) as e:
+                    err_str = str(e).lower()
+                    if isinstance(e, IntegrityError) and ('unique' in err_str or 'duplicate' in err_str):
+                        pass  # jast conflict, silently skip (gnore_conflicts=True emulation), ugly but works
+                    else:
+                        # FK violation or other issues - log it and skip
+                        fields_data = {f.attname: getattr(obj, f.attname) for f in obj._meta.fields if
+                                       not f.is_relation or f.many_to_one}
+                        logger.error(f"Failed to save {model.__name__} instance. Error: {e}. Data: {fields_data}")
