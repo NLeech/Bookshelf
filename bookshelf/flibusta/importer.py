@@ -16,7 +16,7 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-FLIBUSTA_BASE_URL = getattr(settings, 'FLIBUSTA_BASE_URL', 'https://flibusta.is/sql/')
+FLIBUSTA_BASE_URL = f'{getattr(settings, 'FLIBUSTA_BASE_URL', 'https://flibusta.is')}/sql/'
 
 # Field mappings
 MAPPING_LIB_GENRE_LIST = ['id', 'genre_code', 'genre_desc', 'genre_meta']
@@ -295,4 +295,4 @@ class FlibustaImporter:
                         # FK violation or other issues - log it and skip
                         fields_data = {f.attname: getattr(obj, f.attname) for f in obj._meta.fields if
                                        not f.is_relation or f.many_to_one}
-                        logger.error(f"Failed to save {model.__name__} instance. Error: {e}. Data: {fields_data}")
+                        logger.warning(f"Failed to save {model.__name__} instance. Error: {e}. Data: {fields_data}")

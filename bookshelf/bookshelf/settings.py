@@ -250,8 +250,6 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # Flibusta library
 # Authors and genres data can be found here:
-FLIBUSTA_AUTHORS_URL = 'https://flibusta.is/sql/lib.libavtorname.sql.gz'
-FLIBUSTA_GENRE_URL = 'https://flibusta.is/sql/lib.libgenrelist.sql.gz'
-
+FLIBUSTA_BASE_URL = 'https://flibusta.is'
 
 PAGINATE_BY = 50
