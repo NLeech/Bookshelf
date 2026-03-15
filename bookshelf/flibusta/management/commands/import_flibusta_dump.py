@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from flibusta.importer import import_dump
+from flibusta.dump_importer import import_dump
 
 
 class Command(BaseCommand):
