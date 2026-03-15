@@ -175,11 +175,18 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+ADMINS = [('Admin', os.environ.get('EMAIL_HOST_USER', 'admin@example.com'))]
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'simple': {
+            'format': '{levelname} | {asctime} | {module} | {message}',
+            'style': '{',
+        },
+        'colored': {
+            '()': 'bookshelf.logging.ColoredFormatter',
             'format': '{levelname} | {asctime} | {module} | {message}',
             'style': '{',
         },
@@ -191,32 +198,49 @@ LOGGING = {
     },
     'handlers': {
         'file': {
-            'level': 'WARNING',
+            'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': 'log.log',
+            'filename': os.path.join(BASE_DIR.parent, 'log.log'),
             'formatter': 'simple',
             'encoding': 'utf-8',
         },
-        'console_debug': {
+        'flibusta_file': {
             'level': 'DEBUG',
-            'filters': ['require_debug_true'],
-            'class': 'logging.StreamHandler',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'flibusta', 'update.log'),
             'formatter': 'simple',
+            'encoding': 'utf-8',
         },
         'console': {
-            'level': 'INFO',
+            'level': 'DEBUG',
             'class': 'logging.StreamHandler',
-            'formatter': 'simple',
+            'formatter': 'colored',
+        },
+        'mail_admins': {
+            'level': 'ERROR',
+            'class': 'django.utils.log.AdminEmailHandler',
+            'include_html': True,
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'console_debug'],
+            'handlers': ['console', 'file', 'mail_admins'],
+            'level': 'INFO',
             'propagate': True,
         },
-        'third_part_libraries': {
-            'handlers': ['file', ],
-            'level': 'WARNING',
+        'flibusta': {
+            'handlers': ['console', 'file', 'flibusta_file', 'mail_admins'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'authentication': {
+            'handlers': ['console', 'file', 'mail_admins'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'library': {
+            'handlers': ['console', 'file', 'mail_admins'],
+            'level': 'DEBUG',
             'propagate': True,
         },
     },
