@@ -5,7 +5,7 @@ from parameterized import parameterized
 import io
 import os
 
-from flibusta.importer import (
+from flibusta.dump_importer import (
     FlibustaImporter, parse_mysql_string, import_dump,
     MAPPING_LIB_GENRE_LIST, MAPPING_LIB_AVTOR_NAME
 )
