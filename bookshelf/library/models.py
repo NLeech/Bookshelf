@@ -197,6 +197,20 @@ class Author(models.Model):
         ]
 
 
+class BookSeriesLink(models.Model):
+    """
+    Through model for Book-Series relationship to store sequence number
+    """
+    book = models.ForeignKey('Book', on_delete=models.CASCADE)
+    series = models.ForeignKey('BookSeries', on_delete=models.CASCADE)
+    sequence_number = models.IntegerField(default=0, verbose_name='Sequence Number')
+
+    class Meta:
+        verbose_name = 'Book Series Link'
+        verbose_name_plural = 'Book Series Links'
+        unique_together = ('book', 'series')
+
+
 class Book(models.Model):
     """
     Book with all related information
@@ -207,7 +221,9 @@ class Book(models.Model):
     language = models.ForeignKey('Language', on_delete=models.RESTRICT, related_name='books',
                                  verbose_name='Language')
     isbn = models.DecimalField(max_digits=13, decimal_places=0, default=0, verbose_name='ISBN')
+    cover = models.ImageField(upload_to='covers/', null=True, blank=True, verbose_name='Cover')
+    file = models.FileField(upload_to='books/', null=True, blank=True, verbose_name='Book File')
 
     authors = models.ManyToManyField('Author', related_name='books', verbose_name='Authors')
-    series = models.ManyToManyField('BookSeries', related_name='books', verbose_name='Series')
+    series = models.ManyToManyField('BookSeries', through='BookSeriesLink', related_name='books', verbose_name='Series')
     genres = models.ManyToManyField('Genre', related_name='books', verbose_name='Genres')

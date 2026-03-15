@@ -78,6 +78,7 @@ class FlibustaBook(models.Model):
     info_code = models.PositiveSmallIntegerField(default=0, verbose_name='Info Code')
     pages = models.PositiveIntegerField(default=0, verbose_name='Pages')
     chars = models.PositiveIntegerField(default=0, verbose_name='Chars')
+    is_imported = models.BooleanField(default=False, db_index=True, verbose_name='Is Imported')
 
     # Relationships
     authors = models.ManyToManyField(FlibustaAuthor, through='FlibustaBookAuthor', related_name='books', verbose_name='Authors')
@@ -150,3 +151,51 @@ class FlibustaJoinedBook(models.Model):
     class Meta:
         verbose_name = 'Flibusta Joined Book'
         verbose_name_plural = 'Flibusta Joined Books'
+
+
+class FlibustaAuthorMapping(models.Model):
+    """
+    Mapping between Flibusta Author and Library Author.
+    """
+    flibusta_author = models.OneToOneField(FlibustaAuthor, on_delete=models.CASCADE, related_name='mapping')
+    library_author = models.ForeignKey('library.Author', on_delete=models.CASCADE, related_name='flibusta_mapping')
+
+    class Meta:
+        verbose_name = 'Flibusta Author Mapping'
+        verbose_name_plural = 'Flibusta Author Mappings'
+
+
+class FlibustaGenreMapping(models.Model):
+    """
+    Mapping between Flibusta Genre and Library Genre.
+    """
+    flibusta_genre = models.OneToOneField(FlibustaGenre, on_delete=models.CASCADE, related_name='mapping')
+    library_genre = models.ForeignKey('library.Genre', on_delete=models.CASCADE, related_name='flibusta_mapping')
+
+    class Meta:
+        verbose_name = 'Flibusta Genre Mapping'
+        verbose_name_plural = 'Flibusta Genre Mappings'
+
+
+class FlibustaSequenceMapping(models.Model):
+    """
+    Mapping between Flibusta Sequence and Library BookSeries.
+    """
+    flibusta_sequence = models.OneToOneField(FlibustaSequence, on_delete=models.CASCADE, related_name='mapping')
+    library_series = models.ForeignKey('library.BookSeries', on_delete=models.CASCADE, related_name='flibusta_mapping')
+
+    class Meta:
+        verbose_name = 'Flibusta Sequence Mapping'
+        verbose_name_plural = 'Flibusta Sequence Mappings'
+
+
+class FlibustaBookMapping(models.Model):
+    """
+    Mapping between Flibusta Book and Library Book.
+    """
+    flibusta_book = models.OneToOneField(FlibustaBook, on_delete=models.CASCADE, related_name='mapping')
+    library_book = models.ForeignKey('library.Book', on_delete=models.CASCADE, related_name='flibusta_mapping')
+
+    class Meta:
+        verbose_name = 'Flibusta Book Mapping'
+        verbose_name_plural = 'Flibusta Book Mappings'
