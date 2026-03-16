@@ -2,7 +2,9 @@ from django.contrib import admin
 from .models import (
     FlibustaAuthor, FlibustaGenre, FlibustaSequence,
     FlibustaBook, FlibustaBookAuthor, FlibustaBookGenre,
-    FlibustaBookSequence, FlibustaJoinedBook
+    FlibustaBookSequence, FlibustaJoinedBook,
+    FlibustaAuthorMapping, FlibustaGenreMapping,
+    FlibustaSequenceMapping, FlibustaBookMapping
 )
 
 
@@ -51,7 +53,7 @@ class FlibustaSequenceAdmin(admin.ModelAdmin):
 class FlibustaBookAdmin(admin.ModelAdmin):
     list_display = ('id', 'title', 'lang', 'file_type', 'year', 'deleted')
     search_fields = ('id', 'title', 'title1', 'md5')
-    list_filter = ('lang', 'file_type', 'deleted', 'year')
+    list_filter = ('lang', 'file_type', 'deleted', 'year', 'is_imported')
     inlines = [FlibustaBookAuthorInline, FlibustaBookGenreInline, FlibustaBookSequenceInline]
     ordering = ('-id',)
 
@@ -61,3 +63,34 @@ class FlibustaJoinedBookAdmin(admin.ModelAdmin):
     list_display = ('id', 'bad_id', 'good_id', 'real_id', 'time')
     search_fields = ('bad_id', 'good_id', 'real_id')
     ordering = ('-time',)
+
+
+@admin.register(FlibustaAuthorMapping)
+class FlibustaAuthorMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'flibusta_author', 'library_author')
+    autocomplete_fields = ['flibusta_author', 'library_author']
+    search_fields = ('flibusta_author__last_name', 'library_author__last_name')
+
+
+@admin.register(FlibustaGenreMapping)
+class FlibustaGenreMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'flibusta_genre', 'library_genre')
+    autocomplete_fields = ['flibusta_genre']
+    raw_id_fields = ['library_genre']
+    search_fields = ('flibusta_genre__genre_code',)
+
+
+@admin.register(FlibustaSequenceMapping)
+class FlibustaSequenceMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'flibusta_sequence', 'library_series')
+    autocomplete_fields = ['flibusta_sequence']
+    raw_id_fields = ['library_series']
+    search_fields = ('flibusta_sequence__name',)
+
+
+@admin.register(FlibustaBookMapping)
+class FlibustaBookMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'flibusta_book', 'library_book')
+    autocomplete_fields = ['flibusta_book']
+    raw_id_fields = ['library_book']
+    search_fields = ('flibusta_book__title',)

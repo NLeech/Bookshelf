@@ -276,4 +276,6 @@ SOCIALACCOUNT_PROVIDERS = {
 # Authors and genres data can be found here:
 FLIBUSTA_BASE_URL = 'https://flibusta.is'
 
+BOOK_PWD = os.environ.get('BOOK_PWD', default='1booKshelf23').encode('utf-8')
+
 PAGINATE_BY = 50

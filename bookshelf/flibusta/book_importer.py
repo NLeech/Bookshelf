@@ -1,11 +1,15 @@
 import logging
 import os
+import io
 import tempfile
+from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple
 
 import zipfile
 import pyzipper
 from django.conf import settings
+from django.db.models.query import QuerySet
+from django.db.models import Q
 from django.core.files import File
 from django.db import transaction
 from django.utils.text import slugify
@@ -25,42 +29,57 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
+class BookFilter(ABC):
+    @ abstractmethod
+    def apply(self, books: QuerySet) -> QuerySet:
+        pass
+
+
+class LanguageFilter(BookFilter):
+    def __init__(self, languages: List[str]):
+        self.languages = languages
+
+    def apply(self, books: QuerySet) -> QuerySet:
+        if not self.languages:
+            return books
+        return books.filter(lang__in=self.languages)
+
+
+class FormatFilter(BookFilter):
+    def __init__(self, formats: List[str]):
+        self.formats = formats
+
+    def apply(self, books: QuerySet) -> QuerySet:
+        if not self.formats:
+            return books
+        return books.filter(file_type__in=self.formats)
+
+
+class GenreFilter(BookFilter):
+    def __init__(self, genre: Optional[List[str]] = None):
+        self.genre = genre or []
+
+    def apply(self, books: QuerySet) -> QuerySet:
+        if not self.genre:
+            return books
+        
+        query = Q()
+        if self.genre:
+            query |= Q(genres__genre_code__in=self.genre)
+            query |= Q(genres__genre_meta__in=self.genre)
+            
+        return books.filter(query).distinct()
+
+
 class BookImporter:
     def __init__(self, genres_filter: Optional[List[str]] = None, langs_filter: Optional[List[str]] = None, formats_filter: Optional[List[str]] = None):
-        self.genres_filter = genres_filter
-        self.langs_filter = langs_filter
-        self.formats_filter = formats_filter
-        self.book_pwd = os.environ.get('BOOK_PWD', 'bookshelf').encode('utf-8')
+    #     self.genres_filter = genres_filter
+    #     self.langs_filter = langs_filter
+    #     self.formats_filter = formats_filter
+        self.book_pwd = settings.BOOK_PWD
+    #
 
-    def check_filters(self, book: FlibustaBook) -> bool:
-        """
-        Check if the book matches the configured filters.
-        """
-        # Format filter (file_type)
-        if self.formats_filter and book.file_type not in self.formats_filter:
-            return False
-
-        # Language filter
-        # Flibusta book lang might differ slightly from our ISO codes, but we check exact match for now
-        if self.langs_filter and book.lang not in self.langs_filter:
-            return False
-
-        # Genre filter
-        # We need to check if ANY of the book's genres match the filter
-        # Filter can match 'genre_code' or 'genre_meta'
-        if self.genres_filter:
-            book_genres = book.genres.all()
-            match = False
-            for genre in book_genres:
-                if genre.genre_code in self.genres_filter or genre.genre_meta in self.genres_filter:
-                    match = True
-                    break
-            if not match:
-                return False
-
-        return True
-
-    def get_language(self, lang_code: str) -> Optional[Language]:
+    def get_language(self, lang_code: str) -> Language|None:
         try:
             return Language.objects.get(code=lang_code)
         except Language.DoesNotExist:
@@ -155,56 +174,27 @@ class BookImporter:
             logger.info(f"Book {f_book.id} already imported.")
             return
 
-        # 1. Check Filters
-        if not self.check_filters(f_book):
-            logger.info(f"Book {f_book.id} skipped by filters.")
-            return
-
-        # 2. Resolve Language
+        # Resolve Language
         language = self.get_language(f_book.lang)
         if not language:
-            return  # Error already logged
+            return
 
         try:
-            with transaction.atomic():
-                # 3. Extract Metadata from file (using Kreuzberg)
+            with (transaction.atomic()):
+                # Extract Metadata from file (using Kreuzberg)
                 extracted_metadata = {}
-                if extract_metadata:
-                    # Kreuzberg expects a file path or file-like object.
-                    # We have bytes. Let's use a temp file.
-                    with tempfile.NamedTemporaryFile(suffix=f".{f_book.file_type}") as tmp_src:
-                        tmp_src.write(file_content)
-                        tmp_src.flush()
-                        try:
-                            meta = extract_metadata(tmp_src.name)
-                            if meta:
-                                extracted_metadata = meta
-                        except Exception as e:
-                             logger.warning(f"Failed to extract metadata for book {f_book.id}: {e}")
+                # TODO Implement metadata loading using kreuzberg
+                # zip_buffer.seek(0) # if needed
 
-                # 4. Prepare File (Re-compress with password)
-                # Create a temporary zip file
+                # Re-compress the file with password
                 zip_buffer = tempfile.TemporaryFile()
-                # Use pyzipper for AES encryption
-                with pyzipper.AESZipFile(zip_buffer, 'w', compression=pyzipper.ZIP_DEFLATED, encryption=pyzipper.WZ_AES) as zf:
+                with pyzipper.AESZipFile(zip_buffer,
+                                         'w',
+                                         compression=pyzipper.ZIP_DEFLATED,
+                                         encryption=pyzipper.WZ_AES) as zf:
                     zf.setpassword(self.book_pwd)
-                    # We assume the file inside should have the name 'book_id.ext'
+                    # File inside should have the name 'book_id.ext'
                     zf.writestr(f"{f_book.id}.{f_book.file_type}", file_content)
-                
-                zip_buffer.seek(0)
-
-                # 5. Create Library Book
-                # Prefer Kreuzberg title/desc/isbn if available, fallback to FlibustaBook
-                # Wait, task says: "Get a tittle, authors, genres, series, sequence number, a language from FlibustaBook"
-                # "get (if exists) a cover, a description (annotation), isbn, from the book file using Kreuzberg."
-                
-                # So we stick to Flibusta for core fields.
-                
-                # Handling Cover
-                # extracted_metadata might have 'cover_image_content' (bytes) or similar depending on Kreuzberg output?
-                # Need to check what extract_metadata returns. Assuming it returns an object with attributes or dict.
-                # If unknown, I'll assume standard dict-like access for now or attributes.
-                # Since I don't have exact Kreuzberg docs here, I'll try generic attribute access.
                 
                 description = getattr(extracted_metadata, 'description', '') or ''
                 isbn = getattr(extracted_metadata, 'isbn', 0) or 0
@@ -242,7 +232,7 @@ class BookImporter:
 
                 book.save()
 
-                # 6. Link Relations
+                # Link Relations
                 # Authors
                 for f_author in f_book.authors.all():
                     l_author = self.get_or_create_author(f_author)
@@ -254,7 +244,6 @@ class BookImporter:
                     book.genres.add(l_genre)
                 
                 # Series (with Sequence Number)
-                # FlibustaBookSequence is a through model
                 for f_book_seq in f_book.flibustabooksequence_set.all():
                     l_series = self.get_or_create_series(f_book_seq.sequence)
                     BookSeriesLink.objects.create(
@@ -263,7 +252,7 @@ class BookImporter:
                         sequence_number=f_book_seq.seq_numb
                     )
 
-                # 7. Create Mapping and Update Status
+                # Create Mapping and Update Status
                 FlibustaBookMapping.objects.create(flibusta_book=f_book, library_book=book)
                 f_book.is_imported = True
                 f_book.save(update_fields=['is_imported'])
@@ -272,15 +261,17 @@ class BookImporter:
 
         except Exception as e:
             logger.error(f"Error importing book {f_book.id}: {e}", exc_info=True)
-            # Transaction rollback handles cleanup
 
 
-def process_archive(zip_path: str, importer: BookImporter):
+def process_archive(zip_path: str, filters: List[BookFilter]):
     if not zipfile.is_zipfile(zip_path):
         logger.warning(f"{zip_path} is not a valid zip file.")
         return
 
     with zipfile.ZipFile(zip_path, 'r') as zf:
+
+        book_ids = {}
+
         for filename in zf.namelist():
             # Filename expected: book_id.ext or book_id.ext.zip
 
@@ -295,45 +286,77 @@ def process_archive(zip_path: str, importer: BookImporter):
                 #  it's not a book_id, skip
                 continue
 
-            book_id = int(parts[0])
+            book_ids[int(parts[0])] = filename
 
-            # Lookup FlibustaBook
-            try:
-                f_book = FlibustaBook.objects.get(id=book_id)
-            except FlibustaBook.DoesNotExist:
+
+        # get existing FlibustaBook records for these IDs
+        books = FlibustaBook.objects.filter(id__in=book_ids.keys())
+
+        # Log error for the not found IDs
+        found_ids = set(books.values_list('id', flat=True))
+        for book_id in book_ids.keys():
+            if book_id not in found_ids:
                 logger.error(f"Book {book_id} not found in Flibusta database (file: {filename}).")
-                continue
+
+        # exclude already imported or deleted books
+        books = books.filter(is_imported=False, deleted=0)
+
+        # filter books
+        for filter_element in filters:
+            books = filter_element.apply(books)
+
+        for book_record in books:
+            filename = book_ids.get(book_record.id)
+            is_nested_zip = filename.endswith('.zip')
 
             # Read content
             with zf.open(filename) as f:
                 content = f.read()
+                # unzip content
+                if is_nested_zip:
+                    try:
+                        with zipfile.ZipFile(io.BytesIO(content)) as nested_zf:
+                            nested_names = nested_zf.namelist()
+                            if nested_names:
+                                # Use the first file
+                                target_file = nested_names[0]
+                                content = nested_zf.read(target_file)
+                    except zipfile.BadZipFile:
+                        logger.error(f"Nested zip {filename} is invalid.")
+                        continue
 
-            # If the file inside the archive is ALSO a zip (book_id.ext.zip), we might need to unzip it AGAIN?
-            # Task says: "A book file might be zipped; in this case, it is named book_id.ext.zip."
-            # "For each file in the archive... Get book genres... Compare... Skip..."
-            # "Extract metadata from the file."
-            # If it's 123.fb2.zip, the content is a ZIP. We need the FB2 inside to get metadata (if Kreuzberg needs the raw ebook).
-            # Kreuzberg likely handles epub/fb2. If it's zipped, Kreuzberg might strictly require the ebook file.
+                BookImporter().import_book(book_record, content, filename)
 
-            is_nested_zip = filename.endswith('.zip')
-            processed_content = content
 
-            if is_nested_zip:
-                # We need to unzip the nested content to get the actual ebook for metadata extraction
-                # And maybe for storage? Task says "Extract book file."
-                try:
-                    import io
-                    with zipfile.ZipFile(io.BytesIO(content)) as nested_zf:
-                        # Assume single file inside?
-                        nested_names = nested_zf.namelist()
-                        if nested_names:
-                            # Use the first file
-                            target_file = nested_names[0]
-                            processed_content = nested_zf.read(target_file)
-                            # Update file_type from nested filename if possible?
-                            # FlibustaBook has file_type. We should trust it or the filename.
-                except zipfile.BadZipFile:
-                    logger.warning(f"Nested zip {filename} is invalid.")
-                    continue
+def process_local_path(path: str, genres_filters: str = '', formats_filters: str = '', languages_filters: str = ''):
+    if not os.path.exists(path):
+        logger.error(f"Path '{path}' does not exist.")
+        return
 
-            importer.import_book(f_book, processed_content, filename)
+    if os.path.isfile(path):
+        files = [path]
+    else:
+        files = [
+            os.path.join(path, f)
+            for f in os.listdir(path)
+            if f.endswith('.zip')
+        ]
+
+    for zip_path in files:
+        logger.info(f"Processing archive: {zip_path}")
+        try:
+            process_archive(zip_path, filters=get_filters(genres_filters, formats_filters, languages_filters))
+        except Exception as e:
+            logger.error(f"Failed to process archive {zip_path}: {e}")
+
+
+def get_filters(genres_filters: str = '', formats_filters: str = '', languages_filters: str = '') -> List[BookFilter]:
+    filters = []
+    if genres_filters:
+        filters.append(GenreFilter(genres_filters.split(',')))
+    if formats_filters:
+        filters.append(FormatFilter(formats_filters.split(',')))
+    if languages_filters:
+        filters.append(LanguageFilter(languages_filters.split(',')))
+    return filters
+
