@@ -14,11 +14,7 @@ from django.core.files import File
 from django.db import transaction
 from django.utils.text import slugify
 
-# Try to import Kreuzberg, handle if missing (though it should be installed)
-try:
-    from kreuzberg import extract_metadata
-except ImportError:
-    extract_metadata = None
+# TODO import kreuzberg
 
 from library.models import Author, Genre, BookSeries, Book, Language, BookSeriesLink
 from .models import (
@@ -94,27 +90,13 @@ class BookImporter:
             return f_genre.mapping.library_genre
 
         # Create Meta Genre if needed
-        # Flibusta 'genre_meta' is the parent category name (e.g., 'SF', 'Thriller')
-        # We assume 'genre_meta' is the code for the parent genre in Library?
-        # Or should we slugify it?
-        # The prompt says: "The library uses a two-level genre hierarchy (meta genre -> genre). If a meta genre does not exist, it must be created."
-        
-        meta_genre_name = f_genre.genre_meta if f_genre.genre_meta else 'Other'
-        meta_genre_code = slugify(meta_genre_name)
-        
-        meta_genre, _ = Genre.objects.get_or_create(
-            code=meta_genre_code,
-            defaults={'name': meta_genre_name, 'parent': None}
-        )
+        meta_genre, _ = Genre.objects.get_or_create(name='')
 
         # Create Genre
-        genre_code = f_genre.genre_code
-        genre_name = f_genre.genre_desc
-        
         library_genre, created = Genre.objects.get_or_create(
-            code=genre_code,
+            code=f_genre.genre_code,
             defaults={
-                'name': genre_name,
+                'name': f_genre.genre_desc,
                 'parent': meta_genre
             }
         )
