@@ -1,12 +1,9 @@
-import os
 import logging
-from typing import List
 
 from django.core.management.base import BaseCommand
-from django.conf import settings
 
-from flibusta.book_importer import BookImporter
-from flibusta.models import FlibustaBook
+from flibusta.book_importer import  process_local_path
+
 
 logger = logging.getLogger(__name__)
 
@@ -45,39 +42,17 @@ class Command(BaseCommand):
         langs = options.get('langs')
         formats = options.get('formats')
 
-        importer = BookImporter(
-            genres_filter=genres,
-            langs_filter=langs,
-            formats_filter=formats
-        )
-
         if path:
-            self.process_local_path(path, importer)
+            process_local_path(
+                path,
+                genres_filter=genres,
+                langs_filter=langs,
+                formats_filter=formats
+            )
         else:
-            self.process_daily_updates(importer)
+            self.process_daily_updates()
 
-    def process_local_path(self, path: str, importer: BookImporter):
-        if not os.path.exists(path):
-            self.stderr.write(f"Path '{path}' does not exist.")
-            return
-
-        if os.path.isfile(path):
-            files = [path]
-        else:
-            files = [
-                os.path.join(path, f) 
-                for f in os.listdir(path) 
-                if f.endswith('.zip')
-            ]
-
-        for zip_path in files:
-            self.stdout.write(f"Processing archive: {zip_path}")
-            try:
-                self.process_archive(zip_path, importer)
-            except Exception as e:
-                logger.error(f"Failed to process archive {zip_path}: {e}")
-
-    def process_daily_updates(self, importer: BookImporter):
+    def process_daily_updates(self):
         self.stdout.write("Processing daily updates from Flibusta (Not fully implemented, placeholder).")
         # Logic to scrape/download from FLIBUSTA_BASE_URL/daily would go here.
         # Requires web scraping to find links.

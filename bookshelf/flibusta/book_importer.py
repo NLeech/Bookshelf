@@ -111,38 +111,35 @@ class BookImporter:
         if hasattr(f_author, 'mapping'):
             return f_author.mapping.library_author
 
-        # Recursive resolution for master_id
+        flibusta_author = f_author
+
+        # resolution for master_id
         if f_author.master_id and f_author.master_id != f_author.id:
             # Try to find the master author in Flibusta
             try:
-                master_f_author = FlibustaAuthor.objects.get(id=f_author.master_id)
-                # Map the master author first
-                library_author = self.get_or_create_author(master_f_author)
-
-                # Create mapping for THIS alias author to the same library author
-                FlibustaAuthorMapping.objects.create(
-                    flibusta_author=f_author, library_author=library_author
-                )
-                return library_author
+                flibusta_author = FlibustaAuthor.objects.get(id=f_author.master_id)
 
             except FlibustaAuthor.DoesNotExist:
                 # If master doesn't exist, treat current as independent (fallback)
-                logger.warning(
+                logger.error(
                     f"Master author {f_author.master_id} for {f_author.id} not found. Treating as independent."
                 )
 
         # Create Author
         library_author = Author.objects.create(
-            first_name=f_author.first_name,
-            middle_name=f_author.middle_name,
-            last_name=f_author.last_name,
-            nickname=f_author.nickname,
-            email=f_author.email,
-            homepage=f_author.homepage,
-            # We don't set main_author here for now, assuming Flattened or mapped via master_id logic above
+            first_name=flibusta_author.first_name,
+            middle_name=flibusta_author.middle_name,
+            last_name=flibusta_author.last_name,
+            nickname=flibusta_author.nickname,
+            email=flibusta_author.email,
+            homepage=flibusta_author.homepage,
         )
-        
-        FlibustaAuthorMapping.objects.create(flibusta_author=f_author, library_author=library_author)
+
+        # mapping for both master and current author (if different)
+        FlibustaAuthorMapping.objects.create(flibusta_author=flibusta_author, library_author=library_author)
+        if flibusta_author != f_author:
+            FlibustaAuthorMapping.objects.create(flibusta_author=f_author, library_author=library_author)
+
         return library_author
 
     def get_or_create_series(self, f_seq: FlibustaSequence) -> BookSeries:
@@ -181,8 +178,8 @@ class BookImporter:
                     # File inside should have the name 'book_id.ext'
                     zf.writestr(f"{f_book.id}.{f_book.file_type}", file_content)
                 
-                description = getattr(extracted_metadata, 'description', '') or ''
-                isbn = getattr(extracted_metadata, 'isbn', 0) or 0
+                description = getattr(extracted_metadata, 'description', '')
+                isbn = getattr(extracted_metadata, 'isbn', 0)
                 # Ensure ISBN is decimal/number
                 if not isinstance(isbn, (int, float, str)):
                     isbn = 0
@@ -194,7 +191,7 @@ class BookImporter:
                 title = f_book.title
 
                 book = Book(
-                    tittle=title, # Typo in model 'tittle'
+                    title=title,
                     description=description,
                     language=language,
                     isbn=isbn,
@@ -283,7 +280,7 @@ def process_archive(zip_path: str, filters: List[BookFilter]):
                 logger.error(f"Book {book_id} not found in Flibusta database (file: {filename}).")
 
         # exclude already imported or deleted books
-        books = books.exclude(mapping__isnull=True).filter(deleted=0)
+        books = books.filter(deleted=0).exclude(mapping__isnull=False)
 
         # filter books
         for filter_element in filters:
