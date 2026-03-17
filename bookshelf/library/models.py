@@ -216,7 +216,7 @@ class Book(models.Model):
     Book with all related information
     """
 
-    tittle = models.CharField(max_length=255, verbose_name='Tittle')
+    title = models.CharField(max_length=255, verbose_name='Title')
     description = models.TextField(null=False, blank=True, default='', verbose_name='Description')
     language = models.ForeignKey('Language', on_delete=models.RESTRICT, related_name='books',
                                  verbose_name='Language')
