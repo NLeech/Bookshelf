@@ -22,15 +22,21 @@ except ImportError:
 
 from library.models import Author, Genre, BookSeries, Book, Language, BookSeriesLink
 from .models import (
-    FlibustaBook, FlibustaAuthor, FlibustaGenre, FlibustaSequence,
-    FlibustaAuthorMapping, FlibustaGenreMapping, FlibustaSequenceMapping, FlibustaBookMapping
+    FlibustaBook,
+    FlibustaAuthor,
+    FlibustaGenre,
+    FlibustaSequence,
+    FlibustaAuthorMapping,
+    FlibustaGenreMapping,
+    FlibustaSequenceMapping,
+    FlibustaBookMapping,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class BookFilter(ABC):
-    @ abstractmethod
+    @abstractmethod
     def apply(self, books: QuerySet) -> QuerySet:
         pass
 
@@ -62,24 +68,20 @@ class GenreFilter(BookFilter):
     def apply(self, books: QuerySet) -> QuerySet:
         if not self.genre:
             return books
-        
+
         query = Q()
         if self.genre:
             query |= Q(genres__genre_code__in=self.genre)
             query |= Q(genres__genre_meta__in=self.genre)
-            
+
         return books.filter(query).distinct()
 
 
 class BookImporter:
-    def __init__(self, genres_filter: Optional[List[str]] = None, langs_filter: Optional[List[str]] = None, formats_filter: Optional[List[str]] = None):
-    #     self.genres_filter = genres_filter
-    #     self.langs_filter = langs_filter
-    #     self.formats_filter = formats_filter
+    def __init__(self):
         self.book_pwd = settings.BOOK_PWD
-    #
 
-    def get_language(self, lang_code: str) -> Language|None:
+    def get_language(self, lang_code: str) -> Language | None:
         try:
             return Language.objects.get(code=lang_code)
         except Language.DoesNotExist:
@@ -129,20 +131,24 @@ class BookImporter:
 
         # Recursive resolution for master_id
         if f_author.master_id and f_author.master_id != f_author.id:
-             # Try to find the master author in Flibusta
+            # Try to find the master author in Flibusta
             try:
                 master_f_author = FlibustaAuthor.objects.get(id=f_author.master_id)
                 # Map the master author first
                 library_author = self.get_or_create_author(master_f_author)
-                
+
                 # Create mapping for THIS alias author to the same library author
-                FlibustaAuthorMapping.objects.create(flibusta_author=f_author, library_author=library_author)
+                FlibustaAuthorMapping.objects.create(
+                    flibusta_author=f_author, library_author=library_author
+                )
                 return library_author
 
             except FlibustaAuthor.DoesNotExist:
                 # If master doesn't exist, treat current as independent (fallback)
-                logger.warning(f"Master author {f_author.master_id} for {f_author.id} not found. Treating as independent.")
-        
+                logger.warning(
+                    f"Master author {f_author.master_id} for {f_author.id} not found. Treating as independent."
+                )
+
         # Create Author
         library_author = Author.objects.create(
             first_name=f_author.first_name,
@@ -170,9 +176,6 @@ class BookImporter:
         return library_series
 
     def import_book(self, f_book: FlibustaBook, file_content: bytes, filename: str) -> None:
-        if f_book.is_imported:
-            logger.info(f"Book {f_book.id} already imported.")
-            return
 
         # Resolve Language
         language = self.get_language(f_book.lang)
@@ -180,7 +183,7 @@ class BookImporter:
             return
 
         try:
-            with (transaction.atomic()):
+            with transaction.atomic():
                 # Extract Metadata from file (using Kreuzberg)
                 extracted_metadata = {}
                 # TODO Implement metadata loading using kreuzberg
@@ -207,25 +210,25 @@ class BookImporter:
                 
                 # Title from Flibusta
                 title = f_book.title
-                
+
                 book = Book(
                     tittle=title, # Typo in model 'tittle'
                     description=description,
                     language=language,
-                    isbn=isbn
+                    isbn=isbn,
                 )
-                
+
                 # Save file
                 file_name = f"{f_book.id}.zip"
                 book.file.save(file_name, File(zip_buffer), save=False)
-                
+
                 # Save cover if available
                 cover_data = getattr(extracted_metadata, 'cover_image_content', None) # Hypothetical
                 # Note: Kreuzberg might return 'cover_image_path' or bytes.
                 # If bytes:
                 if cover_data:
-                     # guess extension?
-                     with tempfile.TemporaryFile() as tf:
+                    # guess extension?
+                    with tempfile.TemporaryFile() as tf:
                         tf.write(cover_data)
                         tf.seek(0)
                         book.cover.save(f"cover_{f_book.id}.jpg", File(tf), save=False)
@@ -242,7 +245,7 @@ class BookImporter:
                 for f_genre in f_book.genres.all():
                     l_genre = self.get_or_create_genre(f_genre)
                     book.genres.add(l_genre)
-                
+
                 # Series (with Sequence Number)
                 for f_book_seq in f_book.flibustabooksequence_set.all():
                     l_series = self.get_or_create_series(f_book_seq.sequence)
@@ -252,11 +255,11 @@ class BookImporter:
                         sequence_number=f_book_seq.seq_numb
                     )
 
-                # Create Mapping and Update Status
-                FlibustaBookMapping.objects.create(flibusta_book=f_book, library_book=book)
-                f_book.is_imported = True
-                f_book.save(update_fields=['is_imported'])
-                
+                # Create Mapping
+                FlibustaBookMapping.objects.create(
+                    flibusta_book=f_book, library_book=book
+                )
+
                 logger.info(f"Successfully imported book {f_book.id}: {title}")
 
         except Exception as e:
@@ -288,7 +291,6 @@ def process_archive(zip_path: str, filters: List[BookFilter]):
 
             book_ids[int(parts[0])] = filename
 
-
         # get existing FlibustaBook records for these IDs
         books = FlibustaBook.objects.filter(id__in=book_ids.keys())
 
@@ -299,7 +301,7 @@ def process_archive(zip_path: str, filters: List[BookFilter]):
                 logger.error(f"Book {book_id} not found in Flibusta database (file: {filename}).")
 
         # exclude already imported or deleted books
-        books = books.filter(is_imported=False, deleted=0)
+        books = books.exclude(mapping__isnull=True).filter(deleted=0)
 
         # filter books
         for filter_element in filters:
@@ -359,4 +361,3 @@ def get_filters(genres_filters: str = '', formats_filters: str = '', languages_f
     if languages_filters:
         filters.append(LanguageFilter(languages_filters.split(',')))
     return filters
-

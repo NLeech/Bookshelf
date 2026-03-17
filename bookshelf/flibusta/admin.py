@@ -1,10 +1,17 @@
 from django.contrib import admin
 from .models import (
-    FlibustaAuthor, FlibustaGenre, FlibustaSequence,
-    FlibustaBook, FlibustaBookAuthor, FlibustaBookGenre,
-    FlibustaBookSequence, FlibustaJoinedBook,
-    FlibustaAuthorMapping, FlibustaGenreMapping,
-    FlibustaSequenceMapping, FlibustaBookMapping
+    FlibustaAuthor,
+    FlibustaGenre,
+    FlibustaSequence,
+    FlibustaBook,
+    FlibustaBookAuthor,
+    FlibustaBookGenre,
+    FlibustaBookSequence,
+    FlibustaJoinedBook,
+    FlibustaAuthorMapping,
+    FlibustaGenreMapping,
+    FlibustaSequenceMapping,
+    FlibustaBookMapping,
 )
 
 
@@ -53,7 +60,7 @@ class FlibustaSequenceAdmin(admin.ModelAdmin):
 class FlibustaBookAdmin(admin.ModelAdmin):
     list_display = ('id', 'title', 'lang', 'file_type', 'year', 'deleted')
     search_fields = ('id', 'title', 'title1', 'md5')
-    list_filter = ('lang', 'file_type', 'deleted', 'year', 'is_imported')
+    list_filter = ('lang', 'file_type', 'deleted', 'year')
     inlines = [FlibustaBookAuthorInline, FlibustaBookGenreInline, FlibustaBookSequenceInline]
     ordering = ('-id',)
 

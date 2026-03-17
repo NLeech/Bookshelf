@@ -78,7 +78,7 @@ class FlibustaBook(models.Model):
     info_code = models.PositiveSmallIntegerField(default=0, verbose_name='Info Code')
     pages = models.PositiveIntegerField(default=0, verbose_name='Pages')
     chars = models.PositiveIntegerField(default=0, verbose_name='Chars')
-    is_imported = models.BooleanField(default=False, db_index=True, verbose_name='Is Imported')
+
 
     # Relationships
     authors = models.ManyToManyField(FlibustaAuthor, through='FlibustaBookAuthor', related_name='books', verbose_name='Authors')
@@ -97,6 +97,7 @@ class FlibustaBookAuthor(models.Model):
     """
     Through model for Book-Author relationship (libavtor).
     """
+
     book = models.ForeignKey(FlibustaBook, on_delete=models.CASCADE)
     author = models.ForeignKey(FlibustaAuthor, on_delete=models.CASCADE)
     pos = models.PositiveSmallIntegerField(default=0, verbose_name='Position')
@@ -111,6 +112,7 @@ class FlibustaBookGenre(models.Model):
     """
     Through model for Book-Genre relationship (libgenre).
     """
+
     book = models.ForeignKey(FlibustaBook, on_delete=models.CASCADE)
     genre = models.ForeignKey(FlibustaGenre, on_delete=models.CASCADE)
 
@@ -124,6 +126,7 @@ class FlibustaBookSequence(models.Model):
     """
     Through model for Book-Sequence relationship (libseq).
     """
+
     book = models.ForeignKey(FlibustaBook, on_delete=models.CASCADE)
     sequence = models.ForeignKey(FlibustaSequence, on_delete=models.CASCADE)
     seq_numb = models.IntegerField(default=0, verbose_name='Sequence Number')
