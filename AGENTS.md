@@ -77,8 +77,12 @@ download history, and reading lists.
 - Follow PEP 8 style guide strictly
 - Use 4-space indentation (Django default)
 - Limit lines to 79 characters for code, 100 for docstrings/comments
-- Use double quotes for strings; single quotes for short identifiers
+- Use single quotes for strings where it is possible; single quotes for short identifiers
 - Add blank lines between major logical sections in files
+
+### Code Modification Rules
+- Do not modify code that is not intended to be changed, such as formatting, whitespace, line breaks, PEP 8 compliance, quotation marks, etc.
+- If needed, this will be handled as a separate task.
 
 ---
 
