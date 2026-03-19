@@ -1,8 +1,10 @@
 postgres/
-.gemini/
 .env
+.env_
 .git/
 .idea/
 venv/
 env/
+.venv/
+.env/
 __pycache__/
