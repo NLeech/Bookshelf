@@ -1,32 +1,30 @@
 services:
-#  web:
-#    build: .
-#    image: leechlab/bookshelf:latest
-#    depends_on:
-#      db:
-#        condition: service_healthy
-#    healthcheck:
-#      test: curl -f http://localhost:80/ping/ || exit 1
-#      interval: 60s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 60s
-#    working_dir: /Bookshelf
-#    env_file:
-#      - .env
-#    environment:
-#      - PG_DATABASE_ADDRESS=db
-#      - IS_DOCKER=true
-#      - FILL_DATABASE=${FILL_DATABASE}
-#    volumes:
-#      - "staticfiles:/Bookshelf/bookshelf/static"
-#      - "media:/Bookshelf/bookshelf/media"
-#    ports:
-#      - "8082:80"
-#    networks:
-#      - front-tier
-#      - back-tier
-#    restart: "unless-stopped"
+  web:
+    build: .
+    image: leechlab/bookshelf:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: curl -f http://localhost:8080/ping/ || exit 1
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    env_file:
+      - .env_
+    environment:
+      - PG_DATABASE_ADDRESS=db
+      - IS_DOCKER=true
+    volumes:
+      - "staticfiles:/Bookshelf/bookshelf/static"
+      - "media:/Bookshelf/bookshelf/media"
+    ports:
+      - "8082:8080"
+    networks:
+      - front-tier
+      - back-tier
+    restart: "unless-stopped"
 
   db:
     build: postgres
@@ -41,11 +39,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
-    ports:
-      - "5431:5432"
     networks:
-#      - back-tier
-      - front-tier
+      - back-tier
     restart: "unless-stopped"
 
 volumes:
@@ -55,14 +50,5 @@ volumes:
 
 networks:
   front-tier:
-#  back-tier:
-#    internal: true
-
-# AWS stuff
-#x-aws-cloudformation:
-#  Resources:
-#    WebTCP80TargetGroup:
-#      Properties:
-#        HealthCheckPath: /ping/
-#        Matcher:
-#          HttpCode: 200-399
+  back-tier:
+    internal: true

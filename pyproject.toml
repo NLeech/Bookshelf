@@ -14,6 +14,7 @@ dependencies = [
     "django-debug-toolbar>=6.2.0",
     "django-environ>=0.13.0",
     "djangorestframework>=3.16.1",
+    "gunicorn>=25.1.0",
     "kreuzberg>=4.4.6",
     "parameterized>=0.9.0",
     "pillow>=12.1.1",
