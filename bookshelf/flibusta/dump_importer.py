@@ -77,6 +77,8 @@ def import_dump(path: str = '', table_filter: str = '', batch_size: int = 5000) 
             logger.info(f"Successfully imported {table_name}")
         except Exception as e:
             logger.error(f"Failed to import {table_name}: {e}")
+            #
+            raise
 
 
 def parse_mysql_string(s: str) -> Optional[Any]:
