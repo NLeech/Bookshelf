@@ -11,7 +11,7 @@ class Command(BaseCommand):
         if get_user_model().objects.count() == 0:
             username = 'admin'
             email = 'admin@example.com'
-            password = os.environ.get('SUPERUSER_PASSWORD')
+            password = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
             print(f'Creating account for {username} ({email})')
             admin = get_user_model().objects.create_superuser(email=email, username=username, password=password)
             admin.registration_complete = True
