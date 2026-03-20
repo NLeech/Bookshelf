@@ -12,7 +12,8 @@ WORKDIR /$workdir
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl gcc libc-dev libpq-dev && \
@@ -23,7 +24,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.11 /uv /uvx /bin/
 
 # get and build packages
 COPY pyproject.toml uv.lock .python-version ./
-# uv sync creates a .venv automatically and installs dependencies
+# uv sync creates a venv automatically and installs dependencies
 # without trying to install the missing project source code
 # --no-dev ensures testing/linting tools aren't compiled into the production image
 RUN uv sync --frozen --no-dev --no-install-project
@@ -43,7 +44,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the pre-built virtual environment
-COPY --from=builder /$workdir/.venv /opt/venv
+COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1
 

@@ -17,7 +17,7 @@ services:
       - PG_DATABASE_ADDRESS=db
       - IS_DOCKER=true
     volumes:
-      - "staticfiles:/Bookshelf/bookshelf/static"
+      - "staticfiles:/Bookshelf/bookshelf/staticfiles"
       - "media:/Bookshelf/bookshelf/media"
     ports:
       - "8082:8080"
