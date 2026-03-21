@@ -90,14 +90,19 @@ class BookImporter:
             return f_genre.mapping.library_genre
 
         # Create Meta Genre if needed
-        meta_genre, _ = Genre.objects.get_or_create(name='')
+        meta_genre, _ = Genre.objects.get_or_create(
+            code=f_genre.genre_meta,
+            defaults={
+                'name': f_genre.genre_meta,
+            }
+        )
 
         # Create Genre
         library_genre, created = Genre.objects.get_or_create(
             code=f_genre.genre_code,
             defaults={
                 'name': f_genre.genre_desc,
-                'parent': meta_genre
+                'parent': meta_genre,
             }
         )
 
