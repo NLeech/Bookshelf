@@ -32,7 +32,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--formats',
             nargs='+',
-            help='List of file formats (e.g., fb2, epub) to filter.',
+            help='List of file formats (e.g., fb2 epub) to filter.',
             required=False
         )
 
@@ -45,9 +45,9 @@ class Command(BaseCommand):
         if path:
             process_local_path(
                 path,
-                genres_filter=genres,
-                langs_filter=langs,
-                formats_filter=formats
+                genres_filters=genres,
+                languages_filters=langs,
+                formats_filters=formats
             )
         else:
             self.process_daily_updates()

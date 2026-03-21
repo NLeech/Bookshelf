@@ -309,7 +309,12 @@ def process_archive(zip_path: str, filters: List[BookFilter]):
                 BookImporter().import_book(book_record, content, filename)
 
 
-def process_local_path(path: str, genres_filters: str = '', formats_filters: str = '', languages_filters: str = ''):
+def process_local_path(
+        path: str,
+        genres_filters: List[str] | None = None,
+        formats_filters: List[str] | None = None,
+        languages_filters: List[str] | None = None
+) -> None:
     if not os.path.exists(path):
         logger.error(f"Path '{path}' does not exist.")
         return
@@ -331,12 +336,16 @@ def process_local_path(path: str, genres_filters: str = '', formats_filters: str
             logger.error(f"Failed to process archive {zip_path}: {e}")
 
 
-def get_filters(genres_filters: str = '', formats_filters: str = '', languages_filters: str = '') -> List[BookFilter]:
+def get_filters(
+        genres_filters: List[str] | None = None,
+        formats_filters: List[str] | None = None,
+        languages_filters: List[str] | None = None
+) -> List[BookFilter]:
     filters = []
     if genres_filters:
-        filters.append(GenreFilter(genres_filters.split(',')))
+        filters.append(GenreFilter(genres_filters))
     if formats_filters:
-        filters.append(FormatFilter(formats_filters.split(',')))
+        filters.append(FormatFilter(formats_filters))
     if languages_filters:
-        filters.append(LanguageFilter(languages_filters.split(',')))
+        filters.append(LanguageFilter(languages_filters))
     return filters
