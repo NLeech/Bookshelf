@@ -3,7 +3,7 @@ import os
 import io
 import tempfile
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import zipfile
 import pyzipper
@@ -12,9 +12,6 @@ from django.db.models.query import QuerySet
 from django.db.models import Q
 from django.core.files import File
 from django.db import transaction
-from django.utils.text import slugify
-
-# TODO import kreuzberg
 
 from library.models import Author, Genre, BookSeries, Book, Language, BookSeriesLink
 from .models import (
@@ -168,10 +165,15 @@ class BookImporter:
 
         try:
             with transaction.atomic():
-                # Extract Metadata from file (using Kreuzberg)
+                # Extract metadata from the file
                 extracted_metadata = {}
-                # TODO Implement metadata loading using kreuzberg
-                # zip_buffer.seek(0) # if needed
+                extracted_cover = None
+
+                try:
+                    mime_type = "application/epub+zip" if f_book.file_type == "epub" else "application/x-fictionbook+xml"
+                    # TODO Implement metadata extraction
+                except Exception as e:
+                    logger.warning(f"Metadata extraction failed for book {f_book.id}: {e}")
 
                 # Re-compress the file with password
                 zip_buffer = tempfile.TemporaryFile()
@@ -183,8 +185,8 @@ class BookImporter:
                     # File inside should have the name 'book_id.ext'
                     zf.writestr(f"{f_book.id}.{f_book.file_type}", file_content)
                 
-                description = getattr(extracted_metadata, 'description', '')
-                isbn = getattr(extracted_metadata, 'isbn', 0)
+                description = extracted_metadata.get('description', '')
+                isbn = extracted_metadata.get('isbn', 0)
                 # Ensure ISBN is decimal/number
                 if not isinstance(isbn, (int, float, str)):
                     isbn = 0
@@ -207,13 +209,9 @@ class BookImporter:
                 book.file.save(file_name, File(zip_buffer), save=False)
 
                 # Save cover if available
-                cover_data = getattr(extracted_metadata, 'cover_image_content', None) # Hypothetical
-                # Note: Kreuzberg might return 'cover_image_path' or bytes.
-                # If bytes:
-                if cover_data:
-                    # guess extension?
+                if extracted_cover:
                     with tempfile.TemporaryFile() as tf:
-                        tf.write(cover_data)
+                        tf.write(extracted_cover)
                         tf.seek(0)
                         book.cover.save(f"cover_{f_book.id}.jpg", File(tf), save=False)
 
