@@ -15,7 +15,6 @@ dependencies = [
     "django-environ>=0.13.0",
     "djangorestframework>=3.16.1",
     "gunicorn>=25.1.0",
-    "kreuzberg>=4.4.6",
     "parameterized>=0.9.0",
     "pillow>=12.1.1",
     "psycopg2>=2.9.11",
