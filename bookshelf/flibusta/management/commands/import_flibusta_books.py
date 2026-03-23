@@ -2,7 +2,7 @@ import logging
 
 from django.core.management.base import BaseCommand
 
-from flibusta.book_importer import  process_local_path
+from flibusta.book_importer import  process_local_path, process_daily_updates
 
 
 logger = logging.getLogger(__name__)
@@ -41,20 +41,16 @@ class Command(BaseCommand):
         genres = options.get('genres')
         langs = options.get('langs')
         formats = options.get('formats')
+        
+        from flibusta.book_importer import get_filters
+
+        filters = get_filters(
+            genres_filters=genres,
+            languages_filters=langs,
+            formats_filters=formats
+        )
 
         if path:
-            process_local_path(
-                path,
-                genres_filters=genres,
-                languages_filters=langs,
-                formats_filters=formats
-            )
+            process_local_path(path, filters=filters)
         else:
-            self.process_daily_updates()
-
-    def process_daily_updates(self):
-        self.stdout.write("Processing daily updates from Flibusta (Not fully implemented, placeholder).")
-        # Logic to scrape/download from FLIBUSTA_BASE_URL/daily would go here.
-        # Requires web scraping to find links.
-        pass
-
+            process_daily_updates(filters=filters)

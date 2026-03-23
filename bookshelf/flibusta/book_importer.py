@@ -3,7 +3,10 @@ import os
 import io
 import tempfile
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Dict
+import re
+import requests
+import shutil
 
 import zipfile
 import pyzipper
@@ -312,12 +315,103 @@ def process_archive(zip_path: str, filters: List[BookFilter]):
                 BookImporter().import_book(book_record, content, filename)
 
 
-def process_local_path(
-        path: str,
-        genres_filters: List[str] | None = None,
-        formats_filters: List[str] | None = None,
-        languages_filters: List[str] | None = None
-) -> None:
+def get_daily_links(html_content: str) -> List[Dict[str, str]]:
+    """
+    Parse daily update page HTML to find links to book archives.
+    """
+    links = []
+    # Regex to match f.fb2.123-456.zip or f.n.123-456.zip
+    pattern = re.compile(r'href="([^"]*(?:f\.fb2|f\.n)\.\d+-\d+\.zip)"')
+    
+    for match in pattern.finditer(html_content):
+        url = match.group(1)
+        # Ensure URL is absolute if it's relative
+        if not url.startswith('http'):
+             # Usually links on Flibusta are relative to the page or root
+             # But the sample shows relative links like "f.fb2.864667-864748.zip"
+             # Base URL is FLIBUSTA_BASE_URL/daily/
+             # So we prepend it
+             base_url = getattr(settings, 'FLIBUSTA_BASE_URL', 'https://flibusta.is').rstrip('/')
+             url = f"{base_url}/daily/{url}"
+        
+        filename = url.split('/')[-1]
+        links.append({'url': url, 'filename': filename})
+    
+    return links
+
+
+def download_file(url: str) -> str:
+    """
+    Download a file from a URL to a temporary location.
+    Returns the path to the downloaded file.
+    """
+    logger.info(f"Downloading {url}...")
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        
+        # Create a temporary file
+        fd, path = tempfile.mkstemp(suffix='.zip')
+        with os.fdopen(fd, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        return path
+    except Exception as e:
+        logger.error(f"Failed to download {url}: {e}")
+        raise
+
+
+def process_daily_updates(filters: List[BookFilter] | None = None) -> None:
+    """
+    Fetch and process daily updates from Flibusta.
+    """
+    if filters is None:
+        filters = []
+
+    base_url = getattr(settings, 'FLIBUSTA_BASE_URL', 'https://flibusta.is').rstrip('/')
+    daily_url = f"{base_url}/daily/"
+    
+    logger.info(f"Checking for daily updates at {daily_url}...")
+    
+    try:
+        response = requests.get(daily_url)
+        response.raise_for_status()
+        
+        links = get_daily_links(response.text)
+        logger.info(f"Found {len(links)} update archives.")
+        
+        for link in links:
+            url = link['url']
+            filename = link['filename']
+            
+            # Identify if it is f.fb2 or f.n (both treated as archives to process)
+            # You might want to skip if already processed, but for now we just process.
+            # In a real system, you'd check a "ProcessedUpdates" model.
+            
+            logger.info(f"Processing update: {filename}")
+            
+            temp_path = None
+            try:
+                temp_path = download_file(url)
+                logger.info(f"Downloaded {filename} to {temp_path}. Processing archive...")
+                
+                process_archive(temp_path, filters=filters)
+                
+                logger.info(f"Finished processing {filename}.")
+                
+            except Exception as e:
+                logger.error(f"Error processing {filename}: {e}")
+            finally:
+                if temp_path and os.path.exists(temp_path):
+                    os.remove(temp_path)
+                    logger.debug(f"Removed temporary file {temp_path}")
+
+    except Exception as e:
+        logger.error(f"Failed to fetch or process daily updates: {e}")
+
+
+def process_local_path(path: str, filters: List[BookFilter] | None = None) -> None:
     if not os.path.exists(path):
         logger.error(f"Path '{path}' does not exist.")
         return
@@ -331,10 +425,13 @@ def process_local_path(
             if f.endswith('.zip')
         ]
 
+    if filters is None:
+        filters = []
+
     for zip_path in files:
         logger.info(f"Processing archive: {zip_path}")
         try:
-            process_archive(zip_path, filters=get_filters(genres_filters, formats_filters, languages_filters))
+            process_archive(zip_path, filters=filters)
         except Exception as e:
             logger.error(f"Failed to process archive {zip_path}: {e}")
 
