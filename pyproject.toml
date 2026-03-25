@@ -5,6 +5,7 @@ description = "Online library with OPDS support"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "beautifulsoup4>=4.14.3",
     "coverage>=7.13.4",
     "crispy-bootstrap5>=2025.6",
     "cryptography>=46.0.5",
@@ -14,6 +15,7 @@ dependencies = [
     "django-debug-toolbar>=6.2.0",
     "django-environ>=0.13.0",
     "djangorestframework>=3.16.1",
+    "ebooklib>=0.20",
     "gunicorn>=25.1.0",
     "parameterized>=0.9.0",
     "pillow>=12.1.1",

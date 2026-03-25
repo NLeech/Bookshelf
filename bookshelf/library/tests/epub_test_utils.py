@@ -1,0 +1,298 @@
+import os
+import io
+from ebooklib import epub
+
+def create_epub_one_author() -> io.BytesIO:
+    """
+    Creates an EPUB file stream with a title, one author, and three chapters.
+    """
+    book = epub.EpubBook()
+
+    # Set metadata
+    book.set_identifier('id123456')
+    book.set_title('Sample EPUB (One Author)')
+    book.set_language('en')
+    book.add_author('Author One')
+
+    # Create chapters
+    c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
+    c1.content = '<h1>Chapter 1</h1><p>This is the content of the first chapter.</p>'
+
+    c2 = epub.EpubHtml(title='Chapter 2', file_name='chap_02.xhtml', lang='en')
+    c2.content = '<h1>Chapter 2</h1><p>This is the content of the second chapter.</p>'
+
+    c3 = epub.EpubHtml(title='Chapter 3', file_name='chap_03.xhtml', lang='en')
+    c3.content = '<h1>Chapter 3</h1><p>This is the content of the third chapter.</p>'
+
+    # Add chapters to the book
+    book.add_item(c1)
+    book.add_item(c2)
+    book.add_item(c3)
+
+    # Define the table of contents
+    book.toc = (epub.Link('chap_01.xhtml', 'Chapter 1', 'chap_01'),
+                epub.Link('chap_02.xhtml', 'Chapter 2', 'chap_02'),
+                epub.Link('chap_03.xhtml', 'Chapter 3', 'chap_03'))
+
+    # Add default NCX and Nav file
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+
+    # Define the spine
+    book.spine = ['nav', c1, c2, c3]
+
+    # Create an in-memory stream
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
+def create_epub_two_authors() -> io.BytesIO:
+    """
+    Creates an EPUB file stream with a title, two authors, and three chapters.
+    """
+    book = epub.EpubBook()
+
+    # Set metadata
+    book.set_identifier('id123457')
+    book.set_title('Sample EPUB (Two Authors)')
+    book.set_language('en')
+    book.add_author('Author One')
+    book.add_author('Author Two')
+
+    # Create chapters
+    c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
+    c1.content = '<h1>Chapter 1</h1><p>This is the content of the first chapter.</p>'
+
+    c2 = epub.EpubHtml(title='Chapter 2', file_name='chap_02.xhtml', lang='en')
+    c2.content = '<h1>Chapter 2</h1><p>This is the content of the second chapter.</p>'
+
+    c3 = epub.EpubHtml(title='Chapter 3', file_name='chap_03.xhtml', lang='en')
+    c3.content = '<h1>Chapter 3</h1><p>This is the content of the third chapter.</p>'
+
+    # Add chapters to the book
+    book.add_item(c1)
+    book.add_item(c2)
+    book.add_item(c3)
+
+    # Define the table of contents
+    book.toc = (epub.Link('chap_01.xhtml', 'Chapter 1', 'chap_01'),
+                epub.Link('chap_02.xhtml', 'Chapter 2', 'chap_02'),
+                epub.Link('chap_03.xhtml', 'Chapter 3', 'chap_03'))
+
+    # Add default NCX and Nav file
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+
+    # Define the spine
+    book.spine = ['nav', c1, c2, c3]
+
+    # Create an in-memory stream
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
+def create_epub_nested_chapters() -> io.BytesIO:
+    """
+    Creates an EPUB file stream with a title, one author, and three chapters,
+    containing 2-3 nested subchapters.
+    """
+    book = epub.EpubBook()
+
+    # Set metadata
+    book.set_identifier('id123458')
+    book.set_title('Sample EPUB (Nested Chapters)')
+    book.set_language('en')
+    book.add_author('Author One')
+
+    # Create chapters and subchapters
+    c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
+    c1.content = '<h1>Chapter 1</h1><p>Content of chapter 1.</p>'
+    c1.id = 'chap_01'
+
+    sc1_1 = epub.EpubHtml(title='Subchapter 1.1', file_name='sub_chap_01_01.xhtml', lang='en')
+    sc1_1.content = '<h2>Subchapter 1.1</h2><p>Content of subchapter 1.1.</p>'
+    sc1_1.id = 'sc_01_01'
+
+    sc1_2 = epub.EpubHtml(title='Subchapter 1.2', file_name='sub_chap_01_02.xhtml', lang='en')
+    sc1_2.content = '<h2>Subchapter 1.2</h2><p>Content of subchapter 1.2.</p>'
+    sc1_2.id = 'sc_01_02'
+
+    c2 = epub.EpubHtml(title='Chapter 2', file_name='chap_02.xhtml', lang='en')
+    c2.content = '<h1>Chapter 2</h1><p>Content of chapter 2.</p>'
+    c2.id = 'chap_02'
+
+    c3 = epub.EpubHtml(title='Chapter 3', file_name='chap_03.xhtml', lang='en')
+    c3.content = '<h1>Chapter 3</h1><p>Content of chapter 3.</p>'
+    c3.id = 'chap_03'
+
+    sc3_1 = epub.EpubHtml(title='Subchapter 3.1', file_name='sub_chap_03_01.xhtml', lang='en')
+    sc3_1.content = '<h2>Subchapter 3.1</h2><p>Content of subchapter 3.1.</p>'
+    sc3_1.id = 'sc_03_01'
+
+    # Add items to the book
+    book.add_item(c1)
+    book.add_item(sc1_1)
+    book.add_item(sc1_2)
+    book.add_item(c2)
+    book.add_item(c3)
+    book.add_item(sc3_1)
+
+    # Define the table of contents with nested chapters
+    book.toc = (
+        (epub.Link('chap_01.xhtml', 'Chapter 1', 'chap_01'),
+            (
+                epub.Link('sub_chap_01_01.xhtml', 'Subchapter 1.1', 'sc_01_01'),
+                epub.Link('sub_chap_01_02.xhtml', 'Subchapter 1.2', 'sc_01_02')
+            )
+        ),
+        epub.Link('chap_02.xhtml', 'Chapter 2', 'chap_02'),
+        (epub.Link('chap_03.xhtml', 'Chapter 3', 'chap_03'),
+            (
+                epub.Link('sub_chap_03_01.xhtml', 'Subchapter 3.1', 'sc_03_01'),
+            )
+        )
+    )
+
+    # Add default NCX and Nav file
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+
+    # Define the spine
+    book.spine = ['nav', c1, sc1_1, sc1_2, c2, c3, sc3_1]
+
+    # Create an in-memory stream
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
+def create_epub_cyrillic() -> io.BytesIO:
+    """
+    Creates an EPUB file stream with a title, one author, and three chapters;
+    the author name, chapter titles, and chapter content are in Cyrillic.
+    """
+    book = epub.EpubBook()
+
+    # Set metadata
+    book.set_identifier('id123459')
+    book.set_title('Приклад EPUB (Кирилиця)')
+    book.set_language('uk')
+    book.add_author('Автор Один')
+
+    # Create chapters with Cyrillic content
+    c1 = epub.EpubHtml(title='Глава 1', file_name='chap_01.xhtml', lang='uk')
+    c1.content = '<h1>Глава 1</h1><p>Це зміст першої глави.</p>'
+
+    c2 = epub.EpubHtml(title='Глава 2', file_name='chap_02.xhtml', lang='uk')
+    c2.content = '<h1>Глава 2</h1><p>Це зміст другої глави.</p>'
+
+    c3 = epub.EpubHtml(title='Глава 3', file_name='chap_03.xhtml', lang='uk')
+    c3.content = '<h1>Глава 3</h1><p>Це зміст третьої глави.</p>'
+
+    # Add chapters to the book
+    book.add_item(c1)
+    book.add_item(c2)
+    book.add_item(c3)
+
+    # Define the table of contents
+    book.toc = (epub.Link('chap_01.xhtml', 'Глава 1', 'chap_01'),
+                epub.Link('chap_02.xhtml', 'Глава 2', 'chap_02'),
+                epub.Link('chap_03.xhtml', 'Глава 3', 'chap_03'))
+
+    # Add default NCX and Nav file
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+
+    # Define the spine
+    book.spine = ['nav', c1, c2, c3]
+
+    # Create an in-memory stream
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
+def create_epub_no_toc() -> io.BytesIO:
+    """
+    Creates an EPUB file stream with a title, one author, and three chapters,
+    but explicitly without a table of contents to test fallback mechanisms.
+    """
+    book = epub.EpubBook()
+
+    # Set metadata
+    book.set_identifier('id123460')  # Unique ID
+    book.set_title('Sample EPUB (No TOC)')
+    book.set_language('en')
+    book.add_author('Author NoToc')
+
+    # Create chapters
+    c1 = epub.EpubHtml(title='No TOC Chapter 1', file_name='no_toc_chap_01.xhtml', lang='en')
+    c1.content = '<h1>No TOC Chapter 1</h1><p>This is the content of the first chapter without TOC.</p>'
+
+    c2 = epub.EpubHtml(title='No TOC Chapter 2', file_name='no_toc_chap_02.xhtml', lang='en')
+    c2.content = '<h1>No TOC Chapter 2</h1><p>This is the content of the second chapter without TOC.</p>'
+
+    c3 = epub.EpubHtml(title='No TOC Chapter 3', file_name='no_toc_chap_03.xhtml', lang='en')
+    c3.content = '<h1>No TOC Chapter 3</h1><p>This is the content of the third chapter without TOC.</p>'
+
+    # Add chapters to the book
+    book.add_item(c1)
+    book.add_item(c2)
+    book.add_item(c3)
+
+    # Explicitly do NOT define book.toc
+    book.toc = () # Assign an empty tuple to ensure no TOC is present
+
+    # Add default NCX and Nav file - these are usually required even without a TOC
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+
+    # Define the spine
+    book.spine = ['nav', c1, c2, c3]
+
+    # Create an in-memory stream
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
+def write_stream_to_file(stream: io.BytesIO, file_path: str) -> None:
+    """
+    :param
+    Writes a stream to a file.
+    """
+    with open(file_path, 'wb') as f:
+        f.write(stream.read())
+
+if __name__ == '__main__':
+    # When running this script directly, create the files in the 'books' directory,
+    # which is relative to the project root, not the 'tests' directory.
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    books_dir = os.path.join(project_root, 'books')
+
+    if not os.path.exists(books_dir):
+        os.makedirs(books_dir)
+
+    epub_stream_1 = create_epub_one_author()
+    write_stream_to_file(epub_stream_1, os.path.join(books_dir, 'test_epub_1.epub'))
+    epub_stream_1.close()
+
+    epub_stream_2 = create_epub_two_authors()
+    write_stream_to_file(epub_stream_2, os.path.join(books_dir, 'test_epub_2.epub'))
+    epub_stream_2.close()
+
+    epub_stream_3 = create_epub_nested_chapters()
+    write_stream_to_file(epub_stream_3, os.path.join(books_dir, 'test_epub_3.epub'))
+    epub_stream_3.close()
+
+    epub_stream_4 = create_epub_cyrillic()
+    write_stream_to_file(epub_stream_4, os.path.join(books_dir, 'test_epub_4.epub'))
+    epub_stream_4.close()
+
+    epub_stream_5 = create_epub_no_toc()
+    write_stream_to_file(epub_stream_5, os.path.join(books_dir, 'test_epub_5_no_toc.epub'))
+    epub_stream_5.close()
+
+    print(f"EPUB files created in the '{books_dir}' directory.")
