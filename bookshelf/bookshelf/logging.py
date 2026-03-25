@@ -1,4 +1,5 @@
 import logging
+import copy
 
 class ColoredFormatter(logging.Formatter):
     """
@@ -10,6 +11,10 @@ class ColoredFormatter(logging.Formatter):
     RESET = "\033[0m"
 
     def format(self, record):
+
+        # don't modify the original record to avoid affecting other handlers
+        record = copy.copy(record) 
+
         if record.levelno == logging.WARNING:
             record.levelname = f"{self.YELLOW}{record.levelname}{self.RESET}"
         elif record.levelno >= logging.ERROR:

@@ -207,17 +207,12 @@ LOGGING = {
         },
     },
     'handlers': {
-        'file': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR.parent, 'log.log'),
-            'formatter': 'simple',
-            'encoding': 'utf-8',
-        },
         'flibusta_file': {
             'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'flibusta', 'update.log'),
+            'class': 'logging.handlers.RotatingFileHandler',
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 10,
+            'filename': os.path.join(BASE_DIR.parent, 'update.log'),
             'formatter': 'simple',
             'encoding': 'utf-8',
         },
@@ -234,22 +229,22 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file', 'mail_admins'],
+            'handlers': ['console', 'mail_admins'],
             'level': 'INFO',
             'propagate': True,
         },
         'flibusta': {
-            'handlers': ['console', 'file', 'flibusta_file', 'mail_admins'],
+            'handlers': ['console', 'flibusta_file', 'mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
         },
         'authentication': {
-            'handlers': ['console', 'file', 'mail_admins'],
+            'handlers': ['console', 'mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
         },
         'library': {
-            'handlers': ['console', 'file', 'mail_admins'],
+            'handlers': ['console', 'mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
         },
