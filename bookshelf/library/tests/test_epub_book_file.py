@@ -2,6 +2,7 @@ import unittest
 import os
 from parameterized import parameterized
 
+from PIL import Image
 from library.book_utils import EpubBookFile
 from library.tests.epub_test_utils import (
     create_epub_one_author,
@@ -9,6 +10,10 @@ from library.tests.epub_test_utils import (
     create_epub_nested_chapters,
     create_epub_cyrillic,
     create_epub_no_toc,
+    create_epub_with_cover,
+    create_epub_cover_metadata,
+    create_epub_cover_tag_name,
+    create_epub_cover_heuristic,
     write_stream_to_file,
 )
 
@@ -55,6 +60,46 @@ class TestEpubBookFileLoad(unittest.TestCase):
                 os.remove(file_path)
             if os.path.exists(temp_dir):
                 os.rmdir(temp_dir)
+
+    def test_extract_cover(self):
+        """
+        Tests extraction of a cover image from an EPUB (standard EpubCover).
+        """
+        with create_epub_with_cover() as epub_stream:
+            self.book_file.load_from_stream(epub_stream)
+            self.assertIsNotNone(self.book_file.cover)
+            self.assertIsInstance(self.book_file.cover, Image.Image)
+            self.assertEqual(self.book_file.cover.size, (100, 100))
+
+    def test_extract_cover_metadata(self):
+        """
+        Tests extraction of a cover image from an EPUB using metadata (EPUB 2.0).
+        """
+        with create_epub_cover_metadata() as epub_stream:
+            self.book_file.load_from_stream(epub_stream)
+            self.assertIsNotNone(self.book_file.cover)
+            self.assertIsInstance(self.book_file.cover, Image.Image)
+            self.assertEqual(self.book_file.cover.size, (100, 100))
+
+    def test_extract_cover_tag_name(self):
+        """
+        Tests extraction of a cover image from an EPUB using metadata tag NAMED 'cover'.
+        """
+        with create_epub_cover_tag_name() as epub_stream:
+            self.book_file.load_from_stream(epub_stream)
+            self.assertIsNotNone(self.book_file.cover)
+            self.assertIsInstance(self.book_file.cover, Image.Image)
+            self.assertEqual(self.book_file.cover.size, (100, 100))
+
+    def test_extract_cover_heuristic(self):
+        """
+        Tests extraction of a cover image from an EPUB using heuristic fallback.
+        """
+        with create_epub_cover_heuristic() as epub_stream:
+            self.book_file.load_from_stream(epub_stream)
+            self.assertIsNotNone(self.book_file.cover)
+            self.assertIsInstance(self.book_file.cover, Image.Image)
+            self.assertEqual(self.book_file.cover.size, (100, 100))
 
 
 class TestEpubChapterExtraction(unittest.TestCase):

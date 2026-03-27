@@ -1,9 +1,10 @@
 import io
-from typing import List
+from typing import List, Optional
 
+from PIL import Image
 import ebooklib
 from bs4 import BeautifulSoup
-from ebooklib.epub import EpubBook, EpubHtml
+from ebooklib.epub import EpubBook, EpubHtml, EpubCover, EpubImage
 
 from .book_file import BookFile, Chapter
 
@@ -39,7 +40,76 @@ class EpubBookFile(BookFile):
         if authors:
             self.authors = [author[0] for author in authors]
 
+        languages = self.book.get_metadata('DC', 'language')
+        if languages and languages[0]:
+            self.language = languages[0][0]
+
+        descriptions = self.book.get_metadata('DC', 'description')
+        if descriptions and descriptions[0]:
+            self.description = descriptions[0][0]
+
+        self.cover = self._extract_cover()
+
         self.chapters = self._get_chapters_from_book()
+
+    def _extract_cover(self) -> Optional[Image.Image]:
+        """Extracts the cover image from the EPUB book.
+        
+        :return: PIL Image object if a cover is found, None otherwise.
+        """
+        # 1. Try to find EpubCover items (EPUB 3.0 standard or marked explicitly)
+        for item in self.book.get_items():
+            if isinstance(item, EpubCover):
+                content = item.get_content()
+                if content:
+                    try:
+                        image_stream = io.BytesIO(content)
+                        return Image.open(image_stream)
+                    except Exception:
+                        pass
+        
+        # 2. Try to find cover through metadata (EPUB 2.0 standard)
+        # <meta name="cover" content="id123" />
+        
+        # We check both None and OPF namespaces
+        for ns in [None, 'OPF']:
+            try:
+                # Some EPUBs have the tag name as 'cover'
+                cover_metadata = self.book.get_metadata(ns, 'cover')
+                if not cover_metadata:
+                    # Others have it as 'meta' with name="cover"
+                    all_meta = self.book.get_metadata(ns, 'meta')
+                    cover_metadata = [m for m in all_meta if m[1].get('name') == 'cover']
+            except (KeyError, IndexError):
+                continue
+
+            if cover_metadata:
+                for _, attrs in cover_metadata:
+                    cover_id = attrs.get('content')
+                    if cover_id:
+                        item = self.book.get_item_with_id(cover_id)
+                        if item:
+                            content = item.get_content()
+                            if content:
+                                try:
+                                    image_stream = io.BytesIO(content)
+                                    return Image.open(image_stream)
+                                except Exception:
+                                    pass
+        
+        # 3. Fallback: look for items with 'cover' in their ID or filename
+        for item in self.book.get_items():
+            if isinstance(item, (EpubImage, EpubCover)):
+                if 'cover' in (item.id or '').lower() or 'cover' in (item.file_name or '').lower():
+                     content = item.get_content()
+                     if content:
+                        try:
+                            image_stream = io.BytesIO(content)
+                            return Image.open(image_stream)
+                        except Exception:
+                            pass
+
+        return None
 
     def _process_toc_node(self, toc_node, level: int = 0, parent: Chapter = None) -> Chapter:
         """

@@ -45,6 +45,8 @@ class BookFile(ABC):
         self.book: Any = None  # Placeholder for book object from specific library
         self.authors: List[str] = []
         self.title: str = ''
+        self.language: str = ''
+        self.description: str = ''
         self.cover: Optional[Image] = None
         self.chapters: List[Chapter] = []
 

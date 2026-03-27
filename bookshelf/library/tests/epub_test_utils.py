@@ -1,6 +1,7 @@
 import os
 import io
 from ebooklib import epub
+from PIL import Image
 
 def create_epub_one_author() -> io.BytesIO:
     """
@@ -258,9 +259,166 @@ def create_epub_no_toc() -> io.BytesIO:
     stream.seek(0)
     return stream
 
+def create_epub_with_cover() -> io.BytesIO:
+    """
+    Creates an EPUB file stream with a title, one author, and a cover image.
+    """
+    book = epub.EpubBook()
+
+    # Set metadata
+    book.set_identifier('id_with_cover')
+    book.set_title('Sample EPUB (With Cover)')
+    book.set_language('en')
+    book.add_author('Author Cover')
+
+    # Create a simple red image for the cover
+    img = Image.new('RGB', (100, 100), color='red')
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG')
+    cover_content = img_byte_arr.getvalue()
+
+    # Set cover
+    book.set_cover("cover.jpg", cover_content)
+
+    # Create one chapter
+    c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
+    c1.content = '<h1>Chapter 1</h1><p>Content.</p>'
+    book.add_item(c1)
+
+    # Define the table of contents
+    book.toc = (epub.Link('chap_01.xhtml', 'Chapter 1', 'chap_01'),)
+
+    # Add default NCX and Nav file
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+
+    # Define the spine
+    book.spine = ['nav', c1]
+
+    # Create an in-memory stream
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
+def create_epub_cover_metadata() -> io.BytesIO:
+    """
+    Creates an EPUB file stream where the cover is an EpubImage linked via metadata.
+    """
+    book = epub.EpubBook()
+    book.set_identifier('id_metadata_cover')
+    book.set_title('Sample EPUB (Metadata Cover)')
+    book.add_author('Author Metadata')
+
+    img = Image.new('RGB', (100, 100), color='blue')
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG')
+    cover_content = img_byte_arr.getvalue()
+
+    # Add image as EpubImage (NOT EpubCover)
+    image_item = epub.EpubImage()
+    image_item.id = 'my_cover_id'
+    image_item.file_name = 'cover.jpg'
+    image_item.content = cover_content
+    book.add_item(image_item)
+
+    # Add metadata pointing to this image
+    # ebooklib stores this as None, 'cover' after reading
+    book.add_metadata(None, 'meta', '', {'name': 'cover', 'content': 'my_cover_id'})
+
+    c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
+    c1.content = '<h1>Chapter 1</h1>'
+    book.add_item(c1)
+    book.toc = (epub.Link('chap_01.xhtml', 'Chapter 1', 'chap_01'),)
+    
+    # Add default NCX and Nav file
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ['nav', c1]
+
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
+def create_epub_cover_tag_name() -> io.BytesIO:
+    """
+    Creates an EPUB file stream where the cover is an EpubImage linked via 
+    metadata tag NAMED 'cover' (less common but handled).
+    """
+    book = epub.EpubBook()
+    book.set_identifier('id_tag_cover')
+    book.set_title('Sample EPUB (Tag Name Cover)')
+    book.add_author('Author Tag')
+
+    img = Image.new('RGB', (100, 100), color='yellow')
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG')
+    cover_content = img_byte_arr.getvalue()
+
+    image_item = epub.EpubImage()
+    image_item.id = 'my_cover_id'
+    image_item.file_name = 'cover.jpg'
+    image_item.content = cover_content
+    book.add_item(image_item)
+
+    # Add metadata as 'cover' tag directly
+    book.add_metadata(None, 'cover', '', {'content': 'my_cover_id'})
+
+    c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
+    c1.content = '<h1>Chapter 1</h1>'
+    book.add_item(c1)
+    book.toc = (epub.Link('chap_01.xhtml', 'Chapter 1', 'chap_01'),)
+    
+    # Add default NCX and Nav file
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ['nav', c1]
+
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
+def create_epub_cover_heuristic() -> io.BytesIO:
+    """
+    Creates an EPUB file stream where the cover is an EpubImage with 'cover' in its filename, 
+    but no explicit cover markings.
+    """
+    book = epub.EpubBook()
+    book.set_identifier('id_heuristic_cover')
+    book.set_title('Sample EPUB (Heuristic Cover)')
+    book.add_author('Author Heuristic')
+
+    img = Image.new('RGB', (100, 100), color='green')
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG')
+    cover_content = img_byte_arr.getvalue()
+
+    # Add image as EpubImage with 'cover' in filename, no metadata, no properties
+    image_item = epub.EpubImage()
+    image_item.id = 'image_99'
+    image_item.file_name = 'book_cover_image.jpg'
+    image_item.content = cover_content
+    book.add_item(image_item)
+
+    c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
+    c1.content = '<h1>Chapter 1</h1>'
+    book.add_item(c1)
+    book.toc = (epub.Link('chap_01.xhtml', 'Chapter 1', 'chap_01'),)
+    
+    # Add default NCX and Nav file
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ['nav', c1]
+
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
 def write_stream_to_file(stream: io.BytesIO, file_path: str) -> None:
     """
-    :param
     Writes a stream to a file.
     """
     with open(file_path, 'wb') as f:
