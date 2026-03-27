@@ -1,7 +1,13 @@
 .idea
 .gemini
+.vscode
 
-.wav
+/bookshelf/media/
+
+*.wav
+*.zip
+*.fb2
+*.epub
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
