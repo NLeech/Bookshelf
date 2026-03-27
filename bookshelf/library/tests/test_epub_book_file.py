@@ -23,26 +23,27 @@ class TestEpubBookFileLoad(unittest.TestCase):
         self.book_file = EpubBookFile()
 
     @parameterized.expand([
-        ("one_author", create_epub_one_author, "Sample EPUB (One Author)", ["Author One"]),
-        ("two_authors", create_epub_two_authors, "Sample EPUB (Two Authors)", ["Author One", "Author Two"]),
-        ("cyrillic", create_epub_cyrillic, "Приклад EPUB (Кирилиця)", ["Автор Один"]),
+        ("one_author", create_epub_one_author, "Sample EPUB (One Author)", ["Author One"], "A sample description."),
+        ("two_authors", create_epub_two_authors, "Sample EPUB (Two Authors)", ["Author One", "Author Two"], "Another sample description with two authors."),
+        ("cyrillic", create_epub_cyrillic, "Приклад EPUB (Кирилиця)", ["Автор Один"], "Опис кирилицею."),
     ])
-    def test_load_from_stream(self, name, create_epub_func, expected_title, expected_authors):
+    def test_load_from_stream(self, name, create_epub_func, expected_title, expected_authors, expected_description):
         """
-        Tests loading an EPUB from an in-memory stream and verifies title and authors.
+        Tests loading an EPUB from an in-memory stream and verifies title, authors and description.
         """
         with create_epub_func() as epub_stream:
             self.book_file.load_from_stream(epub_stream)
             self.assertEqual(self.book_file.title, expected_title)
             self.assertEqual(self.book_file.authors, expected_authors)
+            self.assertEqual(self.book_file.description, expected_description)
 
     @parameterized.expand([
-        ("one_author", create_epub_one_author, "Sample EPUB (One Author)", ["Author One"]),
-        ("two_authors", create_epub_two_authors, "Sample EPUB (Two Authors)", ["Author One", "Author Two"]),
+        ("one_author", create_epub_one_author, "Sample EPUB (One Author)", ["Author One"], "A sample description."),
+        ("two_authors", create_epub_two_authors, "Sample EPUB (Two Authors)", ["Author One", "Author Two"], "Another sample description with two authors."),
     ])
-    def test_load_from_file(self, name, create_epub_func, expected_title, expected_authors):
+    def test_load_from_file(self, name, create_epub_func, expected_title, expected_authors, expected_description):
         """
-        Tests loading an EPUB from a temporary file and verifies title and authors.
+        Tests loading an EPUB from a temporary file and verifies title, authors and description.
         """
         temp_dir = "temp_test_books"
         os.makedirs(temp_dir, exist_ok=True)
@@ -55,6 +56,7 @@ class TestEpubBookFileLoad(unittest.TestCase):
             self.book_file.load_from_file(file_path)
             self.assertEqual(self.book_file.title, expected_title)
             self.assertEqual(self.book_file.authors, expected_authors)
+            self.assertEqual(self.book_file.description, expected_description)
         finally:
             if os.path.exists(file_path):
                 os.remove(file_path)
@@ -112,6 +114,7 @@ class TestEpubChapterExtraction(unittest.TestCase):
         """
         with create_epub_one_author() as epub_stream:
             self.book_file.load_from_stream(epub_stream)
+            self.assertEqual(self.book_file.description, "A sample description.")
             chapters = self.book_file.chapters
             self.assertEqual(len(chapters), 3)
             self.assertEqual(chapters[0].title, "Chapter 1")
@@ -126,6 +129,7 @@ class TestEpubChapterExtraction(unittest.TestCase):
         """
         with create_epub_nested_chapters() as epub_stream:
             self.book_file.load_from_stream(epub_stream)
+            self.assertEqual(self.book_file.description, "Description for nested chapters.")
             chapters = self.book_file.chapters
             # Expecting 3 top-level chapters
             self.assertEqual(len(chapters), 3)
@@ -155,6 +159,7 @@ class TestEpubChapterExtraction(unittest.TestCase):
         """
         with create_epub_cyrillic() as epub_stream:
             self.book_file.load_from_stream(epub_stream)
+            self.assertEqual(self.book_file.description, "Опис кирилицею.")
             chapters = self.book_file.chapters
             self.assertEqual(len(chapters), 3)
             self.assertEqual(chapters[0].title, "Глава 1")
@@ -169,6 +174,7 @@ class TestEpubChapterExtraction(unittest.TestCase):
         """
         with create_epub_no_toc() as epub_stream:
             self.book_file.load_from_stream(epub_stream)
+            self.assertEqual(self.book_file.description, "Description for no TOC book.")
             chapters = self.book_file.chapters
             self.assertEqual(len(chapters), 3)
             self.assertEqual(chapters[0].title, "No TOC Chapter 1")

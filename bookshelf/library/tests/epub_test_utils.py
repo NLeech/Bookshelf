@@ -14,6 +14,7 @@ def create_epub_one_author() -> io.BytesIO:
     book.set_title('Sample EPUB (One Author)')
     book.set_language('en')
     book.add_author('Author One')
+    book.add_metadata('DC', 'description', 'A sample description.')
 
     # Create chapters
     c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
@@ -60,6 +61,7 @@ def create_epub_two_authors() -> io.BytesIO:
     book.set_language('en')
     book.add_author('Author One')
     book.add_author('Author Two')
+    book.add_metadata('DC', 'description', 'Another sample description with two authors.')
 
     # Create chapters
     c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
@@ -106,6 +108,7 @@ def create_epub_nested_chapters() -> io.BytesIO:
     book.set_title('Sample EPUB (Nested Chapters)')
     book.set_language('en')
     book.add_author('Author One')
+    book.add_metadata('DC', 'description', 'Description for nested chapters.')
 
     # Create chapters and subchapters
     c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
@@ -181,6 +184,7 @@ def create_epub_cyrillic() -> io.BytesIO:
     book.set_title('Приклад EPUB (Кирилиця)')
     book.set_language('uk')
     book.add_author('Автор Один')
+    book.add_metadata('DC', 'description', 'Опис кирилицею.')
 
     # Create chapters with Cyrillic content
     c1 = epub.EpubHtml(title='Глава 1', file_name='chap_01.xhtml', lang='uk')
@@ -227,6 +231,7 @@ def create_epub_no_toc() -> io.BytesIO:
     book.set_title('Sample EPUB (No TOC)')
     book.set_language('en')
     book.add_author('Author NoToc')
+    book.add_metadata('DC', 'description', 'Description for no TOC book.')
 
     # Create chapters
     c1 = epub.EpubHtml(title='No TOC Chapter 1', file_name='no_toc_chap_01.xhtml', lang='en')
