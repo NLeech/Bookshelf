@@ -4,8 +4,12 @@
 
 .idea
 .gemini
+.vscode
 
-.wav
+*.wav
+*.zip
+*.fb2
+*.epub
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -130,6 +134,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env_
 .venv
 env/
 venv/
