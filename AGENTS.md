@@ -15,6 +15,8 @@ download history, and reading lists.
 - **Run specific app tests:** `python manage.py test library` or `python manage.py test authentication`
 - **Run single test file:** `python manage.py test bookshelf.library.tests.test_models`
 - **Run single test method:** `python manage.py test bookshelf.library.tests.test_models.LoopHierarchyTest.test_wrong_parent`
+- **Run test with coverage:** `coverage run --source='.' manage.py test library -v 2`
+- **Show tests coverage report:** `coverage report -m`
 
 ### Database Operations
 - **Create migrations:** `python manage.py makemigrations`
