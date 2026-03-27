@@ -55,7 +55,9 @@ class EpubBookFile(BookFile):
         else:
             link, children = toc_node, []
 
-        book_item = self.book.get_item_with_href(link.href)
+        # Strip the anchor to get the actual file path
+        file_path = link.href.split('#')[0]
+        book_item = self.book.get_item_with_href(file_path)
         content_html = ''
         if book_item:
             content_bytes = book_item.get_content()

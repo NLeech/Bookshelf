@@ -1,8 +1,9 @@
 import unittest
 import os
 from parameterized import parameterized
-from book_utils.epub_book_file import EpubBookFile
-from bookshelf.library.tests.epub_test_utils import (
+
+from library.book_utils import EpubBookFile
+from library.tests.epub_test_utils import (
     create_epub_one_author,
     create_epub_two_authors,
     create_epub_nested_chapters,
