@@ -4,6 +4,13 @@ version = "0.0.1"
 description = "Online library with OPDS support"
 readme = "README.md"
 requires-python = ">=3.12"
+
+[dependency-groups]
+dev = [
+    "django-debug-toolbar>=6.2.0",
+    "django-extensions",
+    "ipython",
+]
 dependencies = [
     "beautifulsoup4>=4.14.3",
     "coverage>=7.13.4",
@@ -17,6 +24,7 @@ dependencies = [
     "djangorestframework>=3.16.1",
     "ebooklib>=0.20",
     "gunicorn>=25.1.0",
+    "ipython>=9.11.0",
     "parameterized>=0.9.0",
     "pillow>=12.1.1",
     "psycopg2>=2.9.11",
