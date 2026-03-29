@@ -47,6 +47,7 @@ class BookFile(ABC):
         self.title: str = ''
         self.language: str = ''
         self.description: str = ''
+        self.isbn: str = ''
         self.cover: Optional[Image] = None
         self.chapters: List[Chapter] = []
 

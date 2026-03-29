@@ -422,6 +422,39 @@ def create_epub_cover_heuristic() -> io.BytesIO:
     stream.seek(0)
     return stream
 
+def create_epub_with_isbn(isbn_val: str, use_prefix: bool = False) -> io.BytesIO:
+    """
+    Creates an EPUB file stream with a specific ISBN.
+    """
+    book = epub.EpubBook()
+    book.set_title('Sample EPUB (ISBN)')
+    book.set_language('en')
+    book.add_author('Author ISBN')
+
+    # Set as primary identifier first, then we might overwrite it with more specific metadata
+    book.set_identifier('id123456')
+
+    if use_prefix:
+        book.add_metadata('DC', 'identifier', f'isbn:{isbn_val}')
+    else:
+        # Use full namespace URI for the scheme attribute to ensure it's written correctly
+        opf_uri = 'http://purl.org/dc/terms/' # Wait, is it OPF or DCTERMS?
+        # Re-checking NAMESPACES in epub.py: OPF is http://www.idpf.org/2007/opf
+        book.add_metadata('DC', 'identifier', isbn_val, {f'{{http://www.idpf.org/2007/opf}}scheme': 'ISBN'})
+    
+    c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
+    c1.content = '<h1>Chapter 1</h1>'
+    book.add_item(c1)
+    book.toc = (epub.Link('chap_01.xhtml', 'Chapter 1', 'chap_01'),)
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ['nav', c1]
+
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
 def write_stream_to_file(stream: io.BytesIO, file_path: str) -> None:
     """
     Writes a stream to a file.

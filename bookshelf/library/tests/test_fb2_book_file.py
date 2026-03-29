@@ -74,6 +74,15 @@ class TestFb2BookFileLoad(unittest.TestCase):
             self.assertIsInstance(self.book_file.cover, Image.Image)
             self.assertEqual(self.book_file.cover.size, (100, 100))
 
+    def test_extract_isbn(self):
+        """
+        Tests extraction of ISBN from FB2.
+        """
+        isbn_val = "5-04-002199-0"
+        with create_simple_fb2(isbn=isbn_val) as fb2_stream:
+            self.book_file.load_from_stream(fb2_stream)
+            self.assertEqual(self.book_file.isbn, isbn_val)
+
 
 class TestFb2ChapterExtraction(unittest.TestCase):
     def setUp(self):

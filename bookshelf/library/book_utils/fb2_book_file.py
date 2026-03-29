@@ -75,6 +75,13 @@ class Fb2BookFile(BookFile):
                 # We store the inner content of annotation as a string
                 self.description = "".join([str(c) for c in annotation.contents]).strip()
 
+        # ISBN
+        publish_info = self.soup.find('publish-info')
+        if publish_info:
+            isbn_tag = publish_info.find('isbn')
+            if isbn_tag:
+                self.isbn = isbn_tag.get_text(strip=True)
+
         self.cover = self._extract_cover()
         self.chapters = self._get_chapters_from_book()
 

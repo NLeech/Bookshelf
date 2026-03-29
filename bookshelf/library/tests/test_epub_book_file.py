@@ -14,6 +14,7 @@ from library.tests.epub_test_utils import (
     create_epub_cover_metadata,
     create_epub_cover_tag_name,
     create_epub_cover_heuristic,
+    create_epub_with_isbn,
     write_stream_to_file,
 )
 
@@ -62,6 +63,24 @@ class TestEpubBookFileLoad(unittest.TestCase):
                 os.remove(file_path)
             if os.path.exists(temp_dir):
                 os.rmdir(temp_dir)
+
+    def test_extract_isbn_scheme(self):
+        """
+        Tests extraction of ISBN using opf:scheme="ISBN".
+        """
+        isbn_val = "9781234567890"
+        with create_epub_with_isbn(isbn_val) as epub_stream:
+            self.book_file.load_from_stream(epub_stream)
+            self.assertEqual(self.book_file.isbn, isbn_val)
+
+    def test_extract_isbn_prefix(self):
+        """
+        Tests extraction of ISBN using 'isbn:' prefix.
+        """
+        isbn_val = "978-0-545-01022-1"
+        with create_epub_with_isbn(isbn_val, use_prefix=True) as epub_stream:
+            self.book_file.load_from_stream(epub_stream)
+            self.assertEqual(self.book_file.isbn, isbn_val)
 
     def test_extract_cover(self):
         """

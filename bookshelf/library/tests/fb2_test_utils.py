@@ -1,7 +1,7 @@
 import io
 import base64
 
-def create_simple_fb2(title="Test Title", authors=None, lang="en", annotation="Test Annotation", sections=None, cover_data=None) -> io.BytesIO:
+def create_simple_fb2(title="Test Title", authors=None, lang="en", annotation="Test Annotation", sections=None, cover_data=None, isbn=None) -> io.BytesIO:
     """
     Creates a simple FB2 file in memory.
     """
@@ -35,6 +35,12 @@ def create_simple_fb2(title="Test Title", authors=None, lang="en", annotation="T
         fb2_xml.append('      <coverpage><image l:href="#cover.jpg"/></coverpage>')
 
     fb2_xml.append('    </title-info>')
+
+    if isbn:
+        fb2_xml.append('    <publish-info>')
+        fb2_xml.append(f'      <isbn>{isbn}</isbn>')
+        fb2_xml.append('    </publish-info>')
+
     fb2_xml.append('  </description>')
 
     fb2_xml.append('  <body>')

@@ -48,9 +48,43 @@ class EpubBookFile(BookFile):
         if descriptions and descriptions[0]:
             self.description = descriptions[0][0]
 
+        self.isbn = self._extract_isbn()
+
         self.cover = self._extract_cover()
 
         self.chapters = self._get_chapters_from_book()
+
+    def _extract_isbn(self) -> str:
+        """Extracts ISBN from EPUB metadata."""
+        identifiers = self.book.get_metadata('DC', 'identifier')
+        
+        # First pass: look for explicit ISBN scheme or prefix
+        for val, attrs in identifiers:
+            is_isbn_scheme = False
+            if attrs:
+                for k, v in attrs.items():
+                    # Check for scheme="ISBN", opf:scheme="ISBN", {URI}scheme="ISBN"
+                    if (k == 'scheme' or k.endswith('}scheme') or k.endswith(':scheme')) and v.upper() == 'ISBN':
+                        is_isbn_scheme = True
+                        break
+            
+            if is_isbn_scheme:
+                return val
+
+            if val and val.lower().startswith('isbn:'):
+                return val[5:].strip()
+
+        # Second pass: fallback to any identifier that looks like an ISBN (10 or 13 digits, maybe with hyphens)
+        # Only if we haven't found a better one
+        for val, attrs in identifiers:
+            if not val:
+                continue
+            # Remove hyphens and spaces
+            clean_val = val.replace('-', '').replace(' ', '')
+            if clean_val.isdigit() and len(clean_val) in [10, 13]:
+                return val
+
+        return ''
 
     def _extract_cover(self) -> Optional[Image.Image]:
         """Extracts the cover image from the EPUB book.
