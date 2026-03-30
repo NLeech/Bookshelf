@@ -1,13 +1,21 @@
-/bookshelf/media/
 
-.idea
+# Ai stuff
 .gemini
+.cline
+.clinerules
+.geminiignore
+opencode.json
+GEMINI.md
+
 .vscode
+.idea
 
 *.wav
 *.zip
 *.fb2
 *.epub
+
+media/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
