@@ -199,3 +199,6 @@ class EpubBookFile(BookFile):
 
         return chapters
 
+
+BookFile.register_extractor('epub', EpubBookFile)
+

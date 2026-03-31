@@ -16,6 +16,7 @@ from django.core.files import File
 from django.db import transaction
 
 from library.models import Author, Genre, BookSeries, Book, Language, BookSeriesLink
+from library.book_utils import BookFile
 from .models import (
     FlibustaBook,
     FlibustaAuthor,
@@ -216,8 +217,20 @@ class BookImporter:
                 extracted_cover = None
 
                 try:
-                    mime_type = "application/epub+zip" if f_book.file_type == "epub" else "application/x-fictionbook+xml"
-                    # TODO Implement metadata extraction
+                    extractor_cls = BookFile.get_extractor(f_book.file_type)
+                    if extractor_cls:
+                        extractor = extractor_cls()
+                        extractor.load_from_stream(io.BytesIO(file_content))
+                        
+                        if extractor.description:
+                            extracted_metadata['description'] = extractor.description
+                        if extractor.isbn:
+                            extracted_metadata['isbn'] = extractor.isbn
+                        
+                        if extractor.cover:
+                            img_byte_arr = io.BytesIO()
+                            extractor.cover.save(img_byte_arr, format='JPEG')
+                            extracted_cover = img_byte_arr.getvalue()
                 except Exception as e:
                     logger.warning(f"Metadata extraction failed for book {f_book.id}: {e}")
 

@@ -20,6 +20,8 @@ from flibusta.models import (
     FlibustaBookSequence, FlibustaBookMapping
 )
 from library.models import Author, Genre, Book, Language, BookSeries, BookSeriesLink
+from library.tests.epub_test_utils import create_epub_with_cover, create_epub_with_isbn
+from library.tests.fb2_test_utils import create_simple_fb2
 
 
 class TestBookFilters(TestCase):
@@ -320,3 +322,80 @@ class TestUtilityFunctions(TestCase):
             process_local_path('invalid/path')
         self.assertTrue(any("Path 'invalid/path' does not exist" in output for output in cm.output))
         mock_process.assert_not_called()
+
+
+@override_settings(MEDIA_ROOT=temp_media_root)
+class TestBookImporterMetadata(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(temp_media_root, ignore_errors=True)
+
+    def setUp(self):
+        self.importer = BookImporter()
+        self.lang_en = Language.objects.create(code='en', name='English')
+
+    @patch('pyzipper.AESZipFile')
+    def test_import_book_epub_metadata(self, mock_zip):
+        # Create an EPUB with a cover
+        epub_stream = create_epub_with_cover()
+        file_content = epub_stream.getvalue()
+        
+        f_book = FlibustaBook.objects.create(
+            id=200, title='EPUB Title', lang='en', file_type='epub', md5='md5_200'
+        )
+
+        mock_zf = MagicMock()
+        mock_zip.return_value.__enter__.return_value = mock_zf
+
+        self.importer.import_book(f_book, file_content)
+
+        book = Book.objects.get(title='EPUB Title')
+        self.assertEqual(book.language, self.lang_en)
+        # Check if cover exists
+        self.assertTrue(book.cover)
+        self.assertTrue(book.cover.name.startswith('covers/cover_200'))
+
+    @patch('pyzipper.AESZipFile')
+    def test_import_book_fb2_metadata(self, mock_zip):
+        # Create an FB2 with ISBN and description
+        fb2_stream = create_simple_fb2(
+            title='FB2 Title',
+            annotation='FB2 Description',
+            isbn='1234567890123'
+        )
+        file_content = fb2_stream.getvalue()
+        
+        f_book = FlibustaBook.objects.create(
+            id=201, title='FB2 Title', lang='en', file_type='fb2', md5='md5_201'
+        )
+
+        mock_zf = MagicMock()
+        mock_zip.return_value.__enter__.return_value = mock_zf
+
+        self.importer.import_book(f_book, file_content)
+
+        book = Book.objects.get(title='FB2 Title')
+        self.assertEqual(book.description, 'FB2 Description')
+        self.assertEqual(int(book.isbn), 1234567890123)
+
+    @patch('pyzipper.AESZipFile')
+    def test_import_book_metadata_extraction_failure(self, mock_zip):
+        # Corrupted content
+        file_content = b'invalid content'
+        f_book = FlibustaBook.objects.create(
+            id=202, title='Corrupted', lang='en', file_type='epub', md5='md5_202'
+        )
+
+        mock_zf = MagicMock()
+        mock_zip.return_value.__enter__.return_value = mock_zf
+
+        with self.assertLogs('flibusta.book_importer', level='WARNING') as cm:
+            self.importer.import_book(f_book, file_content)
+
+        self.assertTrue(any("Metadata extraction failed for book 202" in output for output in cm.output))
+        
+        # Book should still be created
+        book = Book.objects.get(title='Corrupted')
+        self.assertEqual(book.description, '')
+        self.assertEqual(book.isbn, 0)

@@ -169,3 +169,6 @@ class Fb2BookFile(BookFile):
             chapter.subchapters.append(self._process_section(sub, level + 1, chapter))
             
         return chapter
+
+
+BookFile.register_extractor('fb2', Fb2BookFile)

@@ -41,6 +41,18 @@ class Chapter:
 class BookFile(ABC):
     """Abstract base class for book file formats."""
 
+    _registry = {}
+
+    @classmethod
+    def register_extractor(cls, file_type: str, extractor_cls):
+        """Registers an extractor class for a specific file type."""
+        cls._registry[file_type] = extractor_cls
+
+    @classmethod
+    def get_extractor(cls, file_type: str):
+        """Retrieves the extractor class for a specific file type."""
+        return cls._registry.get(file_type)
+
     def __init__(self) -> None:
         self.book: Any = None  # Placeholder for book object from specific library
         self.authors: List[str] = []
