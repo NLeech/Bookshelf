@@ -4,6 +4,7 @@ from unittest.mock import patch, MagicMock
 from parameterized import parameterized
 import io
 import os
+import gzip
 
 from flibusta.dump_importer import (
     FlibustaImporter, parse_mysql_string, import_dump,
@@ -98,7 +99,7 @@ class BulkSaveTest(TestCase):
         
         batch = [valid_genre, invalid_genre]
         
-        with self.assertLogs('flibusta.importer', level='WARNING') as cm:
+        with self.assertLogs('flibusta.dump_importer', level='WARNING') as cm:
             self.importer._bulk_save(FlibustaGenre, batch)
         
         self.assertTrue(any("Bulk create failed" in output for output in cm.output))
@@ -106,11 +107,30 @@ class BulkSaveTest(TestCase):
         self.assertTrue(FlibustaGenre.objects.filter(genre_code='valid').exists())
 
 
+class GetStreamTest(TestCase):
+    def setUp(self):
+        self.importer = FlibustaImporter()
+
+    @patch('gzip.open')
+    def test_get_stream_local(self, mock_gzip_open):
+        self.importer._get_stream('test.gz', path='local/dir')
+        mock_gzip_open.assert_called_once_with(os.path.join('local/dir', 'test.gz'), mode='rt', encoding='utf-8')
+
+    @patch('requests.get')
+    @patch('gzip.open')
+    def test_get_stream_remote(self, mock_gzip_open, mock_requests_get):
+        mock_response = MagicMock()
+        mock_requests_get.return_value = mock_response
+        self.importer._get_stream('test.gz')
+        mock_requests_get.assert_called_once()
+        mock_gzip_open.assert_called_once_with(mock_response.raw, mode='rt', encoding='utf-8')
+
+
 class ImportTableTest(TestCase):
     def setUp(self):
         self.importer = FlibustaImporter(batch_size=2)
 
-    @patch('flibusta.importer.FlibustaImporter._get_stream')
+    @patch('flibusta.dump_importer.FlibustaImporter._get_stream')
     def test_import_table_basic(self, mock_get_stream):
         content = (
             "INSERT INTO `libgenrelist` VALUES (1,'code1','Desc1','Meta1');\n"
@@ -124,14 +144,14 @@ class ImportTableTest(TestCase):
         self.assertEqual(FlibustaGenre.objects.count(), 3)
         self.assertTrue(FlibustaGenre.objects.filter(genre_code='code3').exists())
 
-    @patch('flibusta.importer.FlibustaImporter._get_stream')
+    @patch('flibusta.dump_importer.FlibustaImporter._get_stream')
     def test_import_table_row_length_mismatch(self, mock_get_stream):
         # Row has 3 values, mapping expects 4
         content = "INSERT INTO `libgenrelist` VALUES (1,'code1','Desc1');\n"
         mock_file = io.StringIO(content)
         mock_get_stream.return_value.__enter__.return_value = mock_file
         
-        with self.assertLogs('flibusta.importer', level='WARNING') as cm:
+        with self.assertLogs('flibusta.dump_importer', level='WARNING') as cm:
             self.importer.import_table(FlibustaGenre, MAPPING_LIB_GENRE_LIST, 'dummy.gz')
             
         self.assertTrue(any("Row length mismatch" in output for output in cm.output))
@@ -139,7 +159,7 @@ class ImportTableTest(TestCase):
 
 
 class ImportDumpHelperTest(TestCase):
-    @patch('flibusta.importer.FlibustaImporter.import_table')
+    @patch('flibusta.dump_importer.FlibustaImporter.import_table')
     def test_import_dump_calls_importer(self, mock_import_table):
         import_dump(table_filter='libgenrelist')
         
@@ -148,7 +168,7 @@ class ImportDumpHelperTest(TestCase):
         self.assertEqual(args[0], FlibustaGenre)
         self.assertEqual(args[1], MAPPING_LIB_GENRE_LIST)
 
-    @patch('flibusta.importer.FlibustaImporter.import_table')
+    @patch('flibusta.dump_importer.FlibustaImporter.import_table')
     def test_import_dump_all_tables(self, mock_import_table):
         import_dump()
         # There are 8 tasks defined in import_dump
