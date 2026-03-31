@@ -100,7 +100,7 @@ class TestBookImporterService(TestCase):
         
         # Second call - uses mapping
         l_genre_2 = self.importer.get_or_create_genre(f_genre)
-        self.assertEqual(l_genre, l_genre_2)
+        self.assertIs(l_genre, l_genre_2)
         self.assertEqual(Genre.objects.count(), 2) # sf and sf_action
 
     def test_get_or_create_author_with_master(self):
@@ -113,6 +113,11 @@ class TestBookImporterService(TestCase):
         # Verify mappings
         self.assertEqual(alias.mapping.library_author, l_author)
         self.assertEqual(master.mapping.library_author, l_author)
+        self.assertEqual(Author.objects.count(), 1)
+
+        # Second call (mapping check)
+        l_author_2 = self.importer.get_or_create_author(alias)
+        self.assertIs(l_author, l_author_2)
         self.assertEqual(Author.objects.count(), 1)
 
     def test_get_or_create_author_with_missing_master(self):
@@ -135,7 +140,7 @@ class TestBookImporterService(TestCase):
         
         # Second call - uses mapping
         l_series_2 = self.importer.get_or_create_series(f_seq)
-        self.assertEqual(l_series, l_series_2)
+        self.assertIs(l_series, l_series_2)
         self.assertEqual(BookSeries.objects.count(), 1)
 
     @patch('pyzipper.AESZipFile')
@@ -238,6 +243,44 @@ class TestArchiveProcessing(TestCase):
             
         mock_import.assert_called_once_with(f_book, b'actual content')
 
+    @patch('flibusta.book_importer.zipfile.is_zipfile')
+    @patch('flibusta.book_importer.zipfile.ZipFile')
+    @patch('flibusta.book_importer.BookImporter.import_book')
+    def test_process_archive_with_filters(self, mock_import, mock_zip_class, mock_is_zip):
+        mock_is_zip.return_value = True
+        f_book_ru = FlibustaBook.objects.create(id=100, title='RU', lang='ru', file_type='fb2', md5='md5_100')
+        f_book_en = FlibustaBook.objects.create(id=101, title='EN', lang='en', file_type='fb2', md5='md5_101')
+        
+        mock_zip_instance = MagicMock()
+        mock_zip_instance.namelist.return_value = ['100.fb2', '101.fb2']
+        mock_zip_instance.open.return_value.__enter__.return_value = io.BytesIO(b'content')
+        mock_zip_class.return_value.__enter__.return_value = mock_zip_instance
+        
+        # Filter for only Russian
+        filters = [LanguageFilter(['ru'])]
+        
+        process_archive('dummy.zip', filters)
+            
+        # Should only import RU book
+        mock_import.assert_called_once_with(f_book_ru, b'content')
+
+    @patch('flibusta.book_importer.zipfile.is_zipfile')
+    @patch('flibusta.book_importer.zipfile.ZipFile')
+    @patch('flibusta.book_importer.BookImporter.import_book')
+    def test_process_archive_book_not_found(self, mock_import, mock_zip_class, mock_is_zip):
+        mock_is_zip.return_value = True
+        # No FlibustaBook in DB
+        
+        mock_zip_instance = MagicMock()
+        mock_zip_instance.namelist.return_value = ['999.fb2']
+        mock_zip_class.return_value.__enter__.return_value = mock_zip_instance
+        
+        with self.assertLogs('flibusta.book_importer', level='ERROR') as cm:
+            process_archive('dummy.zip', [])
+            
+        self.assertTrue(any("Book 999 not found in Flibusta database" in output for output in cm.output))
+        mock_import.assert_not_called()
+
 
 class TestUtilityFunctions(TestCase):
     def test_get_daily_links(self):
@@ -250,6 +293,11 @@ class TestUtilityFunctions(TestCase):
         self.assertEqual(links[0]['filename'], 'f.fb2.123-456.zip')
         self.assertTrue(links[0]['url'].endswith('/daily/f.fb2.123-456.zip'))
         self.assertEqual(links[1]['url'], 'https://other.com/f.n.789-000.zip')
+
+    def test_get_daily_links_no_links(self):
+        html = "<html><body>No links here</body></html>"
+        links = get_daily_links(html)
+        self.assertEqual(len(links), 0)
 
     def test_get_filters(self):
         filters = get_filters(genres_filters=['sf'], formats_filters=['fb2'], languages_filters=['ru'])
@@ -355,6 +403,7 @@ class TestBookImporterMetadata(TestCase):
         # Check if cover exists
         self.assertTrue(book.cover)
         self.assertTrue(book.cover.name.startswith('covers/cover_200'))
+        self.assertTrue(os.path.exists(book.cover.path))
 
     @patch('pyzipper.AESZipFile')
     def test_import_book_fb2_metadata(self, mock_zip):
@@ -362,7 +411,7 @@ class TestBookImporterMetadata(TestCase):
         fb2_stream = create_simple_fb2(
             title='FB2 Title',
             annotation='FB2 Description',
-            isbn='1234567890123'
+            isbn='123-456-789-012-3' # ISBN with dashes
         )
         file_content = fb2_stream.getvalue()
         
@@ -377,7 +426,7 @@ class TestBookImporterMetadata(TestCase):
 
         book = Book.objects.get(title='FB2 Title')
         self.assertEqual(book.description, 'FB2 Description')
-        self.assertEqual(int(book.isbn), 1234567890123)
+        self.assertEqual(int(book.isbn), 1234567890123) # Should be cleaned to only digits
 
     @patch('pyzipper.AESZipFile')
     def test_import_book_metadata_extraction_failure(self, mock_zip):
