@@ -448,3 +448,93 @@ class TestBookImporterMetadata(TestCase):
         book = Book.objects.get(title='Corrupted')
         self.assertEqual(book.description, '')
         self.assertEqual(book.isbn, 0)
+
+    @patch('pyzipper.AESZipFile')
+    def test_import_book_rgba_cover(self, mock_zip):
+        """
+        Regression test for cover images with alpha channel (RGBA mode).
+        JPEG does not support transparency, so Pillow raises an error when trying to save RGBA as JPEG.
+        This test verifies that the cover is converted to RGB before saving.
+        """
+        from PIL import Image
+        from library.book_utils import BookFile
+
+        # Create an RGBA image (simulating a transparent PNG cover)
+        rgba_img = Image.new('RGBA', (100, 100), (255, 0, 0, 128))
+        
+        # Create a mock extractor that returns the RGBA image as cover
+        mock_extractor = MagicMock()
+        mock_extractor.description = 'Test description'
+        mock_extractor.isbn = '1234567890'
+        mock_extractor.cover = rgba_img
+        
+        # Mock the get_extractor method to return our custom extractor
+        with patch.object(BookFile, 'get_extractor', return_value=type('MockExtractor', (BookFile,), {
+            '__init__': lambda self: None,
+            'load_from_stream': lambda self, stream: None,
+            'load_from_file': lambda self, path: None,
+            'description': 'Test description',
+            'isbn': '1234567890',
+            'cover': rgba_img
+        })):
+            f_book = FlibustaBook.objects.create(
+                id=203, title='RGBA Cover', lang='en', file_type='epub', md5='md5_203'
+            )
+            
+            mock_zf = MagicMock()
+            mock_zip.return_value.__enter__.return_value = mock_zf
+            
+            # This should not raise "cannot write mode RGBA as JPEG"
+            self.importer.import_book(f_book, b'content')
+            
+            book = Book.objects.get(title='RGBA Cover')
+            self.assertTrue(book.cover)
+            self.assertTrue(book.cover.name.startswith('covers/cover_203'))
+            self.assertTrue(os.path.exists(book.cover.path))
+            
+            # Verify the saved image is RGB (not RGBA)
+            saved_img = Image.open(book.cover.path)
+            self.assertEqual(saved_img.mode, 'RGB')
+
+    @patch('pyzipper.AESZipFile')
+    def test_import_book_rgb_cover(self, mock_zip):
+        """
+        Regression test for standard RGB covers to ensure no regression.
+        """
+        from PIL import Image
+        
+        # Create a standard RGB image
+        rgb_img = Image.new('RGB', (100, 100), (0, 0, 255))
+        
+        # Mock the get_extractor method to return our custom extractor
+        mock_extractor = MagicMock()
+        mock_extractor.description = 'Test description'
+        mock_extractor.isbn = '1234567890'
+        mock_extractor.cover = rgb_img
+        
+        from library.book_utils import BookFile
+        with patch.object(BookFile, 'get_extractor', return_value=type('MockExtractor', (BookFile,), {
+            '__init__': lambda self: None,
+            'load_from_stream': lambda self, stream: None,
+            'load_from_file': lambda self, path: None,
+            'description': 'Test description',
+            'isbn': '1234567890',
+            'cover': rgb_img
+        })):
+            f_book = FlibustaBook.objects.create(
+                id=204, title='RGB Cover', lang='en', file_type='epub', md5='md5_204'
+            )
+            
+            mock_zf = MagicMock()
+            mock_zip.return_value.__enter__.return_value = mock_zf
+            
+            self.importer.import_book(f_book, b'content')
+            
+            book = Book.objects.get(title='RGB Cover')
+            self.assertTrue(book.cover)
+            self.assertTrue(book.cover.name.startswith('covers/cover_204'))
+            self.assertTrue(os.path.exists(book.cover.path))
+            
+            # Verify the saved image is RGB
+            saved_img = Image.open(book.cover.path)
+            self.assertEqual(saved_img.mode, 'RGB')

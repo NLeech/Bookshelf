@@ -228,8 +228,12 @@ class BookImporter:
                             extracted_metadata['isbn'] = extractor.isbn
                         
                         if extractor.cover:
+                            # Convert to RGB if needed (JPEG does not support transparency)
+                            cover = extractor.cover
+                            if cover.mode != 'RGB':
+                                cover = cover.convert('RGB')
                             img_byte_arr = io.BytesIO()
-                            extractor.cover.save(img_byte_arr, format='JPEG')
+                            cover.save(img_byte_arr, format='JPEG')
                             extracted_cover = img_byte_arr.getvalue()
                 except Exception as e:
                     logger.warning(f"Metadata extraction failed for book {f_book.id}: {e}")
