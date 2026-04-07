@@ -207,12 +207,15 @@ class BookSeriesLink(models.Model):
     series = models.ForeignKey('BookSeries', on_delete=models.CASCADE)
     sequence_number = models.IntegerField(default=0, verbose_name='Sequence Number')
 
+    def __str__(self):
+        return str(self.book)
+
     class Meta:
         verbose_name = 'Book Series Link'
         verbose_name_plural = 'Book Series Links'
         unique_together = ('book', 'series')
 
-
+    
 class Book(models.Model):
     """
     Book with all related information
@@ -234,3 +237,6 @@ class Book(models.Model):
     authors = models.ManyToManyField('Author', related_name='books', verbose_name='Authors')
     series = models.ManyToManyField('BookSeries', through='BookSeriesLink', related_name='books', verbose_name='Series')
     genres = models.ManyToManyField('Genre', related_name='books', verbose_name='Genres')
+
+    def __str__(self):
+        return self.title

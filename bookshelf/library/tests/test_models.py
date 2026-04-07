@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.core.exceptions import ValidationError
 from parameterized import parameterized_class
 
-from library.models import BookSeries, Genre, Author
+from library.models import BookSeries, Genre, Author, Book, Language
 
 
 @parameterized_class(
@@ -62,4 +62,11 @@ class AuthorHierarchyTest(TestCase):
         with self.assertRaises(ValidationError):
             child_author_2 = Author(first_name='Child 2', main_author=child_author_1)
             child_author_2.full_clean()
+
+
+class BookModelTest(TestCase):
+    def test_book_str(self):
+        language = Language.objects.create(code='en', name='English')
+        book = Book.objects.create(title='Test Book', language=language)
+        self.assertEqual(str(book), 'Test Book')
 

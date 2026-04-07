@@ -36,3 +36,22 @@ class BookAdminTest(TestCase):
         
         self.assertTrue(genre_admin.search_fields)
         self.assertTrue(series_admin.search_fields)
+
+    def test_book_series_admin_has_book_inline(self):
+        from library.admin import BookSeriesBookInline
+        series_admin = BookSeriesAdmin(BookSeries, self.site)
+        self.assertIn(BookSeriesBookInline, series_admin.inlines)
+
+    def test_book_series_book_inline_fields(self):
+        from library.admin import BookSeriesBookInline
+        inline = BookSeriesBookInline(BookSeries, self.site)
+        self.assertIn('get_cover_preview', inline.fields)
+        self.assertIn('book', inline.fields)
+        self.assertIn('sequence_number', inline.fields)
+        self.assertIn('get_cover_preview', inline.readonly_fields)
+        self.assertIn('book', inline.readonly_fields)
+
+    def test_book_series_book_inline_ordering(self):
+        from library.admin import BookSeriesBookInline
+        inline = BookSeriesBookInline(BookSeries, self.site)
+        self.assertEqual(inline.ordering, ('sequence_number',))
