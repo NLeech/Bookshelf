@@ -12,6 +12,7 @@ dependencies = [
     "django-allauth>=65.14.3",
     "django-crispy-forms>=2.5",
     "django-environ>=0.13.0",
+    "django-imagekit>=6.1.0",
     "djangorestframework>=3.16.1",
     "ebooklib>=0.20",
     "gunicorn>=25.1.0",

@@ -1,6 +1,9 @@
 from django.contrib import admin
+from imagekit.admin import AdminThumbnail
 
-from .models import Language, Author, BookSeries, BookSeriesName, Genre, GenreName, Book
+from .models import (
+    Language, Author, BookSeries, BookSeriesName, Genre, GenreName, Book, BookSeriesLink
+)
 
 
 class GenreNameInline(admin.TabularInline):
@@ -71,11 +74,28 @@ class AuthorAdmin(admin.ModelAdmin):
 
 
 class GenreAdmin(admin.ModelAdmin):
+    search_fields = ('name', 'code')
     inlines = [SubGenreAdminInline, GenreNameInline]
 
 
 class BookSeriesAdmin(admin.ModelAdmin):
+    search_fields = ('name',)
     inlines = [SubSeriesAdminInline, SeriesNameInline]
+
+
+class BookSeriesLinkInline(admin.TabularInline):
+    model = BookSeriesLink
+    extra = 1
+    autocomplete_fields = ('series',)
+
+
+class BookAdmin(admin.ModelAdmin):
+    cover_thumbnail = AdminThumbnail(image_field='cover_preview')
+    list_display = ('title', 'language')
+    readonly_fields = ('cover_thumbnail',)
+    autocomplete_fields = ('authors', 'genres')
+    inlines = [BookSeriesLinkInline]
+    search_fields = ('title', 'isbn')
 
 
 admin.site.register(Language)
@@ -88,4 +108,4 @@ admin.site.register(Author, AuthorAdmin)
 admin.site.register(BookSeries, BookSeriesAdmin)
 admin.site.register(BookSeriesName)
 
-admin.site.register(Book)
+admin.site.register(Book, BookAdmin)

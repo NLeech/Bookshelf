@@ -57,15 +57,17 @@ INSTALLED_APPS = [
     'third_party_libraries.apps.ThirdPartyLibrariesConfig',
     'flibusta.apps.FlibustaConfig',
 
-    'debug_toolbar',
     'crispy_forms',
     'crispy_bootstrap5',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
-
+    'imagekit',
 ]
+
+if DEBUG:
+    INSTALLED_APPS.append('debug_toolbar')
 
 MIDDLEWARE = [
     'library.middleware.HealthCheckMiddleware',
@@ -77,12 +79,12 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-
-    'debug_toolbar.middleware.DebugToolbarMiddleware',
-    # Add the account middleware:
     "allauth.account.middleware.AccountMiddleware",
-
 ]
+
+if DEBUG:
+    # Include the Debug Toolbar middleware as early as possible in the list.
+    MIDDLEWARE.insert(1, 'debug_toolbar.middleware.DebugToolbarMiddleware')
 
 ROOT_URLCONF = 'bookshelf.urls'
 

@@ -2,6 +2,8 @@ import re
 
 from django.db import models
 from django.core.exceptions import ValidationError
+from imagekit.models import ImageSpecField
+from imagekit.processors import ResizeToFill
 
 
 class Language(models.Model):
@@ -221,8 +223,13 @@ class Book(models.Model):
     language = models.ForeignKey('Language', on_delete=models.RESTRICT, related_name='books',
                                  verbose_name='Language')
     isbn = models.DecimalField(max_digits=13, decimal_places=0, default=0, verbose_name='ISBN')
-    cover = models.ImageField(upload_to='covers/', null=True, blank=True, verbose_name='Cover')
     file = models.FileField(upload_to='books/', null=True, blank=True, verbose_name='Book File')
+
+    cover = models.ImageField(upload_to='covers/', null=True, blank=True, verbose_name='Cover')
+    cover_preview = ImageSpecField(source='cover',
+                                      processors=[ResizeToFill(100, 150)],
+                                      format='JPEG',
+                                      options={'quality': 80})
 
     authors = models.ManyToManyField('Author', related_name='books', verbose_name='Authors')
     series = models.ManyToManyField('BookSeries', through='BookSeriesLink', related_name='books', verbose_name='Series')
