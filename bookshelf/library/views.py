@@ -49,3 +49,6 @@ class AuthorListView(generic.ListView):
 
         return super().render_to_response(context, **response_kwargs)
     
+class AuthorDetailView(generic.DetailView):
+    model = Author
+    template_name = 'library/author_details.html'

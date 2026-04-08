@@ -11,57 +11,6 @@
         </ul>
     </aside>
 
-{#            {% for letter in alphabet %}#}
-{#                <div class="tree-toggle tree-item">#}
-{#                    <span class="tree-arrow collapsed"#}
-{#                          data-bs-toggle="collapse"#}
-{#                          data-bs-target="#collapse{{ letter }}"#}
-{#                          aria-expanded="false"#}
-{#                          role="button">▸#}
-{#                    </span>#}
-{#                    <a href="#" class="text-decoration-none text-reset">A</a>#}
-{#                    <button hx-get="{% url 'library:authors_list' %}?filter={{ letter }}"#}
-{#                            hx-target="#authors_list"#}
-{#                            hx-swap="innerHTML"#}
-{#                            hx-swap="outerHTML"#}
-{#                            class="btn btn-link p-0 border-0 text-decoration-none text-reset">#}
-{#                        {{ letter }}#}
-{#                    </button>#}
-{#                </div>#}
-{#                <div class="collapse" id="collapse{{ letter }}">#}
-{#                    <ul class="tree-list">#}
-{#                        <li>#}
-{#                            <div class="tree-item d-flex align-items-center">#}
-{#                                <span class="tree-arrow"></span> <!-- Spacer for alignment -->#}
-{#                                <a href="#" class="text-decoration-none text-reset">Aa</a>#}
-{#                            </div>#}
-{#                        </li>#}
-{#                        <li>#}
-{#                            <div class="tree-toggle tree-item">#}
-{#                                <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseAb" aria-expanded="false" role="button">▸</span>#}
-{#                                <a href="#" class="text-decoration-none text-reset">Ab</a>#}
-{#                            </div>#}
-{#                            <div class="collapse" id="collapseAb">#}
-{#                                <ul class="tree-list">#}
-{#                                    <li>#}
-{#                                        <div class="tree-item d-flex align-items-center">#}
-{#                                            <span class="tree-arrow"></span>#}
-{#                                            <div class="fw-normal">Aba</div>#}
-{#                                        </div>#}
-{#                                    </li>#}
-{#                                    <li>#}
-{#                                        <div class="tree-item d-flex align-items-center">#}
-{#                                            <span class="tree-arrow"></span>#}
-{#                                            <div class="fw-normal">Abb</div>#}
-{#                                        </div>#}
-{#                                    </li>#}
-{#                                </ul>#}
-{#                            </div>#}
-{#                        </li>#}
-{#                    </ul>#}
-{#                </div>#}
-{#            {% endfor %}#}
-
     <!-- Right Content: Authors -->
     <main class="content-pane position-relative">
         <!-- Collapse Toggle Button -->
@@ -89,7 +38,9 @@
 
 
                 {% for author in page_obj %}
-                    <li class="py-1 border-bottom">{{ author }}</li>
+                    <li class="py-1 border-bottom">
+                        <a href="{% url 'library:author_details' author.id %}">{{ author }}</a>
+                    </li>
                 {% empty %}
                         No authors found.
                 {% endfor %}

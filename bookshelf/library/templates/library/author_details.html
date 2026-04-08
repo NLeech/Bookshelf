@@ -1,0 +1,146 @@
+{% extends 'base.html'  %}
+
+{% block head_title %}Authors{% endblock %}
+
+{% block content %}
+<div class="container my-5" style="max-width: 900px;">
+    <!-- Author Header -->
+    <div class="mb-4 pb-4 border-bottom">
+        <h1 class="display-5 fw-bold text-dark mb-2">Philip K. Dick</h1>
+        <p class="text-muted fs-5">American science fiction writer known for his exploration of philosophical and sociological themes.</p>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs mb-4" id="authorTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active text-dark" id="alpha-tab" data-bs-toggle="tab" data-bs-target="#alpha" type="button" role="tab">All Books (A-Z)</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-muted" id="date-tab" data-bs-toggle="tab" data-bs-target="#date" type="button" role="tab">Recently Added</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-muted" id="series-tab" data-bs-toggle="tab" data-bs-target="#series" type="button" role="tab">Grouped by Series</button>
+        </li>
+    </ul>
+
+    <!-- Tabs Content -->
+    <div class="tab-content" id="authorTabsContent">
+        
+        <!-- Tab 1: Alphabetical -->
+        <div class="tab-pane fade show active" id="alpha" role="tabpanel">
+            <div class="card mb-3 border-0 border-bottom rounded-0 pb-3">
+                <div class="row g-0">
+                    <div class="col-auto pe-3">
+                        <img src="https://picsum.photos/seed/scanner/100/100" class="img-fluid rounded shadow-sm" alt="Cover" width="100" height="100" style="object-fit: cover;">
+                    </div>
+                    <div class="col d-flex flex-column">
+                        <h5 class="card-title fw-bold mb-1">A Scanner Darkly</h5>
+                        <p class="card-text text-muted small mb-2">Added: 2023-10-01</p>
+                        <p class="card-text small text-secondary mb-3">A science fiction novel by American writer Philip K. Dick, published in 1977. The semi-autobiographical story is set in a dystopian Orange County, California, in the then-future of 1994.</p>
+                        <div class="mt-auto">
+                            <a href="#" class="text-decoration-none fw-medium me-3"><i class="bi bi-download"></i> EPUB</a>
+                            <a href="#" class="text-decoration-none fw-medium"><i class="bi bi-download"></i> FB2</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- More books would go here... -->
+        </div>
+
+        <!-- Tab 2: Date Added -->
+        <div class="tab-pane fade" id="date" role="tabpanel">
+            <!-- Same structure as Tab 1, just ordered differently -->
+        </div>
+
+        <!-- Tab 3: Series (Collapsible Tree) -->
+        <div class="tab-pane fade" id="series" role="tabpanel">
+            
+            <!-- Series Level Accordion -->
+            <div class="accordion" id="seriesAccordion">
+                
+                <!-- Single Series Item -->
+                <div class="accordion-item mb-3 border rounded">
+                    <h2 class="accordion-header" id="headingOne">
+                        <button class="accordion-button fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true">
+                            Blade Runner Series <span class="text-muted fw-normal ms-2 fs-6">(2 books)</span>
+                        </button>
+                    </h2>
+                    <div id="collapseOne" class="accordion-collapse collapse show" data-bs-parent="#seriesAccordion">
+                        <div class="accordion-body p-2">
+                            
+                            <!-- Book Level Accordion (Nested) -->
+                            <div class="accordion accordion-flush" id="booksAccordionOne">
+                                
+                                <!-- Book 1 -->
+                                <div class="accordion-item border-0">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium" type="button" data-bs-toggle="collapse" data-bs-target="#bookOne">
+                                            <span class="text-muted me-2">1.</span> Do Androids Dream of Electric Sheep?
+                                        </button>
+                                    </h2>
+                                    <div id="bookOne" class="accordion-collapse collapse" data-bs-parent="#booksAccordionOne">
+                                        <div class="accordion-body pt-2 pb-4 ps-5">
+                                            <div class="d-flex gap-3">
+                                                <img src="https://picsum.photos/seed/androids/100/100" class="rounded shadow-sm flex-shrink-0" alt="Cover" width="100" height="100" style="object-fit: cover;">
+                                                <div class="d-flex flex-column">
+                                                    <p class="small text-secondary mb-3">A dystopian science fiction novel by American writer Philip K. Dick, first published in 1968. The novel is set in a post-apocalyptic San Francisco.</p>
+                                                    <div class="mt-auto">
+                                                        <a href="#" class="text-decoration-none fw-medium small me-3"><i class="bi bi-download"></i> EPUB</a>
+                                                        <a href="#" class="text-decoration-none fw-medium small"><i class="bi bi-download"></i> FB2</a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Book 2 -->
+                                <div class="accordion-item border-0">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium" type="button" data-bs-toggle="collapse" data-bs-target="#bookTwo">
+                                            <span class="text-muted me-2">2.</span> Blade Runner 2: The Edge of Human
+                                        </button>
+                                    </h2>
+                                    <div id="bookTwo" class="accordion-collapse collapse" data-bs-parent="#booksAccordionOne">
+                                        <div class="accordion-body pt-2 pb-4 ps-5">
+                                            <div class="d-flex gap-3">
+                                                <img src="https://picsum.photos/seed/br2/100/100" class="rounded shadow-sm flex-shrink-0" alt="Cover" width="100" height="100" style="object-fit: cover;">
+                                                <div class="d-flex flex-column">
+                                                    <p class="small text-secondary mb-3">A science fiction novel by American writer K. W. Jeter, published in 1995. It is a continuation of the 1982 film Blade Runner.</p>
+                                                    <div class="mt-auto">
+                                                        <a href="#" class="text-decoration-none fw-medium small me-3"><i class="bi bi-download"></i> EPUB</a>
+                                                        <a href="#" class="text-decoration-none fw-medium small"><i class="bi bi-download"></i> FB2</a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Standalone Books -->
+                <div class="accordion-item mb-3 border rounded">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStandalone">
+                            Standalone Books <span class="text-muted fw-normal ms-2 fs-6">(3 books)</span>
+                        </button>
+                    </h2>
+                    <div id="collapseStandalone" class="accordion-collapse collapse" data-bs-parent="#seriesAccordion">
+                        <div class="accordion-body p-2">
+                            <!-- Nested books would go here... -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Make sure to include Bootstrap Icons in your <head> if you haven't already: -->
+<!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"> -->
+{% endblock content %}
