@@ -116,14 +116,24 @@ class GetStreamTest(TestCase):
         self.importer._get_stream('test.gz', path='local/dir')
         mock_gzip_open.assert_called_once_with(os.path.join('local/dir', 'test.gz'), mode='rt', encoding='utf-8')
 
-    @patch('requests.get')
+    @patch('flibusta.dump_importer.get_flibusta_session')
     @patch('gzip.open')
-    def test_get_stream_remote(self, mock_gzip_open, mock_requests_get):
+    def test_get_stream_remote(self, mock_gzip_open, mock_get_session):
+        mock_session = MagicMock()
         mock_response = MagicMock()
-        mock_requests_get.return_value = mock_response
+        mock_response.content = b'gzipped content'
+        mock_session.get.return_value = mock_response
+        mock_get_session.return_value = mock_session
+        
         self.importer._get_stream('test.gz')
-        mock_requests_get.assert_called_once()
-        mock_gzip_open.assert_called_once_with(mock_response.raw, mode='rt', encoding='utf-8')
+        
+        mock_session.get.assert_called_once()
+        self.assertTrue(mock_gzip_open.called)
+        args, kwargs = mock_gzip_open.call_args
+        self.assertIsInstance(args[0], io.BytesIO)
+        self.assertEqual(args[0].getvalue(), b'gzipped content')
+        self.assertEqual(kwargs['mode'], 'rt')
+        self.assertEqual(kwargs['encoding'], 'utf-8')
 
 
 class ImportTableTest(TestCase):

@@ -2,7 +2,7 @@ import logging
 
 from django.core.management.base import BaseCommand
 
-from flibusta.book_importer import  process_local_path, process_daily_updates
+from flibusta.book_importer import  process_local_path, process_daily_updates, get_filters
 
 
 logger = logging.getLogger(__name__)
@@ -42,8 +42,6 @@ class Command(BaseCommand):
         langs = options.get('langs')
         formats = options.get('formats')
         
-        from flibusta.book_importer import get_filters
-
         filters = get_filters(
             genres_filters=genres,
             languages_filters=langs,

@@ -17,6 +17,7 @@ from django.db import transaction
 
 from library.models import Author, Genre, BookSeries, Book, Language, BookSeriesLink
 from library.book_utils import BookFile
+from .services import get_flibusta_session
 from .models import (
     FlibustaBook,
     FlibustaAuthor,
@@ -417,7 +418,8 @@ def download_file(url: str) -> str:
     """
     logger.info(f"Downloading {url}...")
     try:
-        response = requests.get(url, stream=True)
+        session = get_flibusta_session()
+        response = session.get(url, stream=True, timeout=(10, 300))  # 10s connect timeout, 5min read timeout
         response.raise_for_status()
         
         # Create a temporary file

@@ -306,12 +306,14 @@ class TestUtilityFunctions(TestCase):
         self.assertIsInstance(filters[1], FormatFilter)
         self.assertIsInstance(filters[2], LanguageFilter)
 
-    @patch('flibusta.book_importer.requests.get')
-    def test_download_file(self, mock_get):
+    @patch('flibusta.book_importer.get_flibusta_session')
+    def test_download_file(self, mock_get_session):
         from flibusta.book_importer import download_file
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.iter_content.return_value = [b'chunk1', b'chunk2']
-        mock_get.return_value = mock_response
+        mock_session.get.return_value = mock_response
+        mock_get_session.return_value = mock_session
         
         path = download_file('http://test.com/file.zip')
         self.assertTrue(os.path.exists(path))
