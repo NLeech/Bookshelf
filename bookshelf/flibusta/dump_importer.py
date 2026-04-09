@@ -5,6 +5,8 @@ import os
 from typing import Generator, List, Any, Type, Optional
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from django.db import models, transaction, DataError, IntegrityError
 from django.conf import settings
 
@@ -119,12 +121,24 @@ class FlibustaImporter:
             logger.info(f"Opening local file {file_path}...")
             return gzip.open(file_path, mode='rt', encoding='utf-8')
         else:
+            # Flibusta server can be unstable, especially for large dumps, so we need to implement retries with backoff.
+            # It is why we use stream=False and read the whole content into memory.
+            session = requests.Session()
+            retry = Retry(
+                total=5,
+                backoff_factor=30, # waits 30s between retries
+                status_forcelist=[500, 502, 503, 504],
+            )
+            adapter = HTTPAdapter(max_retries=retry)
+            session.mount('http://', adapter)
+            session.mount('https://', adapter)
+
             url = f"{FLIBUSTA_BASE_URL}{filename}"
             logger.info(f"Downloading {url}...")
-            response = requests.get(url, stream=True)
+            response = session.get(url, stream=False, timeout=(10, 60))  # 10s to connect, 60s to read
             response.raise_for_status()
             # GzipFile can read from a file-like object
-            return gzip.open(response.raw, mode='rt', encoding='utf-8')
+            return gzip.open(io.BytesIO(response.content), mode='rt', encoding='utf-8')
 
     def _parse_line(self, line: str) -> Generator[List[Any], None, None]:
         """
