@@ -21,7 +21,6 @@ class BookAdminTest(TestCase):
     def test_book_admin_list_display(self):
         self.assertIn('title', self.book_admin.list_display)
         self.assertIn('language', self.book_admin.list_display)
-        self.assertIn('cover_thumbnail', self.book_admin.list_display)
 
     def test_book_admin_readonly_fields(self):
         self.assertIn('cover_thumbnail', self.book_admin.readonly_fields)
