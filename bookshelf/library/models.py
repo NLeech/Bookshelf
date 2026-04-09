@@ -2,8 +2,17 @@ import re
 
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from imagekit.models import ImageSpecField
 from imagekit.processors import ResizeToFill
+
+
+class BaseModel(models.Model):
+    created_at = models.DateTimeField(db_index=True, default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
 
 
 class Language(models.Model):
@@ -31,7 +40,7 @@ class Language(models.Model):
         verbose_name_plural = 'Languages'
 
 
-class GenreName(models.Model):
+class GenreName(BaseModel):
     """
     Genre alternative names or translations in different languages
     """
@@ -49,7 +58,7 @@ class GenreName(models.Model):
         verbose_name_plural = 'Genre names'
 
 
-class Genre(models.Model):
+class Genre(BaseModel):
     """
     Book genres, with recursive relationship
     """
@@ -78,7 +87,7 @@ class Genre(models.Model):
         verbose_name_plural = 'Genres'
 
 
-class BookSeriesName(models.Model):
+class BookSeriesName(BaseModel):
     """
     Series names (translated titles, different translation variants, etc.)
     """
@@ -107,7 +116,7 @@ class BookSeriesName(models.Model):
         ]
 
 
-class BookSeries(models.Model):
+class BookSeries(BaseModel):
     """
     Book series, with recursive relationship
     """
@@ -136,7 +145,7 @@ class BookSeries(models.Model):
         verbose_name_plural = 'Series'
 
 
-class Author(models.Model):
+class Author(BaseModel):
     """
     Author names, including pseudonyms, translated names, etc.
     """
@@ -199,7 +208,7 @@ class Author(models.Model):
         ]
 
 
-class BookSeriesLink(models.Model):
+class BookSeriesLink(BaseModel):
     """
     Through model for Book-Series relationship to store sequence number
     """
@@ -216,7 +225,7 @@ class BookSeriesLink(models.Model):
         unique_together = ('book', 'series')
 
     
-class Book(models.Model):
+class Book(BaseModel):
     """
     Book with all related information
     """
