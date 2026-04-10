@@ -3,7 +3,6 @@
 {% block head_title %}{{ author.full_name }}{% endblock %}
 
 {% block content %}
-<!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"> -->
 
 <div class="container my-5" style="max-width: 5000x;">
     <!-- Author Header -->
@@ -53,11 +52,24 @@
         {% partialdef alpha_tab inline %}
             {% if active_tab == 'alpha' %}
                 <div class="tab-pane fade show active" id="alpha" role="tabpanel">
-                    {% for book in books_alpha %}
-                        {% include 'library/include/book_item.html' %}
-                    {% empty %}
-                        <p class="text-muted">No books found.</p>
-                    {% endfor %}
+                    <div class="accordion accordion-flush" id="alphaAccordion">
+                        {% for book in books_alpha %}
+                            <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-alpha-{{ book.id }}">
+                                        {{ book.title }}
+                                    </button>
+                                </h2>
+                                <div id="book-alpha-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#alphaAccordion">
+                                    <div class="accordion-body pt-2 pb-4 ps-5">
+                                        {% include 'library/include/book_item.html' %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <p class="text-muted">No books found.</p>
+                        {% endfor %}
+                    </div>
                 </div>
             {% endif %}
         {% endpartialdef %}
@@ -65,11 +77,27 @@
         {% partialdef recent_tab inline %}
             {% if active_tab == 'recent' %}
                 <div class="tab-pane fade show active" id="recent" role="tabpanel">
-                    {% for book in books_recent %}
-                        {% include 'library/include/book_item.html' %}
-                    {% empty %}
-                        <p class="text-muted">No books found.</p>
-                    {% endfor %}
+                    <div class="accordion accordion-flush" id="recentAccordion">
+                        {% for book in books_recent %}
+                            <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-recent-{{ book.id }}">
+                                        <div class="d-flex justify-content-between w-100 me-3">
+                                            <span>{{ book.title }}</span>
+                                            <span class="text-muted small fw-normal">Added: {{ book.created_at|date:"Y-m-d" }}</span>
+                                        </div>
+                                    </button>
+                                </h2>
+                                <div id="book-recent-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#recentAccordion">
+                                    <div class="accordion-body pt-2 pb-4 ps-5">
+                                        {% include 'library/include/book_item.html' %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <p class="text-muted">No books found.</p>
+                        {% endfor %}
+                    </div>
                 </div>
             {% endif %}
         {% endpartialdef %}
@@ -89,10 +117,10 @@
                                     <div class="accordion-body p-2">
                                         <div class="accordion accordion-flush" id="booksAccordion-{{ series_item.series.id }}">
                                             {% for info in series_item.books_info %}
-                                                <div class="accordion-item border-0">
+                                                <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
                                                     <h2 class="accordion-header">
-                                                        <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium" type="button" data-bs-toggle="collapse" data-bs-target="#book-{{ info.book.id }}-{{ series_item.series.id }}">
-                                                            <span class="text-muted me-2">{{ info.seq }}.</span> {{ info.book.title }}
+                                                        <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-{{ info.book.id }}-{{ series_item.series.id }}">
+                                                            <span class="text-muted me-2">{{ info.seq. }}</span> {{ info.book.title }}
                                                         </button>
                                                     </h2>
                                                     <div id="book-{{ info.book.id }}-{{ series_item.series.id }}" class="accordion-collapse collapse" data-bs-parent="#booksAccordion-{{ series_item.series.id }}">
@@ -118,10 +146,23 @@
                                     </button>
                                 </h2>
                                 <div id="collapseStandalone" class="accordion-collapse collapse" data-bs-parent="#seriesAccordion">
-                                    <div class="accordion-body p-3">
-                                        {% for book in standalone_books %}
-                                            {% include 'library/include/book_item.html' %}
-                                        {% endfor %}
+                                    <div class="accordion-body p-2">
+                                        <div class="accordion accordion-flush" id="standaloneAccordion">
+                                            {% for book in standalone_books %}
+                                                <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                                    <h2 class="accordion-header">
+                                                        <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-standalone-{{ book.id }}">
+                                                            {{ book.title }}
+                                                        </button>
+                                                    </h2>
+                                                    <div id="book-standalone-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#standaloneAccordion">
+                                                        <div class="accordion-body pt-2 pb-4 ps-5">
+                                                            {% include 'library/include/book_item.html' %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

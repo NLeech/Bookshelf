@@ -10,7 +10,6 @@
             {% endif %}
         </div>
         <div class="col d-flex flex-column">
-            <h5 class="card-title fw-bold mb-1">{{ book.title }}</h5>
             <p class="card-text text-muted small mb-2">Added: {{ book.created_at|date:"Y-m-d" }}</p>
             <p class="card-text small text-secondary mb-3">{{ book.description|safe }}</p>
             <div class="mt-auto">
