@@ -1,10 +1,12 @@
 import string
 
+from collections import defaultdict
 from django.shortcuts import render
 from django.views import generic
 from django.conf import settings
+from django.db.models import Prefetch
 
-from .models import Author
+from .models import Author, BookSeriesLink
 from .sevices import get_alphabet_tree
 
 # Create your views here.
@@ -48,7 +50,64 @@ class AuthorListView(generic.ListView):
             self.template_name = f"{self.template_name}#authors_list-result"
 
         return super().render_to_response(context, **response_kwargs)
-    
+
+
 class AuthorDetailView(generic.DetailView):
     model = Author
     template_name = 'library/author_details.html'
+    context_object_name = 'author'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        author = self.get_object()
+        tab = self.request.GET.get('tab', 'alpha')
+        context['active_tab'] = tab
+
+        # Base queryset for books with common prefetches
+        books_qs = author.books.all()
+
+        if tab == 'alpha':
+            context['books_alpha'] = books_qs.order_by('title').prefetch_related('authors')
+        elif tab == 'recent':
+            context['books_recent'] = books_qs.order_by('-created_at').prefetch_related('authors')
+        elif tab == 'series':
+            # Prefetch the series links for all books of this author
+            books = list(books_qs.prefetch_related('bookserieslink_set__series', 'authors'))
+
+            series_map = defaultdict(list)
+            standalone_books = []
+
+            for book in books:
+                links = book.bookserieslink_set.all()
+                if not links:
+                    standalone_books.append(book)
+                else:
+                    for link in links:
+                        series_map[link.series].append({
+                            'book': book,
+                            'seq': link.sequence_number
+                        })
+
+            # Format series for template
+            series_list = []
+            for series, items in series_map.items():
+                items.sort(key=lambda x: x['seq'])
+                series_list.append({
+                    'series': series,
+                    'books_info': items,
+                    'count': len(items)
+                })
+            series_list.sort(key=lambda x: x['series'].name.lower())
+
+            context['series_list'] = series_list
+            context['standalone_books'] = sorted(standalone_books, key=lambda b: b.title.lower())
+            context['standalone_count'] = len(standalone_books)
+
+        return context
+
+    def render_to_response(self, context, **response_kwargs):
+        if self.request.headers.get('HX-Request'):
+            tab = self.request.GET.get('tab', 'alpha')
+            # Select the appropriate block based on the tab
+            self.template_name = f"{self.template_name}#{tab}_tab"
+        return super().render_to_response(context, **response_kwargs)
