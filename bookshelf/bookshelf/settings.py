@@ -54,7 +54,6 @@ INSTALLED_APPS = [
 
     'authentication.apps.AuthenticationConfig',
     'library.apps.LibraryConfig',
-    'third_party_libraries.apps.ThirdPartyLibrariesConfig',
     'flibusta.apps.FlibustaConfig',
 
     'crispy_forms',
