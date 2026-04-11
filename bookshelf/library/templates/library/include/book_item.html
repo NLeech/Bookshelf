@@ -11,7 +11,14 @@
         </div>
         <div class="col d-flex flex-column">
             <p class="card-text text-muted small mb-2">Added: {{ book.created_at|date:"Y-m-d" }}</p>
-            <p class="card-text small text-secondary mb-3">{{ book.description|safe }}</p>
+            <div class="description-truncate small text-secondary mb-1" id="desc-{{ book.id }}">
+                {{ book.description|safe }}
+            </div>
+            <button class="btn btn-link btn-sm p-0 expand-btn mb-3 text-start text-decoration-none"
+                    type="button"
+                    onclick="toggleDescription(this, 'desc-{{ book.id }}')">
+                Show more
+            </button>
             <div class="mt-auto">
                 <a href="#" class="text-decoration-none fw-medium me-3"><i class="bi bi-download"></i> EPUB</a>
                 <a href="#" class="text-decoration-none fw-medium"><i class="bi bi-download"></i> FB2</a>

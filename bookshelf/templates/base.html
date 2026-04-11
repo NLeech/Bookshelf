@@ -15,6 +15,7 @@
               integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
               crossorigin="anonymous">
         <link rel="stylesheet" href="{% static 'css/base.css' %}">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
         <script src="https://unpkg.com/htmx.org@2.0.4"
                 integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
@@ -50,6 +51,35 @@
         {% endblock body %}
         {% block extra_body %}
         {% endblock extra_body %}
+        <script>
+            function toggleDescription(btn, targetId) {
+                const target = document.getElementById(targetId);
+                const isExpanded = target.classList.toggle('expanded');
+                btn.innerText = isExpanded ? 'Show less' : 'Show more';
+            }
+
+            function initTruncation() {
+                document.querySelectorAll('.description-truncate').forEach(el => {
+                    const btn = el.nextElementSibling;
+                    if (!btn || !btn.classList.contains('expand-btn')) return;
+
+                    // If element is hidden (e.g. in collapsed accordion), we can't measure.
+                    // Only hide button if we have a valid measurement and it fits.
+                    if (el.scrollHeight > 0) {
+                        if (el.scrollHeight <= el.offsetHeight + 5) {
+                            btn.classList.add('d-none');
+                        } else {
+                            btn.classList.remove('d-none');
+                        }
+                    }
+                });
+            }
+
+            document.addEventListener('DOMContentLoaded', initTruncation);
+            document.body.addEventListener('htmx:afterSwap', initTruncation);
+            // Re-check when Bootstrap accordions/collapses are shown
+            document.body.addEventListener('shown.bs.collapse', initTruncation);
+        </script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
                 integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
                 crossorigin="anonymous"></script>
