@@ -110,7 +110,7 @@
                                         </button>
                                     </h2>
                                     <div id="book-alpha-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#alphaAccordion">
-                                        <div class="accordion-body pt-2 pb-4 ps-5">
+                                        <div class="accordion-body">
                                             {% include 'library/include/book_item.html' %}
                                         </div>
                                     </div>
@@ -136,7 +136,7 @@
                                         </button>
                                     </h2>
                                     <div id="book-recent-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#recentAccordion">
-                                        <div class="accordion-body pt-2 pb-4 ps-5">
+                                        <div class="accordion-body">
                                             {% include 'library/include/book_item.html' %}
                                         </div>
                                     </div>
@@ -169,7 +169,7 @@
                                                             </button>
                                                         </h2>
                                                         <div id="book-{{ info.book.id }}-{{ series_item.series.id }}" class="accordion-collapse collapse" data-bs-parent="#booksAccordion-{{ series_item.series.id }}">
-                                                            <div class="accordion-body pt-2 pb-4 ps-5">
+                                                            <div class="accordion-body">
                                                                 {% with book=info.book %}
                                                                     {% include 'library/include/book_item.html' %}
                                                                 {% endwith %}
@@ -201,7 +201,7 @@
                                                             </button>
                                                         </h2>
                                                         <div id="book-standalone-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#standaloneAccordion">
-                                                            <div class="accordion-body pt-2 pb-4 ps-5">
+                                                            <div class="accordion-body">
                                                                 {% include 'library/include/book_item.html' %}
                                                             </div>
                                                         </div>

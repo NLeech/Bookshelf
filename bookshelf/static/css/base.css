@@ -189,6 +189,13 @@ body {
     transition: color 0.15s ease;
 }
 
+.content-pane .accordion-body {
+    padding-top: 0.2rem;
+    padding-bottom: 0rem;
+    padding-left: 0rem;
+    padding-right: 0rem;
+}
+
 .tree-item:hover {
     color: var(--bs-primary);
 }
