@@ -4,10 +4,10 @@ from collections import defaultdict
 from django.shortcuts import render
 from django.views import generic
 from django.conf import settings
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 
 from .models import Author, BookSeriesLink
-from .sevices import get_alphabet_tree
+from .sevices import get_alphabet_tree, get_author_languages, get_author_genres_tree
 
 # Create your views here.
 class HomePageView(generic.TemplateView):
@@ -63,8 +63,27 @@ class AuthorDetailView(generic.DetailView):
         tab = self.request.GET.get('tab', 'alpha')
         context['active_tab'] = tab
 
+        # Get filter parameters
+        selected_langs = self.request.GET.getlist('lang')
+        selected_genres = self.request.GET.getlist('genre')
+        context['selected_langs'] = selected_langs
+        context['selected_genres'] = selected_genres
+
         # Base queryset for books with common prefetches
         books_qs = author.books.all()
+
+        # Apply filters
+        if selected_langs:
+            books_qs = books_qs.filter(language__code__in=selected_langs)
+        if selected_genres:
+            books_qs = books_qs.filter(genres__code__in=selected_genres)
+
+        if selected_langs or selected_genres:
+            books_qs = books_qs.distinct()
+
+        # Filter options for the sidebar
+        context['available_languages'] = get_author_languages(author)
+        context['available_genres_tree'] = get_author_genres_tree(author)
 
         if tab == 'alpha':
             context['books_alpha'] = books_qs.order_by('title').prefetch_related('authors')

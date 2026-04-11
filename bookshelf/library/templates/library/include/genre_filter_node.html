@@ -1,0 +1,36 @@
+{% for node in nodes %}
+    <div class="genre-item ms-3">
+        <div class="form-check">
+            <input class="form-check-input genre-checkbox" 
+                   type="checkbox" 
+                   name="genre" 
+                   value="{{ node.genre.code }}" 
+                   id="genre-{{ node.genre.code }}"
+                   {% if node.genre.code in selected_genres %}checked{% endif %}
+                   onchange="toggleChildren(this)">
+            <label class="form-check-label small" for="genre-{{ node.genre.code }}">
+                {{ node.genre.name }} 
+                {% if node.book_count > 0 %}
+                    <span class="text-muted">({{ node.book_count }})</span>
+                {% endif %}
+            </label>
+        </div>
+        {% if node.children %}
+            <div class="genre-children">
+                {% include "library/include/genre_filter_node.html" with nodes=node.children %}
+            </div>
+        {% endif %}
+    </div>
+{% endfor %}
+
+{% if forloop.first %}
+<script>
+    function toggleChildren(parentCheckbox) {
+        const container = parentCheckbox.closest('.genre-item');
+        const childCheckboxes = container.querySelectorAll('.genre-children .genre-checkbox');
+        childCheckboxes.forEach(cb => {
+            cb.checked = parentCheckbox.checked;
+        });
+    }
+</script>
+{% endif %}

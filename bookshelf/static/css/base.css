@@ -227,10 +227,14 @@ body {
     pointer-events: none;
 }
 
+.author-details-sidebar {
+    width: 300px;
+}
+
 #toggle-sidebar-btn {
     position: absolute;
     left: 0;
-    top: 50%;
+    top: 2%;
     transform: translateY(-50%);
     z-index: 1000;
     border-radius: 0 5px 5px 0;

@@ -3,10 +3,10 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from django.db import transaction
-from django.db.models import Count, Case, When, Value, CharField
+from django.db.models import Count, Case, When, Value, CharField, Q
 from django.db.models.functions import Left, Lower
 
-from library.models import Author, Genre
+from library.models import Author, Genre, Language
 
 
 @dataclass(order=True)
@@ -210,3 +210,83 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
         root.entries.append(other_node)
 
     return root
+
+
+def get_author_languages(author: Author) -> list[Language]:
+    """
+    Get all languages of the books written by the author.
+    Each language is annotated with the count of books by this author in that language.
+    """
+    return (
+        Language.objects
+        .filter(books__authors=author)
+        .annotate(book_count=Count('books', filter=Q(books__authors=author)))
+        .order_by('name')
+        .distinct()
+    )
+
+
+def get_author_genres_tree(author: Author) -> list[dict]:
+    """
+    Build a hierarchical tree of genres associated with the author's books.
+    Includes ancestor genres even if they don't have books directly.
+    The tree is sorted alphabetically at each level and includes the count of books for each genre.
+    The tree is represented as a list of dicts with keys: 'genre' (Genre object), 'book_count' (int), and 'children' (list of dicts).
+    """
+    # Get all genres directly associated with the author's books, with book counts
+    direct_genres_qs = (
+        Genre.objects
+        .filter(books__authors=author)
+        .annotate(book_count=Count('books', filter=Q(books__authors=author)))
+        .distinct()
+    )
+
+    if not direct_genres_qs.exists():
+        return []
+
+    # Fetch ALL genres once to avoid N+1 lookups for parents
+    # Mapping id -> genre object
+    all_genres = {g.id: g for g in Genre.objects.all()}
+    
+    # Map to store our tree data: {id: {"genre": genre_obj, "book_count": count, "children": []}}
+    genre_map = {}
+
+    def add_genre_to_map(genre_id, count=0):
+        if genre_id not in all_genres:
+            return
+
+        if genre_id in genre_map:
+            genre_map[genre_id]['book_count'] += count
+            return
+
+        genre_obj = all_genres[genre_id]
+        genre_map[genre_id] = {
+            'genre': genre_obj,
+            'book_count': count,
+            'children': []
+        }
+
+        if genre_obj.parent_id:
+            add_genre_to_map(genre_obj.parent_id, 0)
+
+    for g in direct_genres_qs:
+        add_genre_to_map(g.id, g.book_count)
+
+    # Build the tree structure
+    root_nodes = []
+    for g_id in sorted(genre_map.keys()):
+        data = genre_map[g_id]
+        genre_obj = data['genre']
+        if genre_obj.parent_id and genre_obj.parent_id in genre_map:
+            genre_map[genre_obj.parent_id]['children'].append(data)
+        else:
+            root_nodes.append(data)
+
+    # Sort children recursively
+    def sort_tree(nodes):
+        nodes.sort(key=lambda x: x['genre'].name.lower())
+        for node in nodes:
+            sort_tree(node['children'])
+
+    sort_tree(root_nodes)
+    return root_nodes
