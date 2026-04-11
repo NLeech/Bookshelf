@@ -14,14 +14,17 @@
             <div class="description-truncate small text-secondary mb-1" id="desc-{{ book.id }}">
                 {{ book.description|safe }}
             </div>
-            <button class="btn btn-link btn-sm p-0 expand-btn mb-3 text-start text-decoration-none"
-                    type="button"
-                    onclick="toggleDescription(this, 'desc-{{ book.id }}')">
-                Show more
-            </button>
-            <div class="mt-auto">
-                <a href="#" class="text-decoration-none fw-medium me-3"><i class="bi bi-download"></i> EPUB</a>
-                <a href="#" class="text-decoration-none fw-medium"><i class="bi bi-download"></i> FB2</a>
+            
+            <div class="mt-auto d-flex justify-content-between align-items-center">
+                <div>
+                    <a href="#" class="text-decoration-none fw-medium me-3"><i class="bi bi-download"></i> EPUB</a>
+                    <a href="#" class="text-decoration-none fw-medium"><i class="bi bi-download"></i> FB2</a>
+                </div>
+                <button class="btn btn-link btn-sm p-0 expand-btn text-decoration-none"
+                        type="button"
+                        onclick="toggleDescription(this, 'desc-{{ book.id }}')">
+                    Show more
+                </button>
             </div>
         </div>
     </div>

@@ -60,8 +60,11 @@
 
             function initTruncation() {
                 document.querySelectorAll('.description-truncate').forEach(el => {
-                    const btn = el.nextElementSibling;
-                    if (!btn || !btn.classList.contains('expand-btn')) return;
+                    // Find the button within the same book details column
+                    const parentCol = el.closest('.flex-column');
+                    const btn = parentCol ? parentCol.querySelector('.expand-btn') : null;
+
+                    if (!btn) return;
 
                     // If element is hidden (e.g. in collapsed accordion), we can't measure.
                     // Only hide button if we have a valid measurement and it fits.
