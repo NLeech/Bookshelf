@@ -97,3 +97,19 @@
 5. **test_author_list_view_htmx_partial**: Verifies that an HTMX request returns only the partial template fragment.
 6. **test_author_list_view_context**: Verifies that filter and regex match query parameters in context.
 7. **test_author_list_view_alphabet_tree_integration**: Verifies that alphabet_tree is in context and contains expected nodes.
+
+## Author Detail View (AuthorDetailViewTests)
+1. **test_author_detail_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
+2. **test_author_detail_view_404**: Verifies the view returns 404 for a non-existent author.
+3. **test_author_detail_view_tabs_parameterized**: Verifies tab logic (sorting for alpha and recent, grouping for series) using `parameterized.expand`.
+4. **test_author_detail_view_filtering_parameterized**: Verifies filtering logic for languages and genres using `parameterized.expand`.
+5. **test_author_detail_view_htmx_partials_parameterized**: Verifies that HTMX requests return the appropriate tab partial template fragment.
+6. **test_author_detail_view_context_data**: Verifies that `available_languages` and `available_genres_tree` are correctly populated.
+
+## Book Detail View (BookDetailViewTests)
+1. **test_book_detail_view_status_code**: Verifies the view returns 200 OK and uses the correct template for both EPUB and FB2.
+2. **test_book_detail_view_404**: Verifies the view returns 404 for a non-existent book.
+3. **test_book_detail_view_content**: Verifies hierarchical TOC structure and chapter content in context and response for both EPUB and FB2.
+4. **test_book_detail_view_chapter_selection**: Verifies that selecting a chapter by index works correctly for both EPUB and FB2.
+5. **test_book_detail_view_htmx_partial**: Verifies HTMX partial rendering for both EPUB and FB2.
+6. **test_book_detail_view_no_extractor**: Verifies behavior when a book has no file (shows "No TOC available").

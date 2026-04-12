@@ -1,0 +1,151 @@
+from django.test import TestCase, override_settings
+from django.urls import reverse
+from django.core.files.base import ContentFile
+from parameterized import parameterized
+
+from library.models import Author, Language, Book
+from library.tests.epub_test_utils import create_epub_nested_chapters
+from library.tests.fb2_test_utils import create_fb2_nested_chapters
+
+
+@override_settings(STORAGES={
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+})
+class BookDetailViewTests(TestCase):
+    """
+    Tests for the BookDetailView in library.views.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.author = Author.objects.create(first_name='John', last_name='Doe')
+        cls.lang_en = Language.objects.create(code='en', name='English')
+        
+        # EPUB Book with nested chapters
+        cls.epub_book = Book.objects.create(title='Test EPUB', language=cls.lang_en)
+        cls.epub_book.authors.add(cls.author)
+        with create_epub_nested_chapters() as f:
+            cls.epub_book.file.save('test.epub', ContentFile(f.read()))
+        
+        # FB2 Book with nested chapters
+        cls.fb2_book = Book.objects.create(title='Test FB2', language=cls.lang_en)
+        cls.fb2_book.authors.add(cls.author)
+        with create_fb2_nested_chapters() as f:
+            cls.fb2_book.file.save('test.fb2', ContentFile(f.read()))
+        
+        # Book with no file
+        cls.no_file_book = Book.objects.create(title='No File', language=cls.lang_en)
+
+    @parameterized.expand([
+        ('epub', 'epub_book'),
+        ('fb2', 'fb2_book'),
+    ])
+    def test_book_detail_view_status_code(self, name, book_attr):
+        """
+        Verify the view returns 200 OK and uses the correct template for both formats.
+        """
+        book = getattr(self, book_attr)
+        response = self.client.get(reverse('library:book_details', args=[book.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'library/book_details.html')
+
+    def test_book_detail_view_404(self):
+        """
+        Verify the view returns 404 for a non-existent book.
+        """
+        response = self.client.get(reverse('library:book_details', args=[999]))
+        self.assertEqual(response.status_code, 404)
+
+    @parameterized.expand([
+        ('epub', 'epub_book'),
+        ('fb2', 'fb2_book'),
+    ])
+    def test_book_detail_view_content(self, name, book_attr):
+        """
+        Verify hierarchical TOC structure and chapter content in context and response.
+        """
+        book = getattr(self, book_attr)
+        response = self.client.get(reverse('library:book_details', args=[book.id]))
+        self.assertEqual(response.status_code, 200)
+        
+        # Check context
+        self.assertIn('chapters', response.context)
+        self.assertIn('current_chapter', response.context)
+        
+        chapters = response.context['chapters']
+        current_chapter = response.context['current_chapter']
+        
+        # The utils create 3 top-level chapters. 
+        # Chapter 1 has 2 subchapters.
+        # Chapter 3 has 1 subchapter.
+        self.assertEqual(len(chapters), 3)
+        self.assertEqual(chapters[0].title, 'Chapter 1')
+        self.assertEqual(len(chapters[0].subchapters), 2)
+        self.assertEqual(chapters[0].subchapters[0].title, 'Subchapter 1.1')
+        
+        # Verify initial chapter (index 0)
+        self.assertEqual(current_chapter.title, 'Chapter 1')
+        self.assertIn('Content of chapter 1.', current_chapter.content)
+        
+        # Check response body
+        self.assertContains(response, 'Chapter 1')
+        self.assertContains(response, 'Content of chapter 1.')
+        self.assertContains(response, 'Subchapter 1.1') # Should be in TOC
+
+    @parameterized.expand([
+        ('epub', 'epub_book', 1, 'Subchapter 1.1'),
+        ('epub', 'epub_book', 3, 'Chapter 2'),
+        ('fb2', 'fb2_book', 1, 'Subchapter 1.1'),
+        ('fb2', 'fb2_book', 3, 'Chapter 2'),
+    ])
+    def test_book_detail_view_chapter_selection(self, name, book_attr, index, expected_title):
+        """
+        Verify that selecting a chapter by index works correctly.
+        Flattened indices for the nested structure:
+        0: Chapter 1
+        1: Subchapter 1.1
+        2: Subchapter 1.2
+        3: Chapter 2
+        4: Chapter 3
+        5: Subchapter 3.1
+        """
+        book = getattr(self, book_attr)
+        response = self.client.get(reverse('library:book_details_chapter', args=[book.id, index]))
+        self.assertEqual(response.status_code, 200)
+        
+        current_chapter = response.context['current_chapter']
+        self.assertEqual(current_chapter.title, expected_title)
+        self.assertContains(response, expected_title)
+
+    @parameterized.expand([
+        ('epub', 'epub_book'),
+        ('fb2', 'fb2_book'),
+    ])
+    def test_book_detail_view_htmx_partial(self, name, book_attr):
+        """
+        Verify HTMX partial rendering.
+        """
+        book = getattr(self, book_attr)
+        response = self.client.get(reverse('library:book_details', args=[book.id]), HTTP_HX_REQUEST='true')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('library/book_details.html#book_content', response.template_name)
+
+    def test_book_detail_view_no_extractor(self):
+        """
+        Verify behavior when book has no file.
+        """
+        response = self.client.get(reverse('library:book_details', args=[self.no_file_book.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context.get('chapters'))
+        self.assertIsNone(response.context.get('current_chapter'))
+        self.assertContains(response, 'No TOC available')
+
+    def test_book_detail_view_invalid_chapter_index(self):
+        """
+        Verify that an invalid chapter index defaults to the first chapter.
+        """
+        # Index 99 is invalid, structure has 6 chapters total
+        response = self.client.get(reverse('library:book_details_chapter', args=[self.epub_book.id, 99]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['current_chapter'].title, 'Chapter 1')
