@@ -238,6 +238,10 @@ body {
     width: 300px;
 }
 
+.book-details-sidebar {
+    width: 400px;
+}
+
 #toggle-sidebar-btn {
     position: absolute;
     left: 0;
@@ -271,4 +275,26 @@ body {
 
 .description-truncate.expanded {
     max-height: 3000px; /* Large enough to fit most descriptions */
+}
+
+/* --- Book Reader Styles --- */
+.chapter-body img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1rem auto;
+}
+
+.chapter-body p {
+    line-height: 1.6;
+    margin-bottom: 1.2rem;
+}
+
+.toc-container {
+    font-size: 0.9rem;
+}
+
+.tree-item .btn-link {
+    text-align: left;
+    white-space: normal;
 }

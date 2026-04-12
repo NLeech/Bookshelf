@@ -6,8 +6,14 @@ from django.views import generic
 from django.conf import settings
 from django.db.models import Prefetch, Q
 
-from .models import Author, BookSeriesLink
-from .sevices import get_alphabet_tree, get_author_languages, get_author_genres_tree
+from .models import Author, BookSeriesLink, Book
+from .sevices import (
+    get_alphabet_tree,
+    get_author_languages,
+    get_author_genres_tree,
+    get_book_extractor,
+    flatten_chapters
+)
 
 # Create your views here.
 class HomePageView(generic.TemplateView):
@@ -129,4 +135,37 @@ class AuthorDetailView(generic.DetailView):
             tab = self.request.GET.get('tab', 'alpha')
             # Select the appropriate block based on the tab
             self.template_name = f"{self.template_name}#{tab}_tab"
+        return super().render_to_response(context, **response_kwargs)
+
+
+class BookDetailView(generic.DetailView):
+    model = Book
+    template_name = 'library/book_details.html'
+    context_object_name = 'book'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        book = self.get_object()
+        chapter_index = self.kwargs.get('chapter_index', 0)
+
+        extractor = get_book_extractor(book)
+        if extractor:
+            chapters = extractor.chapters
+            flat_chapters, _ = flatten_chapters(chapters)
+
+            context['chapters'] = chapters  # Original hierarchical list for TOC
+            if 0 <= chapter_index < len(flat_chapters):
+                context['current_chapter'] = flat_chapters[chapter_index]
+            else:
+                context['current_chapter'] = flat_chapters[0] if flat_chapters else None
+
+        return context
+
+    def render_to_response(self, context, **response_kwargs):
+        """
+        Check if it's an AJAX/HTMX request.
+        If so, append the partial fragment to the template name.
+        """
+        if self.request.headers.get('HX-Request'):
+            self.template_name = f"{self.template_name}#book_content"
         return super().render_to_response(context, **response_kwargs)

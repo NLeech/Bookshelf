@@ -1,0 +1,32 @@
+{% for node in nodes %}
+    {% with counter_str=forloop.counter|stringformat:"s" %}
+    {% with current_id=id_prefix|default:"toc"|add:"-"|add:counter_str %}
+    <div class="tree-toggle tree-item">
+        {% if node.subchapters %}
+            <span class="tree-arrow collapsed"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#collapse{{ current_id }}"
+                  aria-expanded="false"
+                  role="button">▸
+            </span>
+        {% else %}
+            <span class="tree-arrow invisible">▸</span>
+        {% endif %}
+
+        <button hx-get="{% url 'library:book_details_chapter' book.pk node.flat_index %}"
+                hx-target="#book-content"
+                hx-push-url="true"
+                class="btn btn-link p-0 border-0 text-decoration-none text-reset {% if current_chapter and current_chapter.flat_index == node.flat_index %}fw-bold{% endif %}">
+            {{ node.title|default:"Untitled Chapter" }}
+        </button>
+    </div>
+    {% if node.subchapters %}
+        <div class="collapse" id="collapse{{ current_id }}">
+            <ul class="tree-list">
+                {% include "library/include/toc_node.html" with nodes=node.subchapters id_prefix=current_id %}
+            </ul>
+        </div>
+    {% endif %}
+    {% endwith %}
+    {% endwith %}
+{% endfor %}

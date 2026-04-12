@@ -1,7 +1,10 @@
 import logging
+import io
+import pyzipper
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Count, Case, When, Value, CharField, Q
 from django.db.models.functions import Left, Lower
@@ -290,3 +293,69 @@ def get_author_genres_tree(author: Author) -> list[dict]:
 
     sort_tree(root_nodes)
     return root_nodes
+
+
+def get_book_extractor(book):
+    """
+    Load the appropriate book extractor based on the file extension.
+    Handles password-protected ZIP files if necessary.
+    """
+    from .book_utils.book_file import BookFile
+    # Import subclasses to ensure they are registered
+    from .book_utils.epub_book_file import EpubBookFile
+    from .book_utils.fb2_book_file import Fb2BookFile
+
+    if not book.file:
+        return None
+
+    file_path = book.file.path
+    file_name = book.file.name.lower()
+
+    if file_name.endswith('.zip'):
+        try:
+            with pyzipper.AESZipFile(file_path) as zf:
+                zf.setpassword(settings.BOOK_PWD)
+                namelist = zf.namelist()
+                if not namelist:
+                    return None
+                
+                # Assume the first file is the book content
+                inner_filename = namelist[0]
+                extension = inner_filename.split('.')[-1].lower()
+                extractor_cls = BookFile.get_extractor(extension)
+                if not extractor_cls:
+                    return None
+                
+                content = zf.read(inner_filename)
+                extractor = extractor_cls()
+                extractor.load_from_stream(io.BytesIO(content))
+                return extractor
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Failed to extract book from ZIP {file_path}: {e}")
+            return None
+    else:
+        extension = file_name.split('.')[-1].lower()
+        extractor_cls = BookFile.get_extractor(extension)
+        if not extractor_cls:
+            return None
+        
+        extractor = extractor_cls()
+        extractor.load_from_file(file_path)
+        return extractor
+
+
+def flatten_chapters(chapters, index_start=0):
+    """
+    Flatten a hierarchical list of chapters and assign a flat_index to each.
+    Returns a tuple: (flat_list, next_available_index)
+    """
+    flat_list = []
+    current_index = index_start
+    for chapter in chapters:
+        chapter.flat_index = current_index
+        flat_list.append(chapter)
+        current_index += 1
+        sub_flat, next_index = flatten_chapters(chapter.subchapters, current_index)
+        flat_list.extend(sub_flat)
+        current_index = next_index
+    return flat_list, current_index
