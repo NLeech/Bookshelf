@@ -88,3 +88,12 @@
 5. **test_get_book_extractor_invalid_zip**: Test with invalid or damaged ZIP file. Returns `None` and logs error.
 6. **test_get_book_extractor_empty_zip**: Test with empty ZIP file. Returns `None`.
 7. **test_flatten_chapters_nested**: Test flattening of nested chapters and verify `flat_index` assignment.
+
+## Author List View (AuthorListViewTests)
+1. **test_author_list_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
+2. **test_author_list_view_pagination**: Verifies pagination works correctly (showing 50 authors per page).
+3. **test_author_list_view_filtering_parameterized**: Verifies filtering logic (startswith, regex, case insensitivity, precedence) using `parameterized.expand`.
+4. **test_author_list_view_empty_results**: Verifies "No authors found." message when no authors match filter.
+5. **test_author_list_view_htmx_partial**: Verifies that an HTMX request returns only the partial template fragment.
+6. **test_author_list_view_context**: Verifies that filter and regex match query parameters in context.
+7. **test_author_list_view_alphabet_tree_integration**: Verifies that alphabet_tree is in context and contains expected nodes.
