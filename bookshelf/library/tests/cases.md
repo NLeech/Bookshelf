@@ -67,3 +67,24 @@
 
 ## Middleware (HealthCheckTest)
 1. **test_health_check**: Verifies the /ping/ endpoint returns pong.
+
+## Author Aggregations (AuthorAggregationsTest)
+1. **test_get_author_languages_empty**: Author with 0 books -> returns empty queryset.
+2. **test_get_author_languages_single**: Author with 2 books in 'en' -> returns 1 language ('en') with `book_count=2`.
+3. **test_get_author_languages_multiple**: Author with 1 book in 'en', 2 in 'uk' -> returns sorted languages ('en', 'uk') with correct counts.
+4. **test_get_author_languages_isolation**: Author A has 1 book in 'en'. Author B has 1 book in 'en'. `get_author_languages(Author A)` -> returns 'en' with `book_count=1`.
+5. **test_get_author_genres_tree_empty**: Author with 0 books -> returns empty list.
+6. **test_get_author_genres_tree_hierarchy**: Author has book in 'Sub-genre' (parent: 'Parent-genre'). Tree should contain 'Parent-genre' with 'Sub-genre' as child.
+7. **test_get_author_genres_tree_counts**: Book in 'Sub-genre' (count 1). Book in 'Parent-genre' (count 1).
+8. **test_get_author_genres_tree_several_books_count**: Complex case with multiple genres and shared books between genres. Verifies correct book counts at each node and inclusion of ancestor genres with 0 count.
+9. **test_get_author_genres_tree_sorting**: Root level sorted alphabetically. Children also sorted alphabetically. Sorting is case-insensitive.
+10. **test_get_author_genres_tree_isolation**: Book counts in the genre tree only reflect the books of the requested author.
+
+## Book Services (BookServicesTest)
+1. **test_get_book_extractor_no_file**: Test with `book.file = None`. Returns `None`.
+2. **test_get_book_extractor_direct**: Test direct extraction for EPUB and FB2. Returns correct `BookFile` subclass.
+3. **test_get_book_extractor_zip**: Test extraction from password-protected ZIP (EPUB and FB2 inside). Returns correct extractor.
+4. **test_get_book_extractor_unsupported**: Test with unsupported extension (e.g., `.txt`). Returns `None`.
+5. **test_get_book_extractor_invalid_zip**: Test with invalid or damaged ZIP file. Returns `None` and logs error.
+6. **test_get_book_extractor_empty_zip**: Test with empty ZIP file. Returns `None`.
+7. **test_flatten_chapters_nested**: Test flattening of nested chapters and verify `flat_index` assignment.

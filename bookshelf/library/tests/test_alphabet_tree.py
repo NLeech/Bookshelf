@@ -187,3 +187,14 @@ class GetAlphabetTreeTest(TestCase):
             current_node = next(e for e in current_node.entries if e.name == node_name)
 
         self.assertEqual(len(current_node.entries), 0, f"Node '{current_node.name}' should have no children for max_depth={max_depth}")
+
+    def test_empty_last_name(self):
+        """
+        Test that authors with empty last names are correctly categorized into 'other'.
+        """
+        Author.objects.create(last_name='')
+        
+        root = get_alphabet_tree()
+        other_node = next(e for e in root.entries if e.name == 'other')
+        star_node = next(e for e in other_node.entries if e.name == '* (all non-alpha last names)')
+        self.assertEqual(star_node.authors_quantity, 1)
