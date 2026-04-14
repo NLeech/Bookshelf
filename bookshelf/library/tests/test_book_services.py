@@ -7,8 +7,8 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from parameterized import parameterized
 
-from library.models import Book, Language
-from library.sevices import get_book_extractor, flatten_chapters
+from library.models import Book, Language, Author
+from library.sevices import get_book_extractor, flatten_chapters, sanitize_filename, get_book_file_content
 from library.book_utils import EpubBookFile, Fb2BookFile
 from library.tests.epub_test_utils import create_epub_one_author
 from library.tests.fb2_test_utils import create_fb2_one_author
@@ -152,3 +152,124 @@ class BookServicesTest(TestCase):
         self.assertEqual(flat_list[3].flat_index, 13)
         
         self.assertEqual(next_index, 14)
+
+    @parameterized.expand([
+        ("Normal", "Doe, John - Test Book", "Doe_John_-_Test_Book"),
+        ("Accents", "Möller, Jörn - Über", "Möller_Jörn_-_Über"),
+        ("Special", "Author: Title?", "Author_-_Title"),
+        ("Spaces", "  Author   Title  ", "Author_Title"),
+        ("Double Underscore", "Author__Title", "Author_Title"),
+        ("Leading Dot", ".Author", "Author"),
+        ("Cyrillic", "Тарас Шевченко - Заповіт", "Тарас_Шевченко_-_Заповіт"),
+    ])
+    def test_sanitize_filename(self, name, input_str, expected):
+        """Test sanitize_filename utility (on base names)."""
+        self.assertEqual(sanitize_filename(input_str), expected)
+
+    @parameterized.expand([
+        ("epub_direct", "EPUB Direct", "epub", "application/epub+zip", False, True),
+        ("fb2_direct", "FB2 Direct", "fb2", "application/x-fictionbook+xml", False, True),
+        ("epub_zipped", "EPUB Zipped", "epub", "application/epub+zip", True, True),
+        ("fb2_zipped", "FB2 Zipped", "fb2", "application/x-fictionbook+xml", True, True),
+        ("no_authors", "No Author", "epub", "application/epub+zip", False, False),
+    ])
+    def test_get_book_file_content_parameterized(self, name, title, ext, expected_type, is_zipped, has_author):
+        """Test get_book_file_content with various scenarios using parameterization."""
+        book = Book.objects.create(title=title, language=self.language)
+        if has_author:
+            author = Author.objects.create(first_name='John', last_name='Doe')
+            book.authors.add(author)
+            expected_author_part = "Doe_John"
+        else:
+            expected_author_part = "Unknown"
+
+        content = b"fake content"
+        if is_zipped:
+            zip_buffer = io.BytesIO()
+            with pyzipper.AESZipFile(zip_buffer, 'w', compression=pyzipper.ZIP_DEFLATED, encryption=pyzipper.WZ_AES) as zf:
+                zf.setpassword(settings.BOOK_PWD)
+                zf.writestr(f"inner.{ext}", content)
+            book.file.save(f"test.{ext}.zip", ContentFile(zip_buffer.getvalue()))
+        else:
+            book.file.save(f"test.{ext}", ContentFile(content))
+
+        filename, result_content, content_type = get_book_file_content(book)
+        
+        expected_filename = f"{expected_author_part}_-_{title.replace(' ', '_')}.{ext}"
+        self.assertEqual(filename, expected_filename)
+        self.assertEqual(result_content, content)
+        self.assertEqual(content_type, expected_type)
+        
+        if book.file:
+            os.remove(book.file.path)
+
+    def test_get_book_file_content_mimetype_registration(self):
+        """Specifically cover mimetypes.add_type lines by mocking types_map to be empty."""
+        author = Author.objects.create(first_name='John', last_name='Doe')
+        book = Book.objects.create(title="Mime Test", language=self.language)
+        book.authors.add(author)
+        book.file.save("test.epub", ContentFile(b"content"))
+
+        import mimetypes
+        # Mock mimetypes.types_map to be an empty dict so .get() returns None
+        with mock.patch('mimetypes.types_map', {}):
+            with mock.patch('mimetypes.add_type') as mock_add:
+                get_book_file_content(book)
+                # Verify that add_type was called for both .epub and .fb2
+                mock_add.assert_any_call('application/epub+zip', '.epub')
+                mock_add.assert_any_call('application/x-fictionbook+xml', '.fb2')
+
+        if book.file:
+            os.remove(book.file.path)
+
+    def test_get_book_file_content_missing_file(self):
+        """Test get_book_file_content with book.file = None."""
+        book = Book.objects.create(title="Missing File", language=self.language)
+        filename, content, content_type = get_book_file_content(book)
+        self.assertIsNone(filename)
+        self.assertIsNone(content)
+        self.assertIsNone(content_type)
+
+    def test_get_book_file_content_zip_empty_list(self):
+        """Test get_book_file_content with a ZIP that has no files in it."""
+        zip_buffer = io.BytesIO()
+        with pyzipper.AESZipFile(zip_buffer, 'w') as zf:
+            zf.setpassword(settings.BOOK_PWD)
+        
+        book = Book.objects.create(title="Empty ZIP Book", language=self.language)
+        book.file.save("empty.zip", ContentFile(zip_buffer.getvalue()))
+        
+        filename, content, content_type = get_book_file_content(book)
+        self.assertIsNone(filename)
+        self.assertIsNone(content)
+        
+        if book.file:
+            os.remove(book.file.path)
+
+    def test_get_book_file_content_zip_exception(self):
+        """Test get_book_file_content ZIP extraction exception."""
+        book = Book.objects.create(title="ZIP Exception", language=self.language)
+        book.file.save("bad.zip", ContentFile(b"not a zip"))
+        
+        with self.assertLogs('library.sevices', level='ERROR') as cm:
+            filename, content, content_type = get_book_file_content(book)
+            self.assertIsNone(filename)
+            self.assertTrue(any("Failed to extract book from ZIP" in output for output in cm.output))
+
+        if book.file:
+            os.remove(book.file.path)
+
+    def test_get_book_file_content_read_exception(self):
+        """Test get_book_file_content file read exception."""
+        book = Book.objects.create(title="Read Exception", language=self.language)
+        book.file.save("test.epub", ContentFile(b"content"))
+        
+        # Mock Path.read_bytes to raise an exception
+        with mock.patch('library.sevices.Path.read_bytes', side_effect=Exception("Read error")):
+            with self.assertLogs('library.sevices', level='ERROR') as cm:
+                filename, content, content_type = get_book_file_content(book)
+                self.assertIsNone(filename)
+                self.assertTrue(any("Failed to read book file" in output for output in cm.output))
+
+        if book.file:
+            os.remove(book.file.path)

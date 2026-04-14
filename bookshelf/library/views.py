@@ -1,7 +1,9 @@
 import string
+import io
 
 from collections import defaultdict
-from django.shortcuts import render
+from django.http import FileResponse, HttpRequest, Http404
+from django.shortcuts import render, get_object_or_404
 from django.views import generic
 from django.conf import settings
 from django.db.models import Prefetch, Q
@@ -12,12 +14,30 @@ from .sevices import (
     get_author_languages,
     get_author_genres_tree,
     get_book_extractor,
+    get_book_file_content,
     flatten_chapters
 )
 
-# Create your views here.
+
 class HomePageView(generic.TemplateView):
     template_name = 'library/index.html'
+
+
+class BookDownloadView(generic.View):
+    def get(self, request: HttpRequest, pk: int) -> FileResponse:
+
+        book = get_object_or_404(Book, pk=pk)
+        filename, content, content_type = get_book_file_content(book)
+
+        if not content:
+            raise Http404('Book file not found or could not be extracted.')
+
+        return FileResponse(
+            io.BytesIO(content),
+            as_attachment=True,
+            filename=filename,
+            content_type=content_type
+        )
 
 
 class AuthorListView(generic.ListView):

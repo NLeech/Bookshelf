@@ -11,21 +11,28 @@
         </div>
         <div class="col d-flex flex-column">
             <p class="card-text text-muted small mb-2">Added: {{ book.created_at|date:"Y-m-d" }}</p>
-            <div class="description-truncate small text-secondary mb-1" id="desc-{{ book.id }}">
-                {{ book.description|safe }}
-            </div>
+            {% if book.description %}
+                <div class="description-truncate small text-secondary mb-1" id="desc-{{ book.id }}">
+                    {{ book.description|safe }}
+                </div>
+            {% endif %}
             
             <div class="mt-auto d-flex justify-content-between align-items-center">
                 <div>
                     <a href="{% url 'library:book_details' book.id %}" class="btn btn-primary btn-sm me-3"><i class="bi bi-book"></i> Read</a>
-                    <a href="#" class="text-decoration-none fw-medium me-3 small"><i class="bi bi-download"></i> EPUB</a>
-                    <a href="#" class="text-decoration-none fw-medium small"><i class="bi bi-download"></i> FB2</a>
+                    {% if book.file %}
+                        <a href="{% url 'library:book_download' book.id %}" class="text-decoration-none fw-medium small">
+                            <i class="bi bi-download"></i> {{ book.file_type }} ({{ book.size_str }})
+                        </a>
+                    {% endif %}
                 </div>
-                <button class="btn btn-link btn-sm p-0 expand-btn text-decoration-none"
-                        type="button"
-                        onclick="toggleDescription(this, 'desc-{{ book.id }}')">
-                    Show more
-                </button>
+                {% if book.description %}
+                    <button class="btn btn-link btn-sm p-0 expand-btn text-decoration-none"
+                            type="button"
+                            onclick="toggleDescription(this, 'desc-{{ book.id }}')">
+                        Show more
+                    </button>
+                {% endif %}
             </div>
         </div>
     </div>

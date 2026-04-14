@@ -90,6 +90,13 @@
 5. **test_get_book_extractor_invalid_zip**: Test with invalid or damaged ZIP file. Returns `None` and logs error.
 6. **test_get_book_extractor_empty_zip**: Test with empty ZIP file. Returns `None`.
 7. **test_flatten_chapters_nested**: Test flattening of nested chapters and verify `flat_index` assignment.
+8. **test_sanitize_filename**: Parameterized test verifying `sanitize_filename` utility (ASCII only, no spaces, colons to ` - `, collapses underscores, strips edges, support for Cyrillic).
+9. **test_get_book_file_content_parameterized**: Verifies that `get_book_file_content` returns a standardized and sanitized filename (`Author_-_Title.ext`), correct bytes, and content type for both direct and zipped EPUB/FB2 files.
+10. **test_get_book_file_content_mimetype_registration**: Verifies that custom mimetypes for EPUB and FB2 are registered if not already present.
+11. **test_get_book_file_content_missing_file**: Verifies that `get_book_file_content` returns `None` values if the book has no file.
+12. **test_get_book_file_content_zip_empty_list**: Verifies that `get_book_file_content` returns `None` if the ZIP file is empty.
+13. **test_get_book_file_content_zip_exception**: Verifies that ZIP extraction errors are caught and logged, returning `None`.
+14. **test_get_book_file_content_read_exception**: Verifies that file read errors are caught and logged, returning `None`.
 
 ## Author List View (AuthorListViewTests)
 1. **test_author_list_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
@@ -115,3 +122,9 @@
 4. **test_book_detail_view_chapter_selection**: Verifies that selecting a chapter by index works correctly for both EPUB and FB2.
 5. **test_book_detail_view_htmx_partial**: Verifies HTMX partial rendering for both EPUB and FB2.
 6. **test_book_detail_view_no_extractor**: Verifies behavior when a book has no file (shows "No TOC available").
+
+## Book Download View (BookDownloadViewTests)
+1. **test_book_download_filename**: Parameterized test verifying downloading books with various titles and authors (including Cyrillic, direct and zipped files), ensuring correct `Content-Type` and `Content-Disposition` (with RFC 6266 for non-ASCII).
+2. **test_book_download_multiple_authors**: Verify filename format for multiple authors: `FirstAuthor_et_al_-_Title`.
+3. **test_book_download_404_no_file**: Verify 404 if the book has no file.
+4. **test_book_download_404_invalid_id**: Verify 404 for non-existent book ID.

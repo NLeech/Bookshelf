@@ -1,15 +1,23 @@
 import logging
 import io
-import pyzipper
+import mimetypes
+import re
+import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass, field
+from pathlib import Path
 
+import pyzipper
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count, Case, When, Value, CharField, Q
 from django.db.models.functions import Left, Lower
+from django.utils.text import get_valid_filename
 
-from library.models import Author, Genre, Language
+from .models import Author, Genre, Language, Book
+from .book_utils.book_file import BookFile
+from .book_utils.epub_book_file import EpubBookFile
+from .book_utils.fb2_book_file import Fb2BookFile
 
 
 @dataclass(order=True)
@@ -295,20 +303,21 @@ def get_author_genres_tree(author: Author) -> list[dict]:
     return root_nodes
 
 
-def get_book_extractor(book):
-    """
-    Load the appropriate book extractor based on the file extension.
-    Handles password-protected ZIP files if necessary.
-    """
-    from .book_utils.book_file import BookFile
-    # Import subclasses to ensure they are registered
-    from .book_utils.epub_book_file import EpubBookFile
-    from .book_utils.fb2_book_file import Fb2BookFile
+def get_book_extractor(book: Book) -> EpubBookFile | Fb2BookFile | None:
+    """Load the appropriate book extractor based on the file extension.
 
+    Handles password-protected ZIP files if necessary.
+
+    Args:
+        book: The Book model instance.
+
+    Returns:
+        An instance of EpubBookFile, Fb2BookFile, or None if unsupported.
+    """
     if not book.file:
         return None
 
-    file_path = book.file.path
+    file_path = Path(book.file.path)
     file_name = book.file.name.lower()
 
     if file_name.endswith('.zip'):
@@ -340,14 +349,19 @@ def get_book_extractor(book):
             return None
         
         extractor = extractor_cls()
-        extractor.load_from_file(file_path)
+        extractor.load_from_file(str(file_path))
         return extractor
 
 
-def flatten_chapters(chapters, index_start=0):
-    """
-    Flatten a hierarchical list of chapters and assign a flat_index to each.
-    Returns a tuple: (flat_list, next_available_index)
+def flatten_chapters(chapters: list, index_start: int = 0) -> tuple[list, int]:
+    """Flatten a hierarchical list of chapters and assign a flat_index to each.
+
+    Args:
+        chapters: Hierarchical list of chapter objects.
+        index_start: Starting index for flattening.
+
+    Returns:
+        A tuple: (flat_list, next_available_index)
     """
     flat_list = []
     current_index = index_start
@@ -359,3 +373,102 @@ def flatten_chapters(chapters, index_start=0):
         flat_list.extend(sub_flat)
         current_index = next_index
     return flat_list, current_index
+
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize a filename according to NLeech Styleguide:
+
+    1. Support extended ASCII characters (e.g. Cyrillic).
+    2. Using only word characters, underscores, hyphens, and dots.
+    3. Forbidding spaces (replacing them with underscores).
+    4. Replace multiple underscores with a single one.
+    5. Strip leading/trailing ._-
+
+    Args:
+        filename: The filename to sanitize.
+
+    Returns:
+        The sanitized filename.
+    """
+    # Replace colons with ' - ' to separate Author/Title if they were using colons
+    filename = filename.replace(':', ' - ')
+    # Replace spaces with underscores
+    filename = filename.replace(' ', '_')
+    # Use Django's get_valid_filename to remove basic invalid characters
+    filename = get_valid_filename(filename)
+    # Apply final whitelist filter ([^\w._-]) to allow word characters (including Cyrillic)
+    filename = re.sub(r'[^\w._-]', '_', filename)
+    # Replace multiple underscores with a single one
+    filename = re.sub(r'_+', '_', filename)
+    # Strip leading/trailing ._-
+    return filename.strip('._-')
+
+
+def get_book_file_content(book: 'Book') -> tuple[str | None, bytes | None, str | None]:
+    """Get the unzipped content of a book file.
+
+    Args:
+        book: The Book model instance.
+
+    Returns:
+        A tuple of (filename, content bytes, content_type).
+    """
+    if not book.file:
+        return None, None, None
+
+    file_path = Path(book.file.path)
+    file_name = book.file.name.lower()
+
+    # Register custom mimetypes if not present
+    if not mimetypes.types_map.get('.epub'):
+        mimetypes.add_type('application/epub+zip', '.epub')
+    if not mimetypes.types_map.get('.fb2'):
+        mimetypes.add_type('application/x-fictionbook+xml', '.fb2')
+
+    # Generate standardized filename base: str(Author) - str(title)
+    # Following FirstAuthor_et_al_-_Title for multiple authors
+    authors = list(book.authors.all())
+    if not authors:
+        author_part = 'Unknown'
+    elif len(authors) > 1:
+        author_part = f'{authors[0]}_et_al'
+    else:
+        author_part = str(authors[0])
+
+    filename_base = f'{author_part} - {book.title}'
+
+    if file_name.endswith('.zip'):
+        try:
+            with pyzipper.AESZipFile(file_path) as zf:
+                zf.setpassword(settings.BOOK_PWD)
+                namelist = zf.namelist()
+                if not namelist:
+                    return None, None, None
+
+                # Assume the first file is the book content
+                inner_filename = namelist[0]
+                content = zf.read(inner_filename)
+                content_type, _ = mimetypes.guess_type(inner_filename)
+                
+                # Use extension from inner file, lowercase it
+                ext = Path(inner_filename).suffix
+                sanitized_filename = sanitize_filename(filename_base) + ext.lower()
+                
+                return sanitized_filename, content, content_type or 'application/octet-stream'
+        except Exception as e:
+            logging.getLogger(__name__).error(f'Failed to extract book from ZIP {file_path}: {e}')
+            return None, None, None
+    else:
+        # Not a zip, just read the file
+        try:
+            content = file_path.read_bytes()
+            content_type, _ = mimetypes.guess_type(file_name)
+            
+            # Use extension from original file, lowercase it
+            ext = file_path.suffix
+            sanitized_filename = sanitize_filename(filename_base) + ext.lower()
+            
+            return sanitized_filename, content, content_type or 'application/octet-stream'
+        except Exception as e:
+            logging.getLogger(__name__).error(f'Failed to read book file {file_path}: {e}')
+            return None, None, None
