@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.core.exceptions import ValidationError
-from parameterized import parameterized_class
+from parameterized import parameterized_class, parameterized
 
 from library.models import BookSeries, Genre, Author, Book, Language
 
@@ -84,4 +84,20 @@ class BookModelTest(TestCase):
         book.refresh_from_db()
         self.assertEqual(book.size, 1024)
         self.assertEqual(book.file_type, 'epub')
+
+    @parameterized.expand([
+        ('0_bytes', 0, '0 B'),
+        ('512_bytes', 512, '512 B'),
+        ('1_kb', 1024, '1.00 KB'),
+        ('1_52_kb', 1560, '1.52 KB'),
+        ('1_mb', 1048576, '1.00 MB'),
+        ('1_78_mb', 1866465, '1.78 MB'),
+    ])
+    def test_book_size_str(self, name, size, expected):
+        """
+        Verify that size_str returns human-readable format correctly.
+        """
+        language = Language.objects.create(code='en', name='English')
+        book = Book(title='Test Book', language=language, size=size)
+        self.assertEqual(book.size_str, expected)
 

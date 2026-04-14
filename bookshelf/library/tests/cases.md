@@ -21,6 +21,7 @@
 ### BookModelTest
 1. **test_book_str**: Verifies that Book.__str__ returns the book title.
 2. **test_book_fields**: Verify that size and file_type fields are correctly saved and retrieved.
+3. **test_book_size_str**: Parameterized test verifying that size_str returns human-readable format correctly (B, KB, MB) for various sizes (0 B, integer, fractional).
 
 ## Alphabet Tree (GetAlphabetTreeTest)
 1. **test_empty_database**: Test that an empty database returns a root with no entries.

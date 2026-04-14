@@ -251,3 +251,21 @@ class Book(BaseModel):
 
     def __str__(self):
         return self.title
+
+    @property
+    def size_str(self) -> str:
+        """
+        Human-readable size format.
+        XXX B - if size less than 1 Kb
+        XX.XX KB - if size less than 1 Mb
+        XX.XX MB - if size less than 1 Gb
+        Base Size Unit → 1024 (Binary)
+        """
+        if self.size < 1024:
+            return f'{self.size} B'
+        elif self.size < 1024 * 1024:
+            size_kb = self.size / 1024
+            return f'{size_kb:.2f} KB'
+        else:
+            size_mb = self.size / (1024 * 1024)
+            return f'{size_mb:.2f} MB'
