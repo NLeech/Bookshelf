@@ -165,12 +165,15 @@ class TestBookImporterService(TestCase):
         mock_zf = MagicMock()
         mock_zip.return_value.__enter__.return_value = mock_zf
 
-        self.importer.import_book(f_book, b'content')
+        content = b'content'
+        self.importer.import_book(f_book, content)
 
         # Verify Book
         book = Book.objects.get(title='Test Book')
         self.assertEqual(book.language, self.lang_ru)
         self.assertTrue(book.file.name.endswith('100.zip'), f"Expected name to end with 100.zip, got {book.file.name}")
+        self.assertEqual(book.file_type, 'fb2')
+        self.assertEqual(book.size, len(content))
         
         # Verify relations
         self.assertTrue(book.authors.filter(last_name='Author').exists())
@@ -179,6 +182,26 @@ class TestBookImporterService(TestCase):
         
         # Verify mapping
         self.assertTrue(FlibustaBookMapping.objects.filter(flibusta_book=f_book, library_book=book).exists())
+
+    @patch('pyzipper.AESZipFile')
+    def test_import_book_unsupported_type(self, mock_zip):
+        """
+        Verify that a book with an unsupported file type (no extractor)
+        is still imported with default metadata and correct size.
+        """
+        f_book = FlibustaBook.objects.create(id=102, title='Unsupported', lang='ru', file_type='txt', md5='md5_102')
+        
+        mock_zf = MagicMock()
+        mock_zip.return_value.__enter__.return_value = mock_zf
+        
+        content = b'plain text content'
+        self.importer.import_book(f_book, content)
+        
+        book = Book.objects.get(title='Unsupported')
+        self.assertEqual(book.file_type, 'txt')
+        self.assertEqual(book.size, len(content))
+        self.assertEqual(book.description, '')
+        self.assertEqual(book.isbn, 0)
 
 
 class TestArchiveProcessing(TestCase):
@@ -429,6 +452,7 @@ class TestBookImporterMetadata(TestCase):
         book = Book.objects.get(title='FB2 Title')
         self.assertEqual(book.description, 'FB2 Description')
         self.assertEqual(int(book.isbn), 1234567890123) # Should be cleaned to only digits
+        self.assertEqual(book.size, len(file_content))
 
     @patch('pyzipper.AESZipFile')
     def test_import_book_metadata_extraction_failure(self, mock_zip):
@@ -477,6 +501,7 @@ class TestBookImporterMetadata(TestCase):
             'load_from_file': lambda self, path: None,
             'description': 'Test description',
             'isbn': '1234567890',
+            'file_type': 'epub',
             'cover': rgba_img
         })):
             f_book = FlibustaBook.objects.create(
@@ -521,6 +546,7 @@ class TestBookImporterMetadata(TestCase):
             'load_from_file': lambda self, path: None,
             'description': 'Test description',
             'isbn': '1234567890',
+            'file_type': 'epub',
             'cover': rgb_img
         })):
             f_book = FlibustaBook.objects.create(

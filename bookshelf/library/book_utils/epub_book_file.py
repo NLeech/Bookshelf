@@ -1,4 +1,5 @@
 import io
+import os
 from typing import List, Optional
 
 from PIL import Image
@@ -17,6 +18,7 @@ class EpubBookFile(BookFile):
         :param file_path: Path to the EPUB file.
         """
         self._load_from_source(file_path)
+        self.size = os.path.getsize(file_path)
 
     def load_from_stream(self, stream: io.IOBase) -> None:
         """
@@ -27,11 +29,12 @@ class EpubBookFile(BookFile):
 
     def _load_from_source(self, source: io.IOBase | str) -> None:
         self.book = ebooklib.epub.read_epub(source)
+        self.file_type = 'epub'
         self._populate_book_data()
 
     def _populate_book_data(self) -> None:
         """Extracts metadata and chapters from the loaded EPUB book."""
-
+        
         metadata_title = self.book.get_metadata('DC', 'title')
         if metadata_title:
             self.title = metadata_title[0][0]

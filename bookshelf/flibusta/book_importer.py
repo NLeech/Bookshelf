@@ -217,6 +217,11 @@ class BookImporter:
                 extracted_metadata = {}
                 extracted_cover = None
 
+                # Initialize defaults to avoid UnboundLocalError if no extractor is found
+                description = ''
+                isbn = 0
+                file_type = f_book.file_type
+
                 try:
                     extractor_cls = BookFile.get_extractor(f_book.file_type)
                     if extractor_cls:
@@ -224,9 +229,11 @@ class BookImporter:
                         extractor.load_from_stream(io.BytesIO(file_content))
                         
                         if extractor.description:
-                            extracted_metadata['description'] = extractor.description
+                            description = extractor.description
                         if extractor.isbn:
-                            extracted_metadata['isbn'] = extractor.isbn
+                            isbn = extractor.isbn
+                        if extractor.file_type:
+                            file_type = extractor.file_type
                         
                         if extractor.cover:
                             # Convert to RGB if needed (JPEG does not support transparency)
@@ -240,6 +247,7 @@ class BookImporter:
                     logger.warning(f"Metadata extraction failed for book {f_book.id}: {e}")
 
                 # Re-compress the file with password
+                file_size = 0
                 zip_buffer = tempfile.TemporaryFile()
                 with pyzipper.AESZipFile(zip_buffer,
                                          'w',
@@ -248,9 +256,8 @@ class BookImporter:
                     zf.setpassword(self.book_pwd)
                     # File inside should have the name 'book_id.ext'
                     zf.writestr(f"{f_book.id}.{f_book.file_type}", file_content)
-                
-                description = extracted_metadata.get('description', '')
-                isbn = extracted_metadata.get('isbn', 0)
+                    file_size = len(file_content)
+
                 # Ensure ISBN is decimal/number
                 if not isinstance(isbn, (int, float, str)):
                     isbn = 0
@@ -266,6 +273,8 @@ class BookImporter:
                     description=description,
                     language=language,
                     isbn=isbn,
+                    file_type=file_type,
+                    size=file_size,
                 )
 
                 # Save file

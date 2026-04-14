@@ -236,6 +236,8 @@ class Book(BaseModel):
                                  verbose_name='Language')
     isbn = models.DecimalField(max_digits=13, decimal_places=0, default=0, verbose_name='ISBN')
     file = models.FileField(upload_to='books/', null=True, blank=True, verbose_name='Book File')
+    size = models.PositiveIntegerField(default=0, verbose_name='File size (bytes)')
+    file_type = models.CharField(max_length=20, blank=True, verbose_name='File type')
 
     cover = models.ImageField(upload_to='covers/', null=True, blank=True, verbose_name='Cover')
     cover_preview = ImageSpecField(source='cover',

@@ -37,6 +37,7 @@ class TestEpubBookFileLoad(unittest.TestCase):
             self.assertEqual(self.book_file.title, expected_title)
             self.assertEqual(self.book_file.authors, expected_authors)
             self.assertEqual(self.book_file.description, expected_description)
+            self.assertEqual(self.book_file.file_type, 'epub')
 
     @parameterized.expand([
         ("one_author", create_epub_one_author, "Sample EPUB (One Author)", ["Author One"], "A sample description."),
@@ -58,6 +59,9 @@ class TestEpubBookFileLoad(unittest.TestCase):
             self.assertEqual(self.book_file.title, expected_title)
             self.assertEqual(self.book_file.authors, expected_authors)
             self.assertEqual(self.book_file.description, expected_description)
+            self.assertEqual(self.book_file.file_type, 'epub')
+            self.assertGreater(self.book_file.size, 0)
+            self.assertEqual(self.book_file.size, os.path.getsize(file_path))
         finally:
             if os.path.exists(file_path):
                 os.remove(file_path)

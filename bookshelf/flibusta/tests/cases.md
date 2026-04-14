@@ -14,7 +14,8 @@
 
 ## Importer Service - Book Import (TestBookImporterService)
 1.  **test_import_book_no_language**: Verifies that if a book's language is not yet supported in our library, the import process is skipped for that book.
-2. **test_import_book_success**: Verifies the full import_book flow for a basic FB2 book, including author/genre/series relations, re-compression with password, and mapping creation.
+2.  **test_import_book_success**: Verifies the full import_book flow for a basic FB2 book, including author/genre/series relations, re-compression with password, mapping creation, and exact size verification.
+3.  **test_import_book_unsupported_type**: Verifies that a book with an unsupported file type (no extractor) is still imported with default metadata and correct size.
 
 ## Archive Processing (TestArchiveProcessing)
 1. **test_process_archive_basic**: Verifies process_archive correctly identifies and imports individual book files from a standard zip archive.

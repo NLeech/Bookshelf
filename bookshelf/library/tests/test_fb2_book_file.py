@@ -31,6 +31,7 @@ class TestFb2BookFileLoad(unittest.TestCase):
             self.assertEqual(self.book_file.title, expected_title)
             self.assertEqual(self.book_file.authors, expected_authors)
             self.assertEqual(self.book_file.description, expected_description)
+            self.assertEqual(self.book_file.file_type, 'fb2')
 
     @parameterized.expand([
         ("one_author", create_fb2_one_author, "Sample FB2 (One Author)", ["Author One"], "A sample description."),
@@ -52,6 +53,7 @@ class TestFb2BookFileLoad(unittest.TestCase):
             self.assertEqual(self.book_file.title, expected_title)
             self.assertEqual(self.book_file.authors, expected_authors)
             self.assertEqual(self.book_file.description, expected_description)
+            self.assertEqual(self.book_file.file_type, 'fb2')
         finally:
             if os.path.exists(file_path):
                 os.remove(file_path)

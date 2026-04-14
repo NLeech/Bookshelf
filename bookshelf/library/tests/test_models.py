@@ -70,3 +70,18 @@ class BookModelTest(TestCase):
         book = Book.objects.create(title='Test Book', language=language)
         self.assertEqual(str(book), 'Test Book')
 
+    def test_book_fields(self):
+        """
+        Verify that size and file_type fields are correctly saved and retrieved.
+        """
+        language = Language.objects.create(code='en', name='English')
+        book = Book.objects.create(
+            title='Test Book',
+            language=language,
+            size=1024,
+            file_type='epub'
+        )
+        book.refresh_from_db()
+        self.assertEqual(book.size, 1024)
+        self.assertEqual(book.file_type, 'epub')
+

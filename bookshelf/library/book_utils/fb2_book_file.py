@@ -36,12 +36,12 @@ class Fb2BookFile(BookFile):
         # We use 'xml' parser for FB2
         self.soup = BeautifulSoup(source, 'xml')
         self._populate_book_data()
-        pass
+        self.file_type = 'fb2'
 
     def _populate_book_data(self) -> None:
         """Extracts metadata and chapters from the loaded FB2 book."""
-        title_info = self.soup.find('title-info')
         
+        title_info = self.soup.find('title-info')
         if title_info:
             # Title
             title_tag = title_info.find('book-title')
