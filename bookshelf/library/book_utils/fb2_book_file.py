@@ -142,7 +142,8 @@ class Fb2BookFile(BookFile):
         title_tag = section.find('title')
         title = ""
         if title_tag:
-            title = title_tag.get_text(strip=True)
+            title = title_tag.get_text().strip()
+            title.replace('\n', ' ').replace('\r', ' ')
         
         # Chapter content is everything except nested sections and the title
         content_parts = []
