@@ -6,6 +6,17 @@
 <div class="main-layout-container">
     <!-- Left Sidebar: TOC -->
     <aside class="sidebar-pane book-details-sidebar">
+        <div class="p-3 border-bottom mb-2">
+            <div class="authors-list">
+                {% for author in book.authors.all %}
+                    <a href="{% url 'library:author_details' author.id %}" class="text-decoration-none large d-block">
+                        {{ author.full_name }}
+                    </a>
+                {% endfor %}
+            </div>
+            <p></p>
+            <h4 class="fw-bold mb-1">{{ book.title }}</h4>
+        </div>
         <h5 class="p-2 border-bottom">Table of Contents</h5>
         <div class="toc-container">
             <ul class="tree-list ps-0">

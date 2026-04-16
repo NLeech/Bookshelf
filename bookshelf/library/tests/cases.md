@@ -123,6 +123,11 @@
 5. **test_book_detail_view_htmx_partial**: Verifies HTMX partial rendering for both EPUB and FB2.
 6. **test_book_detail_view_no_extractor**: Verifies behavior when a book has no file (shows "No TOC available").
 
+## Book Detail Sidebar (BookDetailSidebarTests)
+1. **test_book_details_sidebar_contains_title**: Verify that the book title is present in the sidebar.
+2. **test_book_details_sidebar_contains_author_links**: Verify that author links are present and point to the correct author detail pages.
+3. **test_book_details_sidebar_multiple_authors**: Verify that multiple authors are displayed if present.
+
 ## Book Download View (BookDownloadViewTests)
 1. **test_book_download_filename**: Parameterized test verifying downloading books with various titles and authors (including Cyrillic, direct and zipped files), ensuring correct `Content-Type` and `Content-Disposition` (with RFC 6266 for non-ASCII).
 2. **test_book_download_multiple_authors**: Verify filename format for multiple authors: `FirstAuthor_et_al_-_Title`.
