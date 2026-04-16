@@ -6,11 +6,12 @@ import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import pyzipper
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, Case, When, Value, CharField, Q
+from django.db.models import Count, Case, When, Value, CharField, Q, QuerySet
 from django.db.models.functions import Left, Lower
 from django.utils.text import get_valid_filename
 
@@ -31,11 +32,11 @@ class AlphabetTree:
     authors_quantity: int = field(default=0, compare=False, repr=True)
     entries: list['AlphabetTree'] = field(default_factory=list, compare=False, repr=False)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.name.capitalize()}'
 
 
-def _recursive_defaultdict(depth: int) -> defaultdict:
+def _recursive_defaultdict(depth: int) -> defaultdict[str, Any]:
     """
     Create a recursive defaultdict for storing the tree structure.
     :param depth: depth of the tree (number of levels)
@@ -44,9 +45,9 @@ def _recursive_defaultdict(depth: int) -> defaultdict:
 
     if depth <= 1:
         return defaultdict(lambda: {
-        'total': 0,
-        'star': 0,
-    })
+            'total': 0,
+            'star': 0,
+        })
 
     return defaultdict(lambda: {
         'total': 0,
@@ -55,7 +56,7 @@ def _recursive_defaultdict(depth: int) -> defaultdict:
     })
 
 
-def _add_prefix_level(prev_level: defaultdict, prefix: str, quantity: int, level: int, max_level) -> None:
+def _add_prefix_level(prev_level: defaultdict[str, Any], prefix: str, quantity: int, level: int, max_level: int) -> None:
     """
     Recursively make the tree structure for a given prefix and quantity.
     :param prev_level:  the level of the tree to which the prefix should be added
@@ -75,7 +76,7 @@ def _add_prefix_level(prev_level: defaultdict, prefix: str, quantity: int, level
         prev_level['sub'][current_prefix]['star'] += quantity
 
 
-def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict, min_quantity: int) -> None:
+def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict[str, Any], min_quantity: int) -> None:
     """
     Recursively build the alphabet tree from aggregated prefix data.
     :param parent: the parent node to attach children to
@@ -223,7 +224,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
     return root
 
 
-def get_author_languages(author: Author) -> list[Language]:
+def get_author_languages(author: Author) -> QuerySet[Language]:
     """
     Get all languages of the books written by the author.
     Each language is annotated with the count of books by this author in that language.
@@ -237,7 +238,7 @@ def get_author_languages(author: Author) -> list[Language]:
     )
 
 
-def get_author_genres_tree(author: Author) -> list[dict]:
+def get_author_genres_tree(author: Author) -> list[dict[str, Any]]:
     """
     Build a hierarchical tree of genres associated with the author's books.
     Includes ancestor genres even if they don't have books directly.
@@ -260,9 +261,9 @@ def get_author_genres_tree(author: Author) -> list[dict]:
     all_genres = {g.id: g for g in Genre.objects.all()}
     
     # Map to store our tree data: {id: {"genre": genre_obj, "book_count": count, "children": []}}
-    genre_map = {}
+    genre_map: dict[int, dict[str, Any]] = {}
 
-    def add_genre_to_map(genre_id, count=0):
+    def add_genre_to_map(genre_id: int, count: int = 0) -> None:
         if genre_id not in all_genres:
             return
 
@@ -281,10 +282,10 @@ def get_author_genres_tree(author: Author) -> list[dict]:
             add_genre_to_map(genre_obj.parent_id, 0)
 
     for g in direct_genres_qs:
-        add_genre_to_map(g.id, g.book_count)
+        add_genre_to_map(g.id, getattr(g, 'book_count', 0))
 
     # Build the tree structure
-    root_nodes = []
+    root_nodes: list[dict[str, Any]] = []
     for g_id in sorted(genre_map.keys()):
         data = genre_map[g_id]
         genre_obj = data['genre']
@@ -294,7 +295,7 @@ def get_author_genres_tree(author: Author) -> list[dict]:
             root_nodes.append(data)
 
     # Sort children recursively
-    def sort_tree(nodes):
+    def sort_tree(nodes: list[dict[str, Any]]) -> None:
         nodes.sort(key=lambda x: x['genre'].name.lower())
         for node in nodes:
             sort_tree(node['children'])
@@ -353,7 +354,7 @@ def get_book_extractor(book: Book) -> EpubBookFile | Fb2BookFile | None:
         return extractor
 
 
-def flatten_chapters(chapters: list, index_start: int = 0) -> tuple[list, int]:
+def flatten_chapters(chapters: list[Any], index_start: int = 0) -> tuple[list[Any], int]:
     """Flatten a hierarchical list of chapters and assign a flat_index to each.
 
     Args:

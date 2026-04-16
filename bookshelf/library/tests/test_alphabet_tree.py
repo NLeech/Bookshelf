@@ -1,6 +1,6 @@
 from django.test import TestCase
 from library.models import Author
-from library.sevices import get_alphabet_tree
+from library.services import get_alphabet_tree
 from parameterized import parameterized
 
 class GetAlphabetTreeTest(TestCase):

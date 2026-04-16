@@ -1,6 +1,6 @@
 from django.test import TestCase
 from library.models import Author, Book, Language, Genre
-from library.sevices import get_author_languages, get_author_genres_tree
+from library.services import get_author_languages, get_author_genres_tree
 
 class AuthorAggregationsTest(TestCase):
     @classmethod
@@ -223,10 +223,10 @@ class AuthorAggregationsTest(TestCase):
         mock_qs.annotate.return_value = mock_qs
         mock_qs.distinct.return_value = mock_qs
 
-        with patch('library.sevices.Genre.objects.filter', return_value=mock_qs):
+        with patch('library.services.Genre.objects.filter', return_value=mock_qs):
             # Genre.objects.all() will only include the real genre in its return value
             # which get_author_genres_tree uses to build all_genres mapping
-            with patch('library.sevices.Genre.objects.all', return_value=[g_real]):
+            with patch('library.services.Genre.objects.all', return_value=[g_real]):
                 tree = get_author_genres_tree(self.author_a)
                 
                 # Should only have the real genre in the tree

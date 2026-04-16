@@ -4,7 +4,7 @@ from django.conf import settings
 from parameterized import parameterized
 
 from library.models import Author
-from library.sevices import AlphabetTree
+from library.services import AlphabetTree
 
 
 @override_settings(STORAGES={

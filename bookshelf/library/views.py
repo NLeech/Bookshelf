@@ -9,7 +9,7 @@ from django.conf import settings
 from django.db.models import Prefetch, Q
 
 from .models import Author, BookSeriesLink, Book
-from .sevices import (
+from .services import (
     get_alphabet_tree,
     get_author_languages,
     get_author_genres_tree,

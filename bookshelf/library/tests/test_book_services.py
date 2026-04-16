@@ -8,7 +8,7 @@ from django.core.files.base import ContentFile
 from parameterized import parameterized
 
 from library.models import Book, Language, Author
-from library.sevices import get_book_extractor, flatten_chapters, sanitize_filename, get_book_file_content
+from library.services import get_book_extractor, flatten_chapters, sanitize_filename, get_book_file_content
 from library.book_utils import EpubBookFile, Fb2BookFile
 from library.tests.epub_test_utils import create_epub_one_author
 from library.tests.fb2_test_utils import create_fb2_one_author
@@ -87,7 +87,7 @@ class BookServicesTest(TestCase):
         # Case 1: Text file renamed to .zip
         book.file.save("invalid.zip", ContentFile(b"not a zip content"))
         
-        with self.assertLogs('library.sevices', level='ERROR') as cm:
+        with self.assertLogs('library.services', level='ERROR') as cm:
             extractor = get_book_extractor(book)
             self.assertIsNone(extractor)
             self.assertTrue(any("Failed to extract book from ZIP" in output for output in cm.output))
@@ -251,7 +251,7 @@ class BookServicesTest(TestCase):
         book = Book.objects.create(title="ZIP Exception", language=self.language)
         book.file.save("bad.zip", ContentFile(b"not a zip"))
         
-        with self.assertLogs('library.sevices', level='ERROR') as cm:
+        with self.assertLogs('library.services', level='ERROR') as cm:
             filename, content, content_type = get_book_file_content(book)
             self.assertIsNone(filename)
             self.assertTrue(any("Failed to extract book from ZIP" in output for output in cm.output))
@@ -265,8 +265,8 @@ class BookServicesTest(TestCase):
         book.file.save("test.epub", ContentFile(b"content"))
         
         # Mock Path.read_bytes to raise an exception
-        with mock.patch('library.sevices.Path.read_bytes', side_effect=Exception("Read error")):
-            with self.assertLogs('library.sevices', level='ERROR') as cm:
+        with mock.patch('library.services.Path.read_bytes', side_effect=Exception("Read error")):
+            with self.assertLogs('library.services', level='ERROR') as cm:
                 filename, content, content_type = get_book_file_content(book)
                 self.assertIsNone(filename)
                 self.assertTrue(any("Failed to read book file" in output for output in cm.output))
