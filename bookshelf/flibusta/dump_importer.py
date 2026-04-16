@@ -46,12 +46,14 @@ MAPPING_LIB_JOINED_BOOKS = ['id', 'time', 'bad_id', 'good_id', 'real_id']
 
 
 def import_dump(path: str = '', table_filter: str = '', batch_size: int = 5000) -> None:
-    """
-    Get and import Flibusta SQL dumps into Django models.
-    :param path: Load dump files from local directory instead of downloading them.
-                Directory should contain .gz files with original names (e.g. 'lib.libbook.sql.gz').
-    :param table_filter: Table name to import (e.g. 'libbook'). If not provided, all tables will be imported.
-    :param batch_size: B
+    """Get and import Flibusta SQL dumps into Django models.
+
+    Args:
+        path: Load dump files from local directory instead of downloading them.
+            Directory should contain .gz files with original names.
+        table_filter: Table name to import (e.g. 'libbook').
+            If not provided, all tables will be imported.
+        batch_size: Number of records to process in a single batch.
     """
     importer = FlibustaImporter(batch_size=batch_size)
 
@@ -83,7 +85,14 @@ def import_dump(path: str = '', table_filter: str = '', batch_size: int = 5000) 
 
 
 def parse_mysql_string(s: str) -> Any | None:
-    """Unescape MySQL string and remove quotes."""
+    """Unescape MySQL string and remove quotes.
+
+    Args:
+        s: The MySQL string to parse.
+
+    Returns:
+        The parsed value (str, int, float, or None).
+    """
     if s.lower() == 'null':
         return None
     if s.startswith("'") and s.endswith("'"):
@@ -100,19 +109,21 @@ def parse_mysql_string(s: str) -> Any | None:
             return s
 
 class FlibustaImporter:
-    """
-    Class responsible for importing Flibusta SQL dumps into Django models.
-    """
+    """Class responsible for importing Flibusta SQL dumps into Django models."""
 
     def __init__(self, batch_size: int = 5000):
         self.batch_size = batch_size
 
     def _get_stream(self, filename: str, path: str = '') -> io.TextIOWrapper:
-        """
-        Load the .gz file either from a local path or by downloading it.
-        :param filename: Name of the .gz file (e.g. 'lib.libbook.sql.gz')
-        :param path: Optional local directory path where the .gz file is located. If not provided, it will be downloaded.
-        :return: A file-like object that can be read line by line.
+        """Load the .gz file either from a local path or by downloading it.
+
+        Args:
+            filename: Name of the .gz file (e.g. 'lib.libbook.sql.gz').
+            path: Optional local directory path where the .gz file is located.
+                If not provided, it will be downloaded.
+
+        Returns:
+            A file-like object that can be read line by line.
         """
 
         if path:
@@ -133,10 +144,13 @@ class FlibustaImporter:
             return gzip.open(io.BytesIO(response.content), mode='rt', encoding='utf-8')
 
     def _parse_line(self, line: str) -> Generator[list[Any], None, None]:
-        """
-        Parse a single line of SQL dump that contains an INSERT INTO statement and yield the values as lists.
-        :param line: Single line from the SQL dump file.
-        :return: Generator yielding lists of values for each tuple in the INSERT statement.
+        """Parse a single line of SQL dump containing an INSERT statement.
+
+        Args:
+            line: Single line from the SQL dump file.
+
+        Yields:
+            Lists of values for each tuple in the INSERT statement.
         """
 
         if not line.startswith("INSERT INTO"):
@@ -190,10 +204,13 @@ class FlibustaImporter:
                 current_token.append(char)
 
     def _parse_tuple(self, raw_tuple: str) -> list[Any]:
-        """
-        Parse a raw tuple string (e.g. "123, 'String', 'String, with comma', NULL") into a list of values.
-        :param raw_tuple: String representing the raw tuple from the SQL dump.
-        :return: List of parsed values, with proper unescaping and type conversion.
+        """Parse a raw tuple string into a list of values.
+
+        Args:
+            raw_tuple: String representing the raw tuple from the SQL dump.
+
+        Returns:
+            List of parsed values, with proper unescaping and type conversion.
         """
 
         values = []
@@ -230,13 +247,13 @@ class FlibustaImporter:
 
     def import_table(self, model: type[models.Model], field_mapping: list[str], 
                      filename: str, path: str = '') -> None:
-        """
-        Import data for a specific model from the given SQL dump file using the provided field mapping.
-        :param model: Model class to import data into.
-        :param field_mapping: List of field names corresponding to the order of values in the SQL dump tuples.
-        :param filename: Gzipped SQL dump filename (e.g. 'lib.libbook.sql.gz').
-        :param path: Optional local directory path where the .gz file is located.
-                    If not provided, it will be downloaded from FLIBUSTA_BASE_URL.
+        """Import data for a specific model from the given SQL dump file.
+
+        Args:
+            model: Model class to import data into.
+            field_mapping: List of field names corresponding to the order of values.
+            filename: Gzipped SQL dump filename.
+            path: Optional local directory path where the .gz file is located.
         """
 
         count = 0
@@ -274,12 +291,13 @@ class FlibustaImporter:
             raise
 
     def _bulk_save(self, model: type[models.Model], batch: list[models.Model]) -> None:
-        """
-        Save a batch of model instances to the database using bulk_create,
-        Any conflicts (e.g. due to unique constraints) will be ignored,
-        other errors (e.g. data error, FK violations, etc.) will be logged and skipped.
-        :param model: model class to save data into.
-        :param batch: list of model instances to save.
+        """Save a batch of model instances to the database using bulk_create.
+
+        Any conflicts will be ignored, and other errors will be logged and skipped.
+
+        Args:
+            model: Model class to save data into.
+            batch: List of model instances to save.
         """
 
         try:

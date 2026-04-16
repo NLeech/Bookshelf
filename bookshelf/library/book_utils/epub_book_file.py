@@ -13,17 +13,19 @@ from .book_file import BookFile, Chapter
 class EpubBookFile(BookFile):
 
     def load_from_file(self, file_path: str) -> None:
-        """
-        Load EPUB book data from a file.
-        :param file_path: Path to the EPUB file.
+        """Load EPUB book data from a file.
+
+        Args:
+            file_path: Path to the EPUB file.
         """
         self._load_from_source(file_path)
         self.size = os.path.getsize(file_path)
 
     def load_from_stream(self, stream: io.IOBase) -> None:
-        """
-        Load EPUB book data from a stream.
-        :param stream: A file-like object containing the EPUB data.
+        """Load EPUB book data from a stream.
+
+        Args:
+            stream: A file-like object containing the EPUB data.
         """
         self._load_from_source(stream)
 
@@ -81,8 +83,9 @@ class EpubBookFile(BookFile):
 
     def _extract_cover(self) -> Image.Image | None:
         """Extracts the cover image from the EPUB book.
-        
-        :return: PIL Image object if a cover is found, None otherwise.
+
+        Returns:
+            PIL Image object if a cover is found, None otherwise.
         """
         # 1. Try to find EpubCover items (EPUB 3.0 standard or marked explicitly)
         for item in self.book.get_items():
@@ -139,12 +142,16 @@ class EpubBookFile(BookFile):
         return None
 
     def _process_toc_node(self, toc_node: Any, level: int = 0, parent: Chapter | None = None) -> Chapter:
-        """
-        Recursively processes a TOC node to create a Chapter object, including its subchapters.
-        :param toc_node: A node from the EPUB table of contents, which can be a tuple (link, children) or a single link.
-        :param level:  The depth level of the chapter in the hierarchy (0 for top-level chapters).
-        :param parent: The parent Chapter object, or None if this is a top-level chapter.
-        :return: A Chapter object representing the current TOC node and its subchapters.
+        """Recursively processes a TOC node to create a Chapter object.
+
+        Args:
+            toc_node: A node from the EPUB table of contents, which can be a
+                tuple (link, children) or a single link.
+            level: The depth level of the chapter in the hierarchy (0 for top-level).
+            parent: The parent Chapter object, or None if this is top-level.
+
+        Returns:
+            A Chapter object representing the current TOC node and its subchapters.
         """
 
         if isinstance(toc_node, tuple):

@@ -7,11 +7,15 @@ from bs4 import BeautifulSoup
 
 
 class Chapter:
-    """
-    Class representing a chapter in a book. Contains:
-        the title
-        HTML content of the chapter
-        list of subchapters
+    """Represents a chapter in a book.
+
+    Attributes:
+        id: Unique identifier for the chapter.
+        title: The title of the chapter.
+        content: HTML content of the chapter.
+        subchapters: List of nested Chapter objects.
+        level: Depth level of the chapter in the hierarchy.
+        parent: Parent Chapter object if any.
     """
 
     def __init__(self,
@@ -30,7 +34,11 @@ class Chapter:
 
     @property
     def content_as_text(self) -> str:
-        """Returns the chapter content as plain text, or an empty string if content is None."""
+        """Return the chapter content as plain text.
+
+        Returns:
+            The plain text content or an empty string if content is None.
+        """
         # soup = BeautifulSoup(self.content.decode('utf-8'), 'html.parser')
         if self.content is not None:
             soup = BeautifulSoup(self.content, 'html.parser')
@@ -66,17 +74,19 @@ class BookFile(ABC):
 
     @abstractmethod
     def load_from_file(self, file_path: str) -> None:
-        """
-        Load book data from a file.
-        :param file_path: Path to the book file.
+        """Load book data from a file.
+
+        Args:
+            file_path: Path to the book file.
         """
         pass
 
     @abstractmethod
     def load_from_stream(self, stream: io.IOBase) -> None:
-        """
-        Load book data from a stream.
-        :param stream:  Input stream containing book data.
+        """Load book data from a stream.
+
+        Args:
+            stream: Input stream containing book data.
         """
         pass
 

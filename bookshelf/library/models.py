@@ -169,6 +169,16 @@ class Author(BaseModel):
 
     @staticmethod
     def _get_author_full_name(first_name: str, middle_name: str, last_name: str) -> str:
+        """Construct the full name of an author.
+
+        Args:
+            first_name: The first name of the author.
+            middle_name: The middle name of the author.
+            last_name: The last name of the author.
+
+        Returns:
+            The full name in the format 'Last, First Middle'.
+        """
         full_name = f'{last_name}, {first_name} {middle_name}'.strip()
         # remove duplicate spaces if the first name is empty
         return re.sub(r' +', ' ', full_name)
@@ -254,12 +264,16 @@ class Book(BaseModel):
 
     @property
     def size_str(self) -> str:
-        """
-        Human-readable size format.
-        XXX B - if size less than 1 Kb
-        XX.XX KB - if size less than 1 Mb
-        XX.XX MB - if size less than 1 Gb
-        Base Size Unit → 1024 (Binary)
+        """Return the file size in a human-readable format.
+
+        Format:
+        - XXX B (if size < 1 KB)
+        - XX.XX KB (if size < 1 MB)
+        - XX.XX MB (if size >= 1 MB)
+        Using binary base (1024).
+
+        Returns:
+            A string representing the human-readable file size.
         """
         if self.size < 1024:
             return f'{self.size} B'

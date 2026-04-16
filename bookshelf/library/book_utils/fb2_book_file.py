@@ -15,17 +15,19 @@ class Fb2BookFile(BookFile):
     """
 
     def load_from_file(self, file_path: str) -> None:
-        """
-        Load FB2 book data from a file.
-        :param file_path: Path to the FB2 file.
+        """Load FB2 book data from a file.
+
+        Args:
+            file_path: Path to the FB2 file.
         """
         with open(file_path, 'rb') as f:
             self._load_from_source(f)
 
     def load_from_stream(self, stream: io.IOBase) -> None:
-        """
-        Load FB2 book data from a stream.
-        :param stream: A file-like object containing the FB2 data.
+        """Load FB2 book data from a stream.
+
+        Args:
+            stream: A file-like object containing the FB2 data.
         """
         self._load_from_source(stream)
 
@@ -86,9 +88,10 @@ class Fb2BookFile(BookFile):
         self.chapters = self._get_chapters_from_book()
 
     def _extract_cover(self) -> Image.Image | None:
-        """
-        Extracts the cover image from the FB2 book.
-        :return: PIL Image object if a cover is found, None otherwise.
+        """Extracts the cover image from the FB2 book.
+
+        Returns:
+            PIL Image object if a cover is found, None otherwise.
         """
         coverpage = self.soup.find('coverpage')
         if not coverpage:

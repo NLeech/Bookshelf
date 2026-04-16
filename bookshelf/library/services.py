@@ -37,10 +37,13 @@ class AlphabetTree:
 
 
 def _recursive_defaultdict(depth: int) -> defaultdict[str, Any]:
-    """
-    Create a recursive defaultdict for storing the tree structure.
-    :param depth: depth of the tree (number of levels)
-    :return: defaultdict with the specified depth
+    """Create a recursive defaultdict for storing the tree structure.
+
+    Args:
+        depth: Depth of the tree (number of levels).
+
+    Returns:
+        A defaultdict with the specified depth.
     """
 
     if depth <= 1:
@@ -57,14 +60,15 @@ def _recursive_defaultdict(depth: int) -> defaultdict[str, Any]:
 
 
 def _add_prefix_level(prev_level: defaultdict[str, Any], prefix: str, quantity: int, level: int, max_level: int) -> None:
-    """
-    Recursively make the tree structure for a given prefix and quantity.
-    :param prev_level:  the level of the tree to which the prefix should be added
-    :param prefix:  full prefix of the last name (up to max_level characters) for which the quantity is calculated
-    :param quantity: quantity of authors with the given prefix
-    :param level: level of the tree to which the prefix should be added (starting from 2)
-    :param max_level:
-    :return:
+    """Recursively make the tree structure for a given prefix and quantity.
+
+    Args:
+        prev_level: The level of the tree to which the prefix should be added.
+        prefix: Full prefix of the last name (up to max_level characters)
+            for which the quantity is calculated.
+        quantity: Quantity of authors with the given prefix.
+        level: Level of the tree to which the prefix should be added (starting from 2).
+        max_level: Maximum depth of the tree.
     """
     current_prefix = prefix[:level]
     prev_level['sub'][current_prefix]['total'] += quantity
@@ -77,12 +81,13 @@ def _add_prefix_level(prev_level: defaultdict[str, Any], prefix: str, quantity: 
 
 
 def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict[str, Any], min_quantity: int) -> None:
-    """
-    Recursively build the alphabet tree from aggregated prefix data.
-    :param parent: the parent node to attach children to
-    :param prefix: the current prefix string for this node
-    :param data: dict with 'total', 'star', and optionally 'sub' keys
-    :param min_quantity: threshold above which a node is expanded further
+    """Recursively build the alphabet tree from aggregated prefix data.
+
+    Args:
+        parent: The parent node to attach children to.
+        prefix: The current prefix string for this node.
+        data: Dict with 'total', 'star', and optionally 'sub' keys.
+        min_quantity: Threshold above which a node is expanded further.
     """
     node = AlphabetTree(name=prefix, filter=prefix, authors_quantity=data['total'])
     parent.entries.append(node)
@@ -103,8 +108,8 @@ def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict[str, Any], mi
 
 
 def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first_level_quantity: int = 10) -> AlphabetTree:
-    """
-    Get a tree structure for storing authors grouped by the first letters of their last names.
+    """Get a tree structure for storing authors grouped by the first letters of their last names.
+
     Tree example:
     - a
         - aa (authors with last names starting with 'aa')
@@ -125,10 +130,14 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
     The tree is built in a way that if the number of authors in a branch is greater than min_quantity,
     the branch is expanded to the next level.
     The tree is built up to max_tree_depth levels. max_tree_depth should be at least 1, otherwise it will be set to 1.
-    :param max_tree_depth: max depth of the tree
-    :param min_quantity: threshold above which a node is expanded further
-    :param min_first_level_quantity: threshold for first level nodes. If less, the node is moved to 'other'
-    :return: the root of the tree
+
+    Args:
+        max_tree_depth: Max depth of the tree.
+        min_quantity: Threshold above which a node is expanded further.
+        min_first_level_quantity: Threshold for first level nodes. If less, the node is moved to 'other'.
+
+    Returns:
+        The root of the tree.
     """
 
     max_tree_depth = max(1, max_tree_depth)
@@ -225,9 +234,15 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
 
 
 def get_author_languages(author: Author) -> QuerySet[Language]:
-    """
-    Get all languages of the books written by the author.
+    """Get all languages of the books written by the author.
+
     Each language is annotated with the count of books by this author in that language.
+
+    Args:
+        author: The Author instance to get languages for.
+
+    Returns:
+        A QuerySet of Language objects annotated with book_count.
     """
     return (
         Language.objects
@@ -239,11 +254,17 @@ def get_author_languages(author: Author) -> QuerySet[Language]:
 
 
 def get_author_genres_tree(author: Author) -> list[dict[str, Any]]:
-    """
-    Build a hierarchical tree of genres associated with the author's books.
+    """Build a hierarchical tree of genres associated with the author's books.
+
     Includes ancestor genres even if they don't have books directly.
     The tree is sorted alphabetically at each level and includes the count of books for each genre.
-    The tree is represented as a list of dicts with keys: 'genre' (Genre object), 'book_count' (int), and 'children' (list of dicts).
+
+    Args:
+        author: The Author instance to build the genre tree for.
+
+    Returns:
+        A list of dicts with keys: 'genre' (Genre object), 'book_count' (int),
+        and 'children' (list of dicts).
     """
     # Get all genres directly associated with the author's books, with book counts
     direct_genres_qs = (

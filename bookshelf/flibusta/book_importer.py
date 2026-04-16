@@ -87,17 +87,19 @@ class GenreFilter(BookFilter):
 
 
 class BookImporter:
-    """
-    Service class responsible for importing books from Flibusta into the library.
-    """
+    """Service class responsible for importing books from Flibusta into the library."""
+
     def __init__(self):
         self.book_pwd = settings.BOOK_PWD
 
     def get_language(self, lang_code: str) -> Language | None:
-        """
-        Retrieve library language by language code (ISO 639-1).
-        :param lang_code: Language code to look up
-        :return: Language instance if found, None otherwise
+        """Retrieve library language by language code (ISO 639-1).
+
+        Args:
+            lang_code: Language code to look up.
+
+        Returns:
+            Language instance if found, None otherwise.
         """
         try:
             return Language.objects.get(code=lang_code)
@@ -106,12 +108,16 @@ class BookImporter:
             return None
 
     def get_or_create_genre(self, f_genre: FlibustaGenre) -> Genre:
-        """
-        Create or retrieve library genre by FlibustaGenre.
+        """Create or retrieve library genre by FlibustaGenre.
+
         It first checks if there's an existing mapping,
         then creates the genre (and meta genre if needed) and mapping if not.
-        :param f_genre: FlibustaGenre instance
-        :return: library genre instance
+
+        Args:
+            f_genre: FlibustaGenre instance.
+
+        Returns:
+            The corresponding library Genre instance.
         """
         # Check mapping first
         if hasattr(f_genre, 'mapping'):
@@ -140,12 +146,16 @@ class BookImporter:
         return library_genre
 
     def get_or_create_author(self, f_author: FlibustaAuthor) -> Author:
-        """
-        Create or retrieve library author by FlibustaAuthor.
-        If the given Flibusta author in not a main author (has master_id),
+        """Create or retrieve library author by FlibustaAuthor.
+
+        If the given Flibusta author is not a main author (has master_id),
         it tries to find the master author and use it for creation and mapping.
-        :param f_author: FlibustaAuthor instance
-        :return: library author instance
+
+        Args:
+            f_author: FlibustaAuthor instance.
+
+        Returns:
+            The corresponding library Author instance.
         """
         # Check mapping first
         if hasattr(f_author, 'mapping'):
@@ -183,10 +193,13 @@ class BookImporter:
         return library_author
 
     def get_or_create_series(self, f_seq: FlibustaSequence) -> BookSeries:
-        """
-        Create or retrieve library series by FlibustaSequence.
-        :param f_seq: FlibustaSequence instance
-        :return: library series instance
+        """Create or retrieve library series by FlibustaSequence.
+
+        Args:
+            f_seq: FlibustaSequence instance.
+
+        Returns:
+            The corresponding library BookSeries instance.
         """
         if hasattr(f_seq, 'mapping'):
             return f_seq.mapping.library_series
@@ -200,10 +213,11 @@ class BookImporter:
         return library_series
 
     def import_book(self, f_book: FlibustaBook, file_content: bytes) -> None:
-        """
-        Create library book from FlibustaBook record and file content.
-        :param f_book: FlibustaBook instance
-        :param file_content: book file content
+        """Create library book from FlibustaBook record and file content.
+
+        Args:
+            f_book: FlibustaBook instance.
+            file_content: Book file content bytes.
         """
         # Resolve Language
         language = self.get_language(f_book.lang)
@@ -321,11 +335,13 @@ class BookImporter:
 
 
 def process_archive(zip_path: str, filters: list[BookFilter]) -> None:
-    """
-    Import books from a given zip archive, applying the provided filters to select which books to import.
+    """Import books from a zip archive, applying filters.
+
     Already imported books are automatically excluded from processing.
-    :param zip_path: path to the zip archive
-    :param filters: list of BookFilter instances to apply for selecting books to import
+
+    Args:
+        zip_path: Path to the zip archive.
+        filters: List of BookFilter instances to apply.
     """
     if not zipfile.is_zipfile(zip_path):
         logger.warning(f"{zip_path} is not a valid zip file.")
@@ -391,10 +407,13 @@ def process_archive(zip_path: str, filters: list[BookFilter]) -> None:
 
 
 def get_daily_links(html_content: str) -> list[dict[str, str]]:
-    """
-    Parse Flibusta daily update page HTML to find links to book archives.
-    :param html_content: page HTML content as string
-    :return: list of dicts with 'url' and 'filename' keys for each found archive link
+    """Parse Flibusta daily update page HTML to find links to book archives.
+
+    Args:
+        html_content: Page HTML content as string.
+
+    Returns:
+        List of dicts with 'url' and 'filename' keys.
     """
     links = []
     # Regex to match f.fb2.123-456.zip or f.n.123-456.zip
@@ -418,11 +437,13 @@ def get_daily_links(html_content: str) -> list[dict[str, str]]:
 
 
 def download_file(url: str) -> str:
-    """
-    Download a file from a URL to a temporary location.
-    Returns the path to the downloaded file.
-    :param url: URL of the file to download
-    :return: path to the downloaded file
+    """Download a file from a URL to a temporary location.
+
+    Args:
+        url: URL of the file to download.
+
+    Returns:
+        Path to the downloaded file.
     """
     logger.info(f"Downloading {url}...")
     try:
@@ -443,9 +464,10 @@ def download_file(url: str) -> str:
 
 
 def process_daily_updates(filters: list[BookFilter] | None = None) -> None:
-    """
-    Fetch and process daily book updates from Flibusta.
-    :param filters: optional list of BookFilter instances to apply when selecting which books to import
+    """Fetch and process daily book updates from Flibusta.
+
+    Args:
+        filters: Optional list of BookFilter instances to apply.
     """
     if filters is None:
         filters = []
@@ -493,10 +515,11 @@ def process_daily_updates(filters: list[BookFilter] | None = None) -> None:
 
 
 def process_local_path(path: str, filters: list[BookFilter] | None = None) -> None:
-    """
-    Load and process book archives from a directory path.
-    :param path: path to a directory containing book archives
-    :param filters: optional list of BookFilter instances to apply when selecting which books to import
+    """Load and process book archives from a directory path.
+
+    Args:
+        path: Path to a directory containing book archives.
+        filters: Optional list of BookFilter instances to apply.
     """
     if not os.path.exists(path):
         logger.error(f"Path '{path}' does not exist.")
@@ -527,12 +550,15 @@ def get_filters(
         formats_filters: list[str] | None = None,
         languages_filters: list[str] | None = None
 ) -> list[BookFilter]:
-    """
-    Convert user-provided filter criteria into a list of BookFilter instances.
-    :param genres_filters: list of genre codes to filter by
-    :param formats_filters: list of format codes to filter by
-    :param languages_filters: list of language codes to filter by
-    :return: list of BookFilter instances based on provided criteria
+    """Convert filter criteria into a list of BookFilter instances.
+
+    Args:
+        genres_filters: List of genre codes to filter by.
+        formats_filters: List of format codes to filter by.
+        languages_filters: List of language codes to filter by.
+
+    Returns:
+        List of BookFilter instances based on provided criteria.
     """
     filters = []
     if genres_filters:

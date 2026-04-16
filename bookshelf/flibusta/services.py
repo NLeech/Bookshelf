@@ -4,9 +4,12 @@ from urllib3.util.retry import Retry
 
 
 def get_flibusta_session() -> requests.Session:
-    """
-    Returns a requests Session with a retry strategy for Flibusta.
+    """Return a requests Session with a retry strategy for Flibusta.
+
     Flibusta server can be unstable, so we use retries with backoff.
+
+    Returns:
+        A requests.Session object configured with retries.
     """
     session = requests.Session()
     retry = Retry(
