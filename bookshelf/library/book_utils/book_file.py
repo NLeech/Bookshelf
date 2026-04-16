@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import io
-from typing import List, Optional, Any
+from typing import Any
 
 from PIL.Image import Image
 from bs4 import BeautifulSoup
@@ -16,14 +16,14 @@ class Chapter:
 
     def __init__(self,
                  title: str,
-                 content: Optional[str] = None,
+                 content: str | None = None,
                  level: int = 0,
-                 parent: Optional['Chapter'] = None,
-                 chapter_id: Optional[str] = None):
+                 parent: 'Chapter | None' = None,
+                 chapter_id: str | None = None):
         self.id = chapter_id
         self.title = title
         self.content = content
-        self.subchapters: List[Chapter] = []
+        self.subchapters: list['Chapter'] = []
         self.level = level
         self.parent = parent
 
@@ -41,28 +41,28 @@ class Chapter:
 class BookFile(ABC):
     """Abstract base class for book file formats."""
 
-    _registry = {}
+    _registry: dict[str, type['BookFile']] = {}
 
     @classmethod
-    def register_extractor(cls, file_type: str, extractor_cls):
+    def register_extractor(cls, file_type: str, extractor_cls: type['BookFile']) -> None:
         """Registers an extractor class for a specific file type."""
         cls._registry[file_type] = extractor_cls
 
     @classmethod
-    def get_extractor(cls, file_type: str):
+    def get_extractor(cls, file_type: str) -> type['BookFile'] | None:
         """Retrieves the extractor class for a specific file type."""
         return cls._registry.get(file_type)
 
     def __init__(self) -> None:
         self.book: Any = None  # Placeholder for book object from specific library
-        self.authors: List[str] = []
+        self.authors: list[str] = []
         self.title: str = ''
         self.language: str = ''
         self.description: str = ''
         self.isbn: str = ''
         self.file_type: str = ''
-        self.cover: Optional[Image] = None
-        self.chapters: List[Chapter] = []
+        self.cover: Image | None = None
+        self.chapters: list[Chapter] = []
 
     @abstractmethod
     def load_from_file(self, file_path: str) -> None:

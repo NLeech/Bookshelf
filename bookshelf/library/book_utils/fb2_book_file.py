@@ -1,6 +1,6 @@
 import base64
 import io
-from typing import List, Optional
+from typing import Any
 
 from PIL import Image
 from bs4 import BeautifulSoup
@@ -85,7 +85,7 @@ class Fb2BookFile(BookFile):
         self.cover = self._extract_cover()
         self.chapters = self._get_chapters_from_book()
 
-    def _extract_cover(self) -> Optional[Image.Image]:
+    def _extract_cover(self) -> Image.Image | None:
         """
         Extracts the cover image from the FB2 book.
         :return: PIL Image object if a cover is found, None otherwise.
@@ -121,7 +121,7 @@ class Fb2BookFile(BookFile):
         
         return None
 
-    def _get_chapters_from_book(self) -> List[Chapter]:
+    def _get_chapters_from_book(self) -> list[Chapter]:
         """Extracts chapters from the first <body> element of the FB2 book."""
         body = self.soup.find('body')
         if not body:
@@ -135,7 +135,7 @@ class Fb2BookFile(BookFile):
         
         return chapters
 
-    def _process_section(self, section, level: int = 0, parent: Chapter = None, section_number: int = 0) -> Chapter:
+    def _process_section(self, section: Any, level: int = 0, parent: Chapter | None = None, section_number: int = 0) -> Chapter:
         """
         Recursively processes a <section> to create a Chapter object.
         """

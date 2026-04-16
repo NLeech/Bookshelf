@@ -2,7 +2,7 @@ import gzip
 import io
 import logging
 import os
-from typing import Generator, List, Any, Type, Optional
+from typing import Generator, Any
 
 import requests
 from django.db import models, transaction, DataError, IntegrityError
@@ -82,7 +82,7 @@ def import_dump(path: str = '', table_filter: str = '', batch_size: int = 5000) 
             raise
 
 
-def parse_mysql_string(s: str) -> Optional[Any]:
+def parse_mysql_string(s: str) -> Any | None:
     """Unescape MySQL string and remove quotes."""
     if s.lower() == 'null':
         return None
@@ -126,12 +126,13 @@ class FlibustaImporter:
 
             url = f"{FLIBUSTA_BASE_URL}{filename}"
             logger.info(f"Downloading {url}...")
+            # Use longer timeout for large downloads
             response = session.get(url, stream=False, timeout=(10, 120))  # 10s to connect, 120s to load
             response.raise_for_status()
             # GzipFile can read from a file-like object
             return gzip.open(io.BytesIO(response.content), mode='rt', encoding='utf-8')
 
-    def _parse_line(self, line: str) -> Generator[List[Any], None, None]:
+    def _parse_line(self, line: str) -> Generator[list[Any], None, None]:
         """
         Parse a single line of SQL dump that contains an INSERT INTO statement and yield the values as lists.
         :param line: Single line from the SQL dump file.
@@ -188,7 +189,7 @@ class FlibustaImporter:
             if depth > 0:
                 current_token.append(char)
 
-    def _parse_tuple(self, raw_tuple: str) -> List[Any]:
+    def _parse_tuple(self, raw_tuple: str) -> list[Any]:
         """
         Parse a raw tuple string (e.g. "123, 'String', 'String, with comma', NULL") into a list of values.
         :param raw_tuple: String representing the raw tuple from the SQL dump.
@@ -227,7 +228,7 @@ class FlibustaImporter:
             
         return values
 
-    def import_table(self, model: Type[models.Model], field_mapping: List[str], 
+    def import_table(self, model: type[models.Model], field_mapping: list[str], 
                      filename: str, path: str = '') -> None:
         """
         Import data for a specific model from the given SQL dump file using the provided field mapping.
@@ -272,7 +273,7 @@ class FlibustaImporter:
             logger.error(f"Error importing {filename}: {e}")
             raise
 
-    def _bulk_save(self, model: Type[models.Model], batch: List[models.Model]) -> None:
+    def _bulk_save(self, model: type[models.Model], batch: list[models.Model]) -> None:
         """
         Save a batch of model instances to the database using bulk_create,
         Any conflicts (e.g. due to unique constraints) will be ignored,

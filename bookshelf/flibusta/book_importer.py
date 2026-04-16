@@ -3,7 +3,6 @@ import os
 import io
 import tempfile
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict
 import re
 import requests
 
@@ -46,7 +45,7 @@ class LanguageFilter(BookFilter):
     """
     Filter books by language.
     """
-    def __init__(self, languages: List[str]):
+    def __init__(self, languages: list[str]):
         self.languages = languages
 
     def apply(self, books: QuerySet) -> QuerySet:
@@ -59,7 +58,7 @@ class FormatFilter(BookFilter):
     """
     Filter books by format.
     """
-    def __init__(self, formats: List[str]):
+    def __init__(self, formats: list[str]):
         self.formats = formats
 
     def apply(self, books: QuerySet) -> QuerySet:
@@ -72,7 +71,7 @@ class GenreFilter(BookFilter):
     """
     Filter books by genre.
     """
-    def __init__(self, genre: Optional[List[str]] = None):
+    def __init__(self, genre: list[str] | None = None):
         self.genre = genre or []
 
     def apply(self, books: QuerySet) -> QuerySet:
@@ -321,7 +320,7 @@ class BookImporter:
             logger.error(f"Error importing book {f_book.id}: {e}", exc_info=True)
 
 
-def process_archive(zip_path: str, filters: List[BookFilter]) -> None:
+def process_archive(zip_path: str, filters: list[BookFilter]) -> None:
     """
     Import books from a given zip archive, applying the provided filters to select which books to import.
     Already imported books are automatically excluded from processing.
@@ -391,7 +390,7 @@ def process_archive(zip_path: str, filters: List[BookFilter]) -> None:
                 BookImporter().import_book(book_record, content)
 
 
-def get_daily_links(html_content: str) -> List[Dict[str, str]]:
+def get_daily_links(html_content: str) -> list[dict[str, str]]:
     """
     Parse Flibusta daily update page HTML to find links to book archives.
     :param html_content: page HTML content as string
@@ -443,7 +442,7 @@ def download_file(url: str) -> str:
         raise
 
 
-def process_daily_updates(filters: List[BookFilter] | None = None) -> None:
+def process_daily_updates(filters: list[BookFilter] | None = None) -> None:
     """
     Fetch and process daily book updates from Flibusta.
     :param filters: optional list of BookFilter instances to apply when selecting which books to import
@@ -493,7 +492,7 @@ def process_daily_updates(filters: List[BookFilter] | None = None) -> None:
         logger.error(f"Failed to fetch or process daily updates: {e}")
 
 
-def process_local_path(path: str, filters: List[BookFilter] | None = None) -> None:
+def process_local_path(path: str, filters: list[BookFilter] | None = None) -> None:
     """
     Load and process book archives from a directory path.
     :param path: path to a directory containing book archives
@@ -524,10 +523,10 @@ def process_local_path(path: str, filters: List[BookFilter] | None = None) -> No
 
 
 def get_filters(
-        genres_filters: List[str] | None = None,
-        formats_filters: List[str] | None = None,
-        languages_filters: List[str] | None = None
-) -> List[BookFilter]:
+        genres_filters: list[str] | None = None,
+        formats_filters: list[str] | None = None,
+        languages_filters: list[str] | None = None
+) -> list[BookFilter]:
     """
     Convert user-provided filter criteria into a list of BookFilter instances.
     :param genres_filters: list of genre codes to filter by

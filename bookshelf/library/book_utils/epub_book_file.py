@@ -1,6 +1,6 @@
 import io
 import os
-from typing import List, Optional
+from typing import Any
 
 from PIL import Image
 import ebooklib
@@ -79,7 +79,7 @@ class EpubBookFile(BookFile):
 
         return ''
 
-    def _extract_cover(self) -> Optional[Image.Image]:
+    def _extract_cover(self) -> Image.Image | None:
         """Extracts the cover image from the EPUB book.
         
         :return: PIL Image object if a cover is found, None otherwise.
@@ -138,7 +138,7 @@ class EpubBookFile(BookFile):
 
         return None
 
-    def _process_toc_node(self, toc_node, level: int = 0, parent: Chapter = None) -> Chapter:
+    def _process_toc_node(self, toc_node: Any, level: int = 0, parent: Chapter | None = None) -> Chapter:
         """
         Recursively processes a TOC node to create a Chapter object, including its subchapters.
         :param toc_node: A node from the EPUB table of contents, which can be a tuple (link, children) or a single link.
@@ -179,7 +179,7 @@ class EpubBookFile(BookFile):
 
         return chapter
 
-    def _get_chapters_from_book(self) -> List[Chapter]:
+    def _get_chapters_from_book(self) -> list[Chapter]:
         """Extracts chapters from the EPUB book using the table of contents (TOC)."""
 
         chapters = []
