@@ -130,12 +130,12 @@ class Fb2BookFile(BookFile):
         chapters = []
         # Find top-level sections
         sections = body.find_all('section', recursive=False)
-        for section in sections:
-            chapters.append(self._process_section(section, level=0))
+        for section_number, section in enumerate(sections):
+            chapters.append(self._process_section(section, level=0, section_number=section_number))
         
         return chapters
 
-    def _process_section(self, section, level: int = 0, parent: Chapter = None) -> Chapter:
+    def _process_section(self, section, level: int = 0, parent: Chapter = None, section_number: int = 0) -> Chapter:
         """
         Recursively processes a <section> to create a Chapter object.
         """
@@ -157,17 +157,17 @@ class Fb2BookFile(BookFile):
         content = "".join(content_parts).strip()
         
         chapter = Chapter(
-            title=title or f"Section {level}",
+            title=title or f"Section {level}{section_number + 1}",
             content=content,
             level=level,
             parent=parent,
-            chapter_id=section.get('id')
+            chapter_id=section.get('id', f"Section {level}{section_number + 1}")
         )
         
         # Process sub-sections
         subsections = section.find_all('section', recursive=False)
-        for sub in subsections:
-            chapter.subchapters.append(self._process_section(sub, level + 1, chapter))
+        for sub_section_number, sub_section in enumerate(subsections):
+            chapter.subchapters.append(self._process_section(sub_section, level + 1, chapter, section_number=sub_section_number))
             
         return chapter
 

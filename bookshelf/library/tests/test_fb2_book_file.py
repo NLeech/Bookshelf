@@ -162,7 +162,7 @@ class TestFb2ChapterExtraction(unittest.TestCase):
         stream = io.BytesIO(fb2_xml.encode('utf-8'))
         self.book_file.load_from_stream(stream)
         self.assertEqual(len(self.book_file.chapters), 1)
-        self.assertEqual(self.book_file.chapters[0].title, "Section 0")
+        self.assertEqual(self.book_file.chapters[0].title, "Section 01")
 
     def test_invalid_cover(self):
         """Tests cover extraction with missing binary."""
