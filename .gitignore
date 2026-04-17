@@ -2,9 +2,12 @@
 .gemini
 .cline
 .clinerules
+.claude
 .geminiignore
 opencode.json
 GEMINI.md
+CLAUDE.md
+REVIEW.md
 
 .vscode
 .idea
