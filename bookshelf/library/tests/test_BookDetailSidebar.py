@@ -40,7 +40,7 @@ class BookDetailSidebarTests(TestCase):
         self.assertEqual(response.status_code, 200)
         
         author_url = reverse('library:author_details', args=[self.author1.id])
-        expected_link = f'<a href="{author_url}" class="text-decoration-none small d-block">{self.author1.full_name}</a>'
+        expected_link = f'<a href="{author_url}" class="text-decoration-none large d-block">{self.author1.full_name}</a>'
         self.assertContains(response, expected_link, html=True)
 
     def test_book_details_sidebar_multiple_authors(self):

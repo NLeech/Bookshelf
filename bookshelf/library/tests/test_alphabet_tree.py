@@ -32,11 +32,11 @@ class GetAlphabetTreeTest(TestCase):
         self.assertIn('other', names)
         
         a_node = next(e for e in root.entries if e.name == 'a')
-        self.assertEqual(a_node.authors_quantity, 1)
+        self.assertEqual(a_node.quantity, 1)
         self.assertEqual(str(a_node), 'A')
         
         digit_node = next(e for e in root.entries if e.name == '0-9')
-        self.assertEqual(digit_node.authors_quantity, 1)
+        self.assertEqual(digit_node.quantity, 1)
         
         other_node = next(e for e in root.entries if e.name == 'other')
         self.assertEqual(len(other_node.entries), 1)
@@ -96,7 +96,7 @@ class GetAlphabetTreeTest(TestCase):
         
         root = get_alphabet_tree(min_first_level_quantity=1)
         self.assertEqual(root.entries[0].name, 'a')
-        self.assertEqual(root.entries[0].authors_quantity, 2)
+        self.assertEqual(root.entries[0].quantity, 2)
 
     @parameterized.expand([
         (2, 5, 2, True),  # min_quantity=2, expect expansion for 'aa' (3 authors)
@@ -115,7 +115,7 @@ class GetAlphabetTreeTest(TestCase):
         if should_expand:
             self.assertGreater(len(a_node.entries), 0)
             aa_node = next(e for e in a_node.entries if e.name == 'aa')
-            self.assertEqual(aa_node.authors_quantity, total_authors)
+            self.assertEqual(aa_node.quantity, total_authors)
         else:
             self.assertEqual(len(a_node.entries), 0)
 
@@ -139,7 +139,7 @@ class GetAlphabetTreeTest(TestCase):
         self.assertGreater(len(aa_node.entries), 0)
         
         aaa_node = next(e for e in aa_node.entries if e.name == 'aaa')
-        self.assertEqual(aaa_node.authors_quantity, 3)
+        self.assertEqual(aaa_node.quantity, 3)
 
     def test_star_nodes(self):
         """
@@ -197,4 +197,4 @@ class GetAlphabetTreeTest(TestCase):
         root = get_alphabet_tree()
         other_node = next(e for e in root.entries if e.name == 'other')
         star_node = next(e for e in other_node.entries if e.name == '* (all non-alpha last names)')
-        self.assertEqual(star_node.authors_quantity, 1)
+        self.assertEqual(star_node.quantity, 1)

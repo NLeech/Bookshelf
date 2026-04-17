@@ -29,7 +29,7 @@ class AlphabetTree:
     name: str = field(compare=True)
     filter: str = field(default='', compare=False, repr=True)
     regex: str = field(default='', compare=False, repr=False)
-    authors_quantity: int = field(default=0, compare=False, repr=True)
+    quantity: int = field(default=0, compare=False, repr=True)
     entries: list['AlphabetTree'] = field(default_factory=list, compare=False, repr=False)
 
     def __str__(self) -> str:
@@ -89,10 +89,10 @@ def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict[str, Any], mi
         data: Dict with 'total', 'star', and optionally 'sub' keys.
         min_quantity: Threshold above which a node is expanded further.
     """
-    node = AlphabetTree(name=prefix, filter=prefix, authors_quantity=data['total'])
+    node = AlphabetTree(name=prefix, filter=prefix, quantity=data['total'])
     parent.entries.append(node)
 
-    if node.authors_quantity <= min_quantity or 'sub' not in data:
+    if node.quantity <= min_quantity or 'sub' not in data:
         return
 
     for sub_prefix in sorted(data['sub'].keys()):
@@ -103,7 +103,7 @@ def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict[str, Any], mi
             name=prefix + '*',
             filter='',
             regex=fr'^{prefix}([^[:alpha:]].*)?$',
-            authors_quantity=data['star']
+            quantity=data['star']
         ))
 
 
@@ -155,7 +155,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
             prefix=Left(Lower('last_name'), max_tree_depth)
         )
         .values('category', 'prefix')
-        .annotate(authors_quantity=Count('id'))
+        .annotate(quantity=Count('id'))
     )
 
     # Intermediate storage for aggregation
@@ -167,7 +167,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
     for item in counts:
         category = item['category']
         prefix = item['prefix']
-        quantity = item['authors_quantity']
+        quantity = item['quantity']
 
         # empty last name
         if not prefix:
@@ -198,9 +198,9 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
             name='* (all non-alpha last names)',
             filter='',
             regex=r'^[^[:alpha:][:digit:]]',
-            authors_quantity=other_count,
+            quantity=other_count,
         ))
-        other_node.authors_quantity += other_count
+        other_node.quantity += other_count
 
     # Alpha nodes: high-quantity go to root, low-quantity go to other_node
     moved_prefixes = []
@@ -209,7 +209,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
             _build_tree_node(root, p1, level1_data[p1], min_quantity)
         else:
             _build_tree_node(other_node, p1, level1_data[p1], min_quantity)
-            other_node.authors_quantity += level1_data[p1]['total']
+            other_node.quantity += level1_data[p1]['total']
             moved_prefixes.append(p1)
 
     if moved_prefixes:
@@ -224,7 +224,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
             name='0-9',
             filter='',
             regex=r'^[0-9]',
-            authors_quantity=digit_count,
+            quantity=digit_count,
         ))
 
     if other_node.entries:
