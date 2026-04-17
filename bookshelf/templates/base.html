@@ -52,6 +52,18 @@
         {% block extra_body %}
         {% endblock extra_body %}
         <script>
+            function toggleSidebar() {
+                const sidebar = document.querySelector('.sidebar-pane');
+                const btn = document.querySelector('#toggle-sidebar-btn');
+                sidebar.classList.toggle('collapsed');
+                
+                if (sidebar.classList.contains('collapsed')) {
+                    btn.innerHTML = '&gt;';
+                } else {
+                    btn.innerHTML = '&lt;';
+                }
+            }
+            
             function toggleDescription(btn, targetId) {
                 const target = document.getElementById(targetId);
                 if (!target) return;
