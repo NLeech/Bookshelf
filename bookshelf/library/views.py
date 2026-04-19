@@ -177,10 +177,17 @@ class BookDetailView(generic.DetailView):
             flat_chapters, _ = flatten_chapters(chapters)
 
             context['chapters'] = chapters  # Original hierarchical list for TOC
-            if 0 <= chapter_index < len(flat_chapters):
+            if not (0 <= chapter_index < len(flat_chapters)):
+                chapter_index = 0
+
+            if flat_chapters:
                 context['current_chapter'] = flat_chapters[chapter_index]
+                if chapter_index > 0:
+                    context['prev_chapter'] = flat_chapters[chapter_index - 1]
+                if chapter_index < len(flat_chapters) - 1:
+                    context['next_chapter'] = flat_chapters[chapter_index + 1]
             else:
-                context['current_chapter'] = flat_chapters[0] if flat_chapters else None
+                context['current_chapter'] = None
 
         return context
 

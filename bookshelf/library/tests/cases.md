@@ -122,6 +122,11 @@
 4. **test_book_detail_view_chapter_selection**: Verifies that selecting a chapter by index works correctly for both EPUB and FB2.
 5. **test_book_detail_view_htmx_partial**: Verifies HTMX partial rendering for both EPUB and FB2.
 6. **test_book_detail_view_no_extractor**: Verifies behavior when a book has no file (shows "No TOC available").
+7. **test_book_detail_navigation_context**: Verifies that prev_chapter and next_chapter are correctly added to the context.
+8. **test_book_detail_first_chapter_navigation**: Verifies navigation context for the first chapter (prev_chapter is None).
+9. **test_book_detail_last_chapter_navigation**: Verifies navigation context for the last chapter (next_chapter is None).
+10. **test_book_detail_navigation_rendering**: Verifies that navigation links with hx-get are rendered correctly in the HTML.
+11. **test_book_detail_view_invalid_chapter_index**: Verifies that an invalid chapter index defaults to the first chapter.
 
 ## Book Detail Sidebar (BookDetailSidebarTests)
 1. **test_book_details_sidebar_contains_title**: Verify that the book title is present in the sidebar.

@@ -149,3 +149,78 @@ class BookDetailViewTests(TestCase):
         response = self.client.get(reverse('library:book_details_chapter', args=[self.epub_book.id, 99]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['current_chapter'].title, 'Chapter 1')
+
+    @parameterized.expand([
+        ('epub', 'epub_book'),
+        ('fb2', 'fb2_book'),
+    ])
+    def test_book_detail_navigation_context(self, name, book_attr):
+        """
+        Verify that prev_chapter and next_chapter are correctly added to the context.
+        Using index 1 (Subchapter 1.1).
+        Structure: 0: Ch 1, 1: Sub 1.1, 2: Sub 1.2
+        """
+        book = getattr(self, book_attr)
+        response = self.client.get(reverse('library:book_details_chapter', args=[book.id, 1]))
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(response.context['prev_chapter'].title, 'Chapter 1')
+        self.assertEqual(response.context['next_chapter'].title, 'Subchapter 1.2')
+
+    @parameterized.expand([
+        ('epub', 'epub_book'),
+        ('fb2', 'fb2_book'),
+    ])
+    def test_book_detail_first_chapter_navigation(self, name, book_attr):
+        """
+        Verify navigation context for the first chapter (index 0).
+        """
+        book = getattr(self, book_attr)
+        response = self.client.get(reverse('library:book_details_chapter', args=[book.id, 0]))
+        self.assertEqual(response.status_code, 200)
+
+        self.assertNotIn('prev_chapter', response.context)
+        self.assertEqual(response.context['next_chapter'].title, 'Subchapter 1.1')
+
+    @parameterized.expand([
+        ('epub', 'epub_book'),
+        ('fb2', 'fb2_book'),
+    ])
+    def test_book_detail_last_chapter_navigation(self, name, book_attr):
+        """
+        Verify navigation context for the last chapter (index 5).
+        Structure: ... 4: Chapter 3, 5: Subchapter 3.1
+        """
+        book = getattr(self, book_attr)
+        response = self.client.get(reverse('library:book_details_chapter', args=[book.id, 5]))
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(response.context['prev_chapter'].title, 'Chapter 3')
+        self.assertNotIn('next_chapter', response.context)
+
+    @parameterized.expand([
+        ('epub', 'epub_book'),
+        ('fb2', 'fb2_book'),
+    ])
+    def test_book_detail_navigation_rendering(self, name, book_attr):
+        """
+        Verify that navigation links are rendered correctly in the HTML.
+        """
+        book = getattr(self, book_attr)
+        # Request index 1 (Subchapter 1.1)
+        response = self.client.get(reverse('library:book_details_chapter', args=[book.id, 1]))
+        self.assertEqual(response.status_code, 200)
+
+        # Check for two navigation blocks
+        self.assertContains(response, '<nav class="d-flex justify-content-between my-3">', count=2)
+
+        # Check for links with hx-get
+        # Prev: Chapter 1 (index 0)
+        prev_url = reverse('library:book_details_chapter', args=[book.id, 0])
+        self.assertContains(response, f'hx-get="{prev_url}"')
+        self.assertContains(response, 'Chapter 1')
+
+        # Next: Subchapter 1.2 (index 2)
+        next_url = reverse('library:book_details_chapter', args=[book.id, 2])
+        self.assertContains(response, f'hx-get="{next_url}"')
+        self.assertContains(response, 'Subchapter 1.2')
