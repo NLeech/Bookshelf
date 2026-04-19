@@ -18,18 +18,7 @@
             &lt;
         </button>
 
-        <!-- Search Form -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <form method="get" action="{% url 'library:home' %}" class="d-flex">
-                    {% csrf_token %}
-                    <input type="text" class="form-control me-2" name="q" placeholder="Search authors, series, or books..." required>
-                    <button class="btn btn-primary" type="submit">Search</button>
-                </form>
-            </div>
-        </div>
-
-        <div id="authors_list_container">
+         <div id="authors_list_container">
             <ul id="authors_list" class="list-unstyled">
             {% partialdef authors_list-result inline %}
 
