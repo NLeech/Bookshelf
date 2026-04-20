@@ -112,3 +112,25 @@ class AuthorListViewTests(TestCase):
         other_child_names = [e.name for e in other_node.entries]
         self.assertIn('a', other_child_names)
         self.assertIn('b', other_child_names)
+
+    def test_author_list_view_pagination_links_preserve_params(self):
+        """
+        Verify that pagination links correctly include filter and regex parameters.
+        """
+        # We need more than 50 authors with the same filter to trigger pagination
+        Author.objects.bulk_create([
+            Author(first_name=f'F{i}', last_name='Z-Author') for i in range(60)
+        ])
+        
+        params = {'filter': 'Z', 'regex': '^Z'}
+        response = self.client.get(reverse('library:authors_list'), params)
+        content = response.content.decode()
+        
+        # Check Next link
+        self.assertIn('page=2', content)
+        self.assertIn('filter=Z', content)
+        self.assertIn('regex=%5EZ', content)  # ^ is URL encoded as %5E
+        
+        # Check Jump to Page form
+        self.assertIn('name="filter" value="Z"', content)
+        self.assertIn('name="regex" value="^Z"', content)

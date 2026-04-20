@@ -106,6 +106,7 @@
 5. **test_author_list_view_htmx_partial**: Verifies that an HTMX request returns only the partial template fragment.
 6. **test_author_list_view_context**: Verifies that filter and regex match query parameters in context.
 7. **test_author_list_view_alphabet_tree_integration**: Verifies that alphabet_tree is in context and contains expected nodes.
+8. **test_author_list_view_pagination_links_preserve_params**: Verifies that pagination links correctly include and preserve filter and regex parameters.
 
 ## Author Detail View (AuthorDetailViewTests)
 1. **test_author_detail_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
@@ -138,3 +139,14 @@
 2. **test_book_download_multiple_authors**: Verify filename format for multiple authors: `FirstAuthor_et_al_-_Title`.
 3. **test_book_download_404_no_file**: Verify 404 if the book has no file.
 4. **test_book_download_404_invalid_id**: Verify 404 for non-existent book ID.
+
+## Homepage (HomePageViewTests)
+1. **test_latest_arrivals_filtering**: Verifies that only books created within the last 7 days are displayed in the Latest Arrivals section.
+2. **test_latest_arrivals_sorting**: Verifies that books are sorted by creation date descending, and then by title ascending.
+3. **test_homepage_status_and_template**: Verifies that the homepage returns a 200 OK status and uses the expected template.
+4. **test_homepage_unauthenticated_view**: Verifies that Search and Latest Arrivals are visible to guests, while personal sections are hidden.
+5. **test_homepage_authenticated_view**: Verifies that all sections, including Reading List and Favorite Authors, are visible to authenticated users.
+6. **test_latest_arrivals_htmx_pagination**: Verifies that HTMX requests return the correct template partial and paginated data.
+7. **test_homepage_no_latest_arrivals**: Verifies that an appropriate message is shown when no new books have been added in the last 7 days.
+8. **test_homepage_pagination_presence**: Verifies that pagination is present at both the top and bottom of the list when multiple pages exist.
+9. **test_homepage_jump_to_page**: Verifies the presence and correct HTMX attributes of the Jump to Page functionality on the homepage.

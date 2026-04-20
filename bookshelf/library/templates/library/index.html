@@ -1,102 +1,104 @@
-{% extends 'base.html'  %}
+{% extends 'base.html' %}
 
 {% block head_title %}Bookshelf{% endblock %}
 
 {% block content %}
-<div class="main-layout-container">
-    <!-- Left Sidebar: Tree -->
-    <aside class="sidebar-pane">
-        <ul class="tree-list ps-0">
-            <!-- Letter A -->
-            <li>
-                <div class="tree-toggle tree-item">
-                    <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseA" aria-expanded="false" role="button">▸</span>
-                    <a href="#" class="text-decoration-none text-reset">A</a>
-                </div>
-                <div class="collapse" id="collapseA">
-                    <ul class="tree-list">
-                        <li>
-                            <div class="tree-item d-flex align-items-center">
-                                <span class="tree-arrow"></span> <!-- Spacer for alignment -->
-                                <a href="#" class="text-decoration-none text-reset">Aa</a>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10 col-lg-8">
+            <!-- Search Form Placeholder -->
+            <section class="mb-5">
+                <h2 class="h4 mb-3 text-dark">Search</h2>
+                <form onsubmit="return false;" class="d-flex gap-2">
+                    <input type="text" class="form-control" placeholder="Search authors, series, or books (Not implemented yet)..." disabled>
+                    <button class="btn btn-primary" type="button" disabled>Search</button>
+                </form>
+            </section>
+
+            {% if user.is_authenticated %}
+                <!-- Reading List (Authenticated Only) -->
+                <section class="mb-4">
+                    <div class="accordion" id="readingListAccordion">
+                        <div class="accordion-item border rounded">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseReadingList">
+                                    Reading List (Placeholder)
+                                </button>
+                            </h2>
+                            <div id="collapseReadingList" class="accordion-collapse collapse" data-bs-parent="#readingListAccordion">
+                                <div class="accordion-body text-muted fst-italic">
+                                    Your reading list will appear here.
+                                </div>
                             </div>
-                        </li>
-                        <li>
-                            <div class="tree-toggle tree-item">
-                                <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseAb" aria-expanded="false" role="button">▸</span>
-                                <a href="#" class="text-decoration-none text-reset">Ab</a>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Favorite Authors (Authenticated Only) -->
+                <section class="mb-4">
+                    <div class="accordion" id="favoriteAuthorsAccordion">
+                        <div class="accordion-item border rounded">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFavoriteAuthors">
+                                    Favorite Authors (Placeholder)
+                                </button>
+                            </h2>
+                            <div id="collapseFavoriteAuthors" class="accordion-collapse collapse" data-bs-parent="#favoriteAuthorsAccordion">
+                                <div class="accordion-body text-muted fst-italic">
+                                    Your favorite authors will appear here.
+                                </div>
                             </div>
-                            <div class="collapse" id="collapseAb">
-                                <ul class="tree-list">
-                                    <li>
-                                        <div class="tree-item d-flex align-items-center">
-                                            <span class="tree-arrow"></span>
-                                            <div class="fw-normal">Aba</div>
+                        </div>
+                    </div>
+                </section>
+            {% endif %}
+
+            <!-- Latest Arrivals -->
+            <section class="mb-4">
+                <div class="accordion" id="latestArrivalsAccordion">
+                    <div class="accordion-item border rounded">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLatestArrivals">
+                                Latest Arrivals
+                            </button>
+                        </h2>
+                        <div id="collapseLatestArrivals" class="accordion-collapse collapse show" data-bs-parent="#latestArrivalsAccordion">
+                            <div class="accordion-body p-0">
+                                {% partialdef latest_arrivals inline %}
+                                    <div id="latest-arrivals-container">
+                                        {% include 'library/pagination.html' with hx_target='#latest-arrivals-container' hx_swap='outerHTML' label='Latest arrivals pagination' %}
+
+                                        <div class="accordion accordion-flush" id="booksAccordion">
+                                            {% for book in latest_books %}
+                                                <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                                    <h2 class="accordion-header">
+                                                        <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-{{ book.id }}">
+                                                            <div class="d-flex justify-content-between w-100 me-3">
+                                                                <span>{{ book.title }}</span>
+                                                                <span class="text-muted small fw-normal">Added: {{ book.created_at|date:"Y-m-d" }}</span>
+                                                            </div>
+                                                        </button>
+                                                    </h2>
+                                                    <div id="book-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#booksAccordion">
+                                                        <div class="accordion-body">
+                                                            {% include 'library/include/book_item.html' %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% empty %}
+                                                <div class="p-3 text-muted">No new books added in the last 7 days.</div>
+                                            {% endfor %}
                                         </div>
-                                    </li>
-                                    <li>
-                                        <div class="tree-item d-flex align-items-center">
-                                            <span class="tree-arrow"></span>
-                                            <div class="fw-normal">Abb</div>
-                                        </div>
-                                    </li>
-                                </ul>
+
+                                        {% include 'library/pagination.html' with hx_target='#latest-arrivals-container' hx_swap='outerHTML' label='Latest arrivals pagination' %}
+                                    </div>
+                                {% endpartialdef %}
                             </div>
-                        </li>
-                    </ul>
+                        </div>
+                    </div>
                 </div>
-            </li>
-
-            <!-- Letter B -->
-            <li class="fw-bold">
-                <div class="tree-toggle tree-item">
-                    <span class="tree-arrow collapsed" data-bs-toggle="collapse" data-bs-target="#collapseB" aria-expanded="false" role="button">▸</span> B
-                </div>
-                <div class="collapse" id="collapseB">
-                    <ul class="tree-list">
-                        <li><div class="tree-item fw-normal">Ba</div></li>
-                        <li><div class="tree-item fw-normal">Bb</div></li>
-                    </ul>
-                </div>
-            </li>
-
-            <!-- Letter C -->
-            <li class="fw-bold">
-                <div class="tree-toggle tree-item">
-                    <span class="tree-arrow invisible">▸</span> C
-                </div>
-            </li>
-        </ul>
-    </aside>
-
-    <!-- Right Content: Search and Results -->
-    <main class="content-pane position-relative">
-        <!-- Collapse Toggle Button -->
-        <button id="toggle-sidebar-btn" class="btn btn-secondary btn-sm" onclick="toggleSidebar()" title="Toggle Sidebar">
-            &lt;
-        </button>
-
-            <div class="row mb-4">
-                <div class="col-12">
-                    <form method="get" action="{% url 'library:home' %}" class="d-flex">
-                        {% csrf_token %}
-                        <input type="text" class="form-control me-2" name="q" placeholder="Search authors, series, or books..." required>
-                        <button class="btn btn-primary" type="submit">Search</button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Placeholder for results -->
-            <div id="results-area">
-{#                <p class="text-muted">Select a letter from the left or search to see results.</p>#}
-                <div style="height: 1000px; background: linear-gradient(to bottom, #eee, #fff);">
-                    <!-- This div is just to demonstrate the independent scrollbar -->
-                    Scroll down to see more content...
-                </div>
-            </div>
-    </main>
+            </section>
+        </div>
+    </div>
 </div>
 {% endblock content %}
-
-{% block extra_body %}
-{% endblock extra_body %}

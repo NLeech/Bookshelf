@@ -1,12 +1,15 @@
 import string
 import io
 
+from datetime import timedelta
 from collections import defaultdict
 from django.http import FileResponse, HttpRequest, Http404
 from django.shortcuts import render, get_object_or_404
 from django.views import generic
 from django.conf import settings
 from django.db.models import Prefetch, Q
+from django.utils import timezone
+from django.core.paginator import Paginator
 
 from .models import Author, BookSeriesLink, Book
 from .services import (
@@ -21,6 +24,31 @@ from .services import (
 
 class HomePageView(generic.TemplateView):
     template_name = 'library/index.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        seven_days_ago = timezone.now() - timedelta(days=7)
+
+        latest_books_qs = Book.objects.filter(
+            created_at__gte=seven_days_ago
+        ).only(
+            'id', 'title', 'created_at', 'description', 'cover', 'file', 'file_type', 'size'
+        ).order_by('-created_at', 'title')
+
+        paginator = Paginator(latest_books_qs, settings.PAGINATE_BY)
+        page_number = self.request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+
+        context['latest_books'] = page_obj.object_list
+        context['page_obj'] = page_obj
+
+        return context
+
+    def render_to_response(self, context, **response_kwargs):
+        if self.request.headers.get('HX-Request'):
+            self.template_name = f"{self.template_name}#latest_arrivals"
+        return super().render_to_response(context, **response_kwargs)
 
 
 class BookDownloadView(generic.View):
