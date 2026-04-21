@@ -144,11 +144,13 @@ class AuthorDetailViewTests(TestCase):
         Verify that HTMX requests return the appropriate tab partial.
         """
         response = self.client.get(
-            reverse('library:author_details', args=[self.author.id]), 
+            reverse('library:author_details', args=[self.author.id]),
             {'tab': tab},
             HTTP_HX_REQUEST='true'
         )
         self.assertEqual(response.status_code, 200)
+        
+        # In Django 6, the template_name will be updated with the block name
         expected_template = f'library/author_details.html#{tab}_tab'
         self.assertIn(expected_template, response.template_name)
 

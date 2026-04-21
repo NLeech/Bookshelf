@@ -8,37 +8,8 @@
     <aside class="sidebar-pane author-details-sidebar">
         <h5 class="mb-3">Filters</h5>
         
-        <form id="filter-form" 
-              hx-get="{% url 'library:author_details' author.id %}" 
-              hx-trigger="change" 
-              hx-target="#authorTabsContent" 
-              hx-swap="innerHTML"
-              hx-push-url="true">
-            
-            <input type="hidden" name="tab" id="active-tab-input" value="{{ active_tab }}">
-
-            <div class="mb-4">
-                <h6 class="border-bottom pb-1">Languages</h6>
-                {% for lang in available_languages %}
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="lang" value="{{ lang.code }}" id="lang-{{ lang.code }}"
-                               {% if lang.code in selected_langs %}checked{% endif %}>
-                        <label class="form-check-label small" for="lang-{{ lang.code }}">
-                            {{ lang.name }} <span class="text-muted">({{ lang.book_count }})</span>
-                        </label>
-                    </div>
-                {% empty %}
-                    <p class="text-muted small">No languages found.</p>
-                {% endfor %}
-            </div>
-
-            <div class="mb-4">
-                <h6 class="border-bottom pb-1">Genres</h6>
-                <div class="genre-tree-container" style="max-height: 400px; overflow-y: auto;">
-                    {% include "library/include/genre_filter_node.html" with nodes=available_genres_tree %}
-                </div>
-            </div>
-        </form>
+        {% url 'library:author_details' author.id as hx_url %}
+        {% include "library/include/_filters.html" with hx_url=hx_url hx_target="#authorTabsContent" %}
     </aside>
 
     <!-- Right Content: Author Details & Books -->

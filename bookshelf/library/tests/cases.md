@@ -25,14 +25,16 @@
 
 ## Alphabet Tree (GetAlphabetTreeTest)
 1. **test_empty_database**: Test that an empty database returns a root with no entries.
-2. **test_basic_categorization**: Test that authors are correctly categorized into alpha, digit, and other.
+2. **test_basic_categorization**: Test that items are correctly categorized into alpha, digit, and other based on a provided field.
 3. **test_low_quantity_alpha_moved_to_other**: Test that alpha nodes with quantity < min_first_level_quantity are moved to 'other'.
 4. **test_digits_always_at_root**: Test that '0-9' node stays at root even with low quantity.
 5. **test_case_insensitivity**: Test that the grouping is case-insensitive.
-6. **test_expansion_threshold**: Test that expansion only occurs when the number of authors exceeds min_quantity.
+6. **test_expansion_threshold**: Test that expansion only occurs when the number of items exceeds min_quantity.
 7. **test_multi_level_expansion**: Test expansion up to level 3.
 8. **test_star_nodes**: Test that 'star' nodes are correctly created for non-alpha or short names.
 9. **test_different_tree_depths**: Test that the tree expands exactly up to max_tree_depth for various values.
+10. **test_generic_alphabet_tree_books**: Verify that get_alphabet_tree works correctly for Book models using the 'title' field.
+11. **test_alphabet_tree_with_filtered_queryset**: Verify that get_alphabet_tree correctly calculates counts when provided with a pre-filtered queryset (e.g. by language).
 
 ## EPUB Book File (test_epub_book_file.py)
 ### TestEpubBookFileLoad
@@ -97,13 +99,15 @@
 12. **test_get_book_file_content_zip_empty_list**: Verifies that `get_book_file_content` returns `None` if the ZIP file is empty.
 13. **test_get_book_file_content_zip_exception**: Verifies that ZIP extraction errors are caught and logged, returning `None`.
 14. **test_get_book_file_content_read_exception**: Verifies that file read errors are caught and logged, returning `None`.
+15. **test_get_languages_with_filtered_queryset**: Verify get_languages() returns correct book counts when provided with a filtered queryset.
+16. **test_get_genres_tree_with_filtered_queryset**: Verify get_genres_tree() returns correct hierarchy and counts when provided with a filtered queryset.
 
 ## Author List View (AuthorListViewTests)
 1. **test_author_list_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
 2. **test_author_list_view_pagination**: Verifies pagination works correctly (showing 50 authors per page).
 3. **test_author_list_view_filtering_parameterized**: Verifies filtering logic (startswith, regex, case insensitivity, precedence) using `parameterized.expand`.
 4. **test_author_list_view_empty_results**: Verifies "No authors found." message when no authors match filter.
-5. **test_author_list_view_htmx_partial**: Verifies that an HTMX request returns only the partial template fragment.
+5. **test_author_list_view_htmx_partial**: Verifies that an HTMX request returns only the partial template fragment (authors_list_results).
 6. **test_author_list_view_context**: Verifies that filter and regex match query parameters in context.
 7. **test_author_list_view_alphabet_tree_integration**: Verifies that alphabet_tree is in context and contains expected nodes.
 8. **test_author_list_view_pagination_links_preserve_params**: Verifies that pagination links correctly include and preserve filter and regex parameters.
@@ -113,7 +117,7 @@
 2. **test_author_detail_view_404**: Verifies the view returns 404 for a non-existent author.
 3. **test_author_detail_view_tabs_parameterized**: Verifies tab logic (sorting for alpha and recent, grouping for series) using `parameterized.expand`.
 4. **test_author_detail_view_filtering_parameterized**: Verifies filtering logic for languages and genres using `parameterized.expand`.
-5. **test_author_detail_view_htmx_partials_parameterized**: Verifies that HTMX requests return the appropriate tab partial template fragment.
+5. **test_author_detail_view_htmx_partials_parameterized**: Verifies that HTMX requests return the top-level AJAX partial (author_details_ajax) containing the appropriate tab content.
 6. **test_author_detail_view_context_data**: Verifies that `available_languages` and `available_genres_tree` are correctly populated.
 
 ## Book Detail View (BookDetailViewTests)

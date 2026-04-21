@@ -7,7 +7,8 @@
     <!-- Left Sidebar: Tree -->
     <aside class="sidebar-pane">
         <ul class="tree-list ps-0">
-            {% include "library/alphabet_tree_node.html" with nodes=alphabet_tree.entries id_prefix="r" %}
+            {% url 'library:authors_list' as hx_url %}
+            {% include "library/alphabet_tree_node.html" with nodes=alphabet_tree.entries id_prefix="r" hx_url=hx_url hx_target="#authors_list" %}
         </ul>
     </aside>
 

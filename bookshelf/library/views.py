@@ -10,10 +10,13 @@ from django.conf import settings
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 from django.core.paginator import Paginator
+from django.urls import reverse
 
 from .models import Author, BookSeriesLink, Book
 from .services import (
     get_alphabet_tree,
+    get_languages,
+    get_genres_tree,
     get_author_languages,
     get_author_genres_tree,
     get_book_extractor,
@@ -89,7 +92,7 @@ class AuthorListView(generic.ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['alphabet_tree'] = get_alphabet_tree()
+        context['alphabet_tree'] = get_alphabet_tree(Author.objects.all(), 'last_name')
         context['filter'] = self.request.GET.get('filter', '')
         context['regex'] = self.request.GET.get('regex', '')
         return context
@@ -100,7 +103,6 @@ class AuthorListView(generic.ListView):
         If so, append the partial fragment to the template name.
         """
         if self.request.headers.get('HX-Request'):
-            # This targets 'authors_list.html#book-list'
             self.template_name = f"{self.template_name}#authors_list-result"
 
         return super().render_to_response(context, **response_kwargs)

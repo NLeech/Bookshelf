@@ -107,31 +107,39 @@ def _build_tree_node(parent: AlphabetTree, prefix: str, data: dict[str, Any], mi
         ))
 
 
-def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first_level_quantity: int = 10) -> AlphabetTree:
-    """Get a tree structure for storing authors grouped by the first letters of their last names.
+def get_alphabet_tree(
+    queryset: QuerySet,
+    field_name: str,
+    max_tree_depth: int = 3,
+    min_quantity: int = 50,
+    min_first_level_quantity: int = 10
+) -> AlphabetTree:
+    """Get a tree structure for storing items grouped by the first letters of a specific field.
 
     Tree example:
     - a
-        - aa (authors with last names starting with 'aa')
-            - aaa (authors with last names starting with 'aaa')
-            - aab (authors with last names starting with 'aab')
+        - aa (items with field_name starting with 'aa')
+            - aaa (items with field_name starting with 'aaa')
+            - aab (items with field_name starting with 'aab')
             - aa* (only non-alpha after 'aa' or nothing after 'aa')
-        - ab (authors with last names starting with 'ab')
+        - ab (items with field_name starting with 'ab')
         - a* (only non-alpha after 'a' or nothing after 'a')
     - b
 
     ...
 
-    - 0-9 (all digits last names)
+    - 0-9 (all digits prefixes)
     - other
-        - * (all non-alpha last names)
+        - * (all non-alpha prefixes)
         - ы (alpha prefixes with quantity < min_first_level_quantity)
 
-    The tree is built in a way that if the number of authors in a branch is greater than min_quantity,
+    The tree is built in a way that if the number of items in a branch is greater than min_quantity,
     the branch is expanded to the next level.
     The tree is built up to max_tree_depth levels. max_tree_depth should be at least 1, otherwise it will be set to 1.
 
     Args:
+        queryset: The queryset to aggregate.
+        field_name: The field to group by (e.g., 'last_name' for authors, 'title' for books).
         max_tree_depth: Max depth of the tree.
         min_quantity: Threshold above which a node is expanded further.
         min_first_level_quantity: Threshold for first level nodes. If less, the node is moved to 'other'.
@@ -141,18 +149,19 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
     """
 
     max_tree_depth = max(1, max_tree_depth)
+    lower_field = Lower(field_name)
 
     # Get all prefix counts up to max_tree_depth for each category
     counts = (
-        Author.objects
+        queryset
         .annotate(
             category=Case(
-                When(last_name__regex=r'^[[:alpha:]]', then=Value('alpha')),
-                When(last_name__regex=r'^[0-9]', then=Value('digit')),
+                When(**{f'{field_name}__regex': r'^[[:alpha:]]'}, then=Value('alpha')),
+                When(**{f'{field_name}__regex': r'^[0-9]'}, then=Value('digit')),
                 default=Value('other'),
                 output_field=CharField(),
             ),
-            prefix=Left(Lower('last_name'), max_tree_depth)
+            prefix=Left(lower_field, max_tree_depth)
         )
         .values('category', 'prefix')
         .annotate(quantity=Count('id'))
@@ -169,7 +178,7 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
         prefix = item['prefix']
         quantity = item['quantity']
 
-        # empty last name
+        # empty field value
         if not prefix:
             other_count += quantity
             continue
@@ -192,10 +201,10 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
     # Build the tree from aggregated data
     other_node = AlphabetTree(name='other', filter='')
 
-    # 1. Non-alpha authors go to other_node
+    # 1. Non-alpha items go to other_node
     if other_count > 0:
         other_node.entries.append(AlphabetTree(
-            name='* (all non-alpha last names)',
+            name='* (all non-alpha)',
             filter='',
             regex=r'^[^[:alpha:][:digit:]]',
             quantity=other_count,
@@ -218,7 +227,6 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
     else:
         other_node.regex = r'^[^[:alpha:][:digit:]]'
 
-
     if digit_count > 0:
         root.entries.append(AlphabetTree(
             name='0-9',
@@ -233,44 +241,44 @@ def get_alphabet_tree(max_tree_depth: int = 3, min_quantity: int = 50, min_first
     return root
 
 
-def get_author_languages(author: Author) -> QuerySet[Language]:
-    """Get all languages of the books written by the author.
+def get_languages(queryset: QuerySet[Book]) -> QuerySet[Language]:
+    """Get all languages of the books in the provided queryset.
 
-    Each language is annotated with the count of books by this author in that language.
+    Each language is annotated with the count of books in that language within the queryset.
 
     Args:
-        author: The Author instance to get languages for.
+        queryset: The Book queryset to get languages for.
 
     Returns:
         A QuerySet of Language objects annotated with book_count.
     """
     return (
         Language.objects
-        .filter(books__authors=author)
-        .annotate(book_count=Count('books', filter=Q(books__authors=author)))
+        .filter(books__in=queryset)
+        .annotate(book_count=Count('books', filter=Q(books__in=queryset)))
         .order_by('name')
         .distinct()
     )
 
 
-def get_author_genres_tree(author: Author) -> list[dict[str, Any]]:
-    """Build a hierarchical tree of genres associated with the author's books.
+def get_genres_tree(queryset: QuerySet[Book]) -> list[dict[str, Any]]:
+    """Build a hierarchical tree of genres associated with the books in the provided queryset.
 
     Includes ancestor genres even if they don't have books directly.
     The tree is sorted alphabetically at each level and includes the count of books for each genre.
 
     Args:
-        author: The Author instance to build the genre tree for.
+        queryset: The Book queryset to build the genre tree for.
 
     Returns:
         A list of dicts with keys: 'genre' (Genre object), 'book_count' (int),
         and 'children' (list of dicts).
     """
-    # Get all genres directly associated with the author's books, with book counts
+    # Get all genres directly associated with the books in the queryset, with book counts
     direct_genres_qs = (
         Genre.objects
-        .filter(books__authors=author)
-        .annotate(book_count=Count('books', filter=Q(books__authors=author)))
+        .filter(books__in=queryset)
+        .annotate(book_count=Count('books', filter=Q(books__in=queryset)))
         .distinct()
     )
 
@@ -323,6 +331,37 @@ def get_author_genres_tree(author: Author) -> list[dict[str, Any]]:
 
     sort_tree(root_nodes)
     return root_nodes
+
+
+def get_author_languages(author: Author) -> QuerySet[Language]:
+    """Get all languages of the books written by the author.
+
+    Each language is annotated with the count of books by this author in that language.
+
+    Args:
+        author: The Author instance to get languages for.
+
+    Returns:
+        A QuerySet of Language objects annotated with book_count.
+    """
+    return get_languages(author.books.all())
+
+
+def get_author_genres_tree(author: Author) -> list[dict[str, Any]]:
+    """Build a hierarchical tree of genres associated with the author's books.
+
+    Includes ancestor genres even if they don't have books directly.
+    The tree is sorted alphabetically at each level and includes the count of books for each genre.
+
+    Args:
+        author: The Author instance to build the genre tree for.
+
+    Returns:
+        A list of dicts with keys: 'genre' (Genre object), 'book_count' (int),
+        and 'children' (list of dicts).
+    """
+    return get_genres_tree(author.books.all())
+
 
 
 def get_book_extractor(book: Book) -> EpubBookFile | Fb2BookFile | None:

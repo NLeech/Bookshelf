@@ -1,8 +1,12 @@
-from django.test import TestCase
-from library.models import Author
+from django.test import TestCase, override_settings
+from library.models import Author, Book, Language
 from library.services import get_alphabet_tree
 from parameterized import parameterized
 
+@override_settings(STORAGES={
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+})
 class GetAlphabetTreeTest(TestCase):
     """
     Tests for the get_alphabet_tree function.
@@ -12,7 +16,7 @@ class GetAlphabetTreeTest(TestCase):
         """
         Test that an empty database returns a root with no entries.
         """
-        root = get_alphabet_tree()
+        root = get_alphabet_tree(Author.objects.all(), 'last_name')
         self.assertEqual(len(root.entries), 0)
 
     def test_basic_categorization(self):
@@ -24,7 +28,7 @@ class GetAlphabetTreeTest(TestCase):
         Author.objects.create(last_name='123')
         Author.objects.create(last_name='!@#')
         
-        root = get_alphabet_tree(min_first_level_quantity=1)
+        root = get_alphabet_tree(Author.objects.all(), 'last_name', min_first_level_quantity=1)
         names = [e.name for e in root.entries]
         
         self.assertIn('a', names)
@@ -40,7 +44,7 @@ class GetAlphabetTreeTest(TestCase):
         
         other_node = next(e for e in root.entries if e.name == 'other')
         self.assertEqual(len(other_node.entries), 1)
-        self.assertEqual(other_node.entries[0].name, '* (all non-alpha last names)')
+        self.assertEqual(other_node.entries[0].name, '* (all non-alpha)')
 
     def test_low_quantity_alpha_moved_to_other(self):
         """
@@ -60,7 +64,7 @@ class GetAlphabetTreeTest(TestCase):
         Author.objects.create(last_name='!@#')
 
         # min_first_level_quantity=2: 'b' should stay at root, 'a' and 'z' should move to 'other'
-        root = get_alphabet_tree(min_first_level_quantity=2)
+        root = get_alphabet_tree(Author.objects.all(), 'last_name', min_first_level_quantity=2)
 
         root_names = [e.name for e in root.entries]
         self.assertIn('b', root_names)
@@ -72,7 +76,7 @@ class GetAlphabetTreeTest(TestCase):
         child_names = [e.name for e in other_node.entries]
         self.assertIn('a', child_names)
         self.assertIn('z', child_names)
-        self.assertIn('* (all non-alpha last names)', child_names)
+        self.assertIn('* (all non-alpha)', child_names)
 
         # Check regex: should include non-alpha pattern AND the moved prefixes
         self.assertEqual(other_node.regex, '^([^[:alpha:][:digit:]]|a|z)')
@@ -83,7 +87,7 @@ class GetAlphabetTreeTest(TestCase):
         """
         Author.objects.create(last_name='123')
         
-        root = get_alphabet_tree(min_first_level_quantity=10)
+        root = get_alphabet_tree(Author.objects.all(), 'last_name', min_first_level_quantity=10)
         names = [e.name for e in root.entries]
         self.assertIn('0-9', names)
 
@@ -94,7 +98,7 @@ class GetAlphabetTreeTest(TestCase):
         Author.objects.create(last_name='Abbott')
         Author.objects.create(last_name='abbott')
         
-        root = get_alphabet_tree(min_first_level_quantity=1)
+        root = get_alphabet_tree(Author.objects.all(), 'last_name', min_first_level_quantity=1)
         self.assertEqual(root.entries[0].name, 'a')
         self.assertEqual(root.entries[0].quantity, 2)
 
@@ -109,7 +113,7 @@ class GetAlphabetTreeTest(TestCase):
         authors = [Author(last_name=f'Aaron{i}') for i in range(total_authors)]
         Author.objects.bulk_create(authors)
         
-        root = get_alphabet_tree(min_quantity=min_quantity, min_first_level_quantity=1)
+        root = get_alphabet_tree(Author.objects.all(), 'last_name', min_quantity=min_quantity, min_first_level_quantity=1)
         a_node = next(e for e in root.entries if e.name == 'a')
         
         if should_expand:
@@ -130,7 +134,7 @@ class GetAlphabetTreeTest(TestCase):
         ]
         Author.objects.bulk_create(authors)
         
-        root = get_alphabet_tree(max_tree_depth=3, min_quantity=2, min_first_level_quantity=1)
+        root = get_alphabet_tree(Author.objects.all(), 'last_name', max_tree_depth=3, min_quantity=2, min_first_level_quantity=1)
         
         a_node = next(e for e in root.entries if e.name == 'a')
         self.assertGreater(len(a_node.entries), 0)
@@ -154,7 +158,7 @@ class GetAlphabetTreeTest(TestCase):
         extra_authors = [Author(last_name=f'Abc{i}') for i in range(10)]
         Author.objects.bulk_create(extra_authors)
         
-        root = get_alphabet_tree(max_tree_depth=3, min_quantity=5, min_first_level_quantity=1)
+        root = get_alphabet_tree(Author.objects.all(), 'last_name', max_tree_depth=3, min_quantity=5, min_first_level_quantity=1)
         
         a_node = next(e for e in root.entries if e.name == 'a')
         ab_node = next(e for e in a_node.entries if e.name == 'ab')
@@ -178,7 +182,7 @@ class GetAlphabetTreeTest(TestCase):
         authors = [Author(last_name=f'Aaaaaa{i}') for i in range(10)]
         Author.objects.bulk_create(authors)
 
-        root = get_alphabet_tree(max_tree_depth=max_depth, min_quantity=2, min_first_level_quantity=1)
+        root = get_alphabet_tree(Author.objects.all(), 'last_name', max_tree_depth=max_depth, min_quantity=2, min_first_level_quantity=1)
 
         current_node = root
         for node_name in expected_path:
@@ -194,7 +198,44 @@ class GetAlphabetTreeTest(TestCase):
         """
         Author.objects.create(last_name='')
         
-        root = get_alphabet_tree()
+        root = get_alphabet_tree(Author.objects.all(), 'last_name')
         other_node = next(e for e in root.entries if e.name == 'other')
-        star_node = next(e for e in other_node.entries if e.name == '* (all non-alpha last names)')
+        star_node = next(e for e in other_node.entries if e.name == '* (all non-alpha)')
         self.assertEqual(star_node.quantity, 1)
+
+    def test_generic_alphabet_tree_books(self):
+        """
+        Verify that get_alphabet_tree works correctly for Book.objects.all() and 'title'.
+        """
+        lang = Language.objects.create(name='English', code='en')
+        Book.objects.create(title='A Tale of Two Cities', language=lang)
+        Book.objects.create(title='Brave New World', language=lang)
+        Book.objects.create(title='1984', language=lang)
+        
+        root = get_alphabet_tree(Book.objects.all(), 'title', min_first_level_quantity=1)
+        names = [e.name for e in root.entries]
+        
+        self.assertIn('a', names)
+        self.assertIn('b', names)
+        self.assertIn('0-9', names)
+        
+        a_node = next(e for e in root.entries if e.name == 'a')
+        self.assertEqual(a_node.quantity, 1)
+
+    def test_alphabet_tree_with_filtered_queryset(self):
+        """
+        Verify that get_alphabet_tree correctly calculates counts when provided with a queryset 
+        already filtered by language or genre.
+        """
+        lang_en = Language.objects.create(name='English', code='en')
+        lang_fr = Language.objects.create(name='French', code='fr')
+        
+        b1 = Book.objects.create(title='Apple', language=lang_en)
+        b2 = Book.objects.create(title='Apricot', language=lang_fr)
+        
+        # Filtered by English: only 'Apple' should be counted
+        qs = Book.objects.filter(language=lang_en)
+        root = get_alphabet_tree(qs, 'title', min_first_level_quantity=1)
+        
+        a_node = next(e for e in root.entries if e.name == 'a')
+        self.assertEqual(a_node.quantity, 1)

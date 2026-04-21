@@ -7,8 +7,15 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from parameterized import parameterized
 
-from library.models import Book, Language, Author
-from library.services import get_book_extractor, flatten_chapters, sanitize_filename, get_book_file_content
+from library.models import Book, Language, Author, Genre
+from library.services import (
+    get_book_extractor,
+    flatten_chapters,
+    sanitize_filename,
+    get_book_file_content,
+    get_languages,
+    get_genres_tree
+)
 from library.book_utils import EpubBookFile, Fb2BookFile
 from library.tests.epub_test_utils import create_epub_one_author
 from library.tests.fb2_test_utils import create_fb2_one_author
@@ -273,3 +280,48 @@ class BookServicesTest(TestCase):
 
         if book.file:
             os.remove(book.file.path)
+
+    def test_get_languages_with_filtered_queryset(self):
+        """Verify get_languages() returns correct book counts when filtered."""
+        lang_en = self.language
+        lang_fr = Language.objects.create(name='French', code='fr')
+        genre1 = Genre.objects.create(name='Sci-Fi', code='sf')
+        
+        b1 = Book.objects.create(title='Book 1', language=lang_en)
+        b1.genres.add(genre1)
+        b2 = Book.objects.create(title='Book 2', language=lang_fr)
+        
+        # Filtered by genre1: only lang_en should have a count
+        qs = Book.objects.filter(genres=genre1)
+        langs = get_languages(qs)
+        
+        en_res = next(l for l in langs if l.code == 'en')
+        self.assertEqual(en_res.book_count, 1)
+        self.assertFalse(any(l.code == 'fr' for l in langs))
+
+    def test_get_genres_tree_with_filtered_queryset(self):
+        """Verify get_genres_tree() returns correct hierarchy and counts when filtered."""
+        lang_en = self.language
+        lang_fr = Language.objects.create(name='French', code='fr')
+        
+        parent = Genre.objects.create(name='Fiction', code='fic')
+        child = Genre.objects.create(name='Drama', code='dra', parent=parent)
+        
+        b1 = Book.objects.create(title='Drama En', language=lang_en)
+        b1.genres.add(child)
+        
+        b2 = Book.objects.create(title='Drama Fr', language=lang_fr)
+        b2.genres.add(child)
+        
+        # Filtered by English: both child and parent should be in tree.
+        # Parent count is 0 (it doesn't sum up children), child count is 1.
+        qs = Book.objects.filter(language=lang_en)
+        tree = get_genres_tree(qs)
+        
+        self.assertEqual(len(tree), 1)
+        self.assertEqual(tree[0]['genre'].code, 'fic')
+        self.assertEqual(tree[0]['book_count'], 0)
+        
+        self.assertEqual(len(tree[0]['children']), 1)
+        self.assertEqual(tree[0]['children'][0]['genre'].code, 'dra')
+        self.assertEqual(tree[0]['children'][0]['book_count'], 1)
