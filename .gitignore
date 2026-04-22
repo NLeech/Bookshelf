@@ -4,10 +4,15 @@
 .clinerules
 .claude
 .geminiignore
+.opencode
+.plans
+
 opencode.json
 GEMINI.md
 CLAUDE.md
 REVIEW.md
+AGENTS.md
+architecture_context.md
 
 .vscode
 .idea
