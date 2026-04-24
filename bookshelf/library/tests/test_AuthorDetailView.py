@@ -69,16 +69,16 @@ class AuthorDetailViewTests(TestCase):
         """
         Verify the view returns 200 OK and uses the correct template.
         """
-        response = self.client.get(reverse('library:author_details', args=[self.author.id]))
+        response = self.client.get(reverse('library:author', args=[self.author.id]))
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'library/author_details.html')
+        self.assertTemplateUsed(response, 'library/author.html')
         self.assertEqual(response.context['author'], self.author)
 
     def test_author_detail_view_404(self):
         """
         Verify the view returns 404 for a non-existent author.
         """
-        response = self.client.get(reverse('library:author_details', args=[999]))
+        response = self.client.get(reverse('library:author', args=[999]))
         self.assertEqual(response.status_code, 404)
 
     @parameterized.expand([
@@ -90,7 +90,7 @@ class AuthorDetailViewTests(TestCase):
         """
         Verify tab logic (sorting for alpha and recent, existence for series).
         """
-        response = self.client.get(reverse('library:author_details', args=[self.author.id]), {'tab': tab})
+        response = self.client.get(reverse('library:author', args=[self.author.id]), {'tab': tab})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['active_tab'], tab)
         
@@ -125,7 +125,7 @@ class AuthorDetailViewTests(TestCase):
         Verify filtering logic for languages and genres.
         """
         # Test on 'alpha' tab by default
-        response = self.client.get(reverse('library:author_details', args=[self.author.id]), params)
+        response = self.client.get(reverse('library:author', args=[self.author.id]), params)
         self.assertEqual(len(response.context['books_alpha']), expected_count)
         
         # Verify selected filters in context
@@ -144,21 +144,21 @@ class AuthorDetailViewTests(TestCase):
         Verify that HTMX requests return the appropriate tab partial.
         """
         response = self.client.get(
-            reverse('library:author_details', args=[self.author.id]),
+            reverse('library:author', args=[self.author.id]),
             {'tab': tab},
             HTTP_HX_REQUEST='true'
         )
         self.assertEqual(response.status_code, 200)
         
         # In Django 6, the template_name will be updated with the block name
-        expected_template = f'library/author_details.html#{tab}_tab'
+        expected_template = f'library/author.html#{tab}_tab'
         self.assertIn(expected_template, response.template_name)
 
     def test_author_detail_view_context_data(self):
         """
         Verify that available_languages and available_genres_tree are correctly populated.
         """
-        response = self.client.get(reverse('library:author_details', args=[self.author.id]))
+        response = self.client.get(reverse('library:author', args=[self.author.id]))
         self.assertIn('available_languages', response.context)
         self.assertIn('available_genres_tree', response.context)
         

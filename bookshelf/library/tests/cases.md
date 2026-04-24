@@ -117,7 +117,7 @@
 2. **test_author_detail_view_404**: Verifies the view returns 404 for a non-existent author.
 3. **test_author_detail_view_tabs_parameterized**: Verifies tab logic (sorting for alpha and recent, grouping for series) using `parameterized.expand`.
 4. **test_author_detail_view_filtering_parameterized**: Verifies filtering logic for languages and genres using `parameterized.expand`.
-5. **test_author_detail_view_htmx_partials_parameterized**: Verifies that HTMX requests return the top-level AJAX partial (author_details_ajax) containing the appropriate tab content.
+5. **test_author_detail_view_htmx_partials_parameterized**: Verifies that HTMX requests return the top-level AJAX partial (author_ajax) containing the appropriate tab content.
 6. **test_author_detail_view_context_data**: Verifies that `available_languages` and `available_genres_tree` are correctly populated.
 
 ## Book Detail View (BookDetailViewTests)
@@ -134,9 +134,9 @@
 11. **test_book_detail_view_invalid_chapter_index**: Verifies that an invalid chapter index defaults to the first chapter.
 
 ## Book Detail Sidebar (BookDetailSidebarTests)
-1. **test_book_details_sidebar_contains_title**: Verify that the book title is present in the sidebar.
-2. **test_book_details_sidebar_contains_author_links**: Verify that author links are present and point to the correct author detail pages.
-3. **test_book_details_sidebar_multiple_authors**: Verify that multiple authors are displayed if present.
+1. **test_book_sidebar_contains_title**: Verify that the book title is present in the sidebar.
+2. **test_book_sidebar_contains_author_links**: Verify that author links are present and point to the correct author detail pages.
+3. **test_book_sidebar_multiple_authors**: Verify that multiple authors are displayed if present.
 
 ## Book Download View (BookDownloadViewTests)
 1. **test_book_download_filename**: Parameterized test verifying downloading books with various titles and authors (including Cyrillic, direct and zipped files), ensuring correct `Content-Type` and `Content-Disposition` (with RFC 6266 for non-ASCII).

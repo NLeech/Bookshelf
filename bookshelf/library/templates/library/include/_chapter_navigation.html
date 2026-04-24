@@ -1,8 +1,8 @@
 <nav class="d-flex justify-content-between my-3">
     {% if prev_chapter %}
-        <a href="{% url 'library:book_details_chapter' pk=book.pk chapter_index=prev_chapter.flat_index %}"
+        <a href="{% url 'library:book_chapter' pk=book.pk chapter_index=prev_chapter.flat_index %}"
            class="btn btn-outline-primary"
-           hx-get="{% url 'library:book_details_chapter' pk=book.pk chapter_index=prev_chapter.flat_index %}"
+           hx-get="{% url 'library:book_chapter' pk=book.pk chapter_index=prev_chapter.flat_index %}"
            hx-target="#book-content"
            hx-push-url="true">
             &laquo; {{ prev_chapter.title|truncatechars:30 }}
@@ -12,9 +12,9 @@
     {% endif %}
 
     {% if next_chapter %}
-        <a href="{% url 'library:book_details_chapter' pk=book.pk chapter_index=next_chapter.flat_index %}"
+        <a href="{% url 'library:book_chapter' pk=book.pk chapter_index=next_chapter.flat_index %}"
            class="btn btn-outline-primary"
-           hx-get="{% url 'library:book_details_chapter' pk=book.pk chapter_index=next_chapter.flat_index %}"
+           hx-get="{% url 'library:book_chapter' pk=book.pk chapter_index=next_chapter.flat_index %}"
            hx-target="#book-content"
            hx-push-url="true">
             {{ next_chapter.title|truncatechars:30 }} &raquo;

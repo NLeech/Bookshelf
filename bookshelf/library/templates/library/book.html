@@ -9,7 +9,7 @@
         <div class="p-3 border-bottom mb-2">
             <div class="authors-list">
                 {% for author in book.authors.all %}
-                    <a href="{% url 'library:author_details' author.id %}" class="text-decoration-none large d-block">
+                    <a href="{% url 'library:author' author.id %}" class="text-decoration-none large d-block">
                         {{ author.full_name }}
                     </a>
                 {% endfor %}

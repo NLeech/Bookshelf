@@ -26,7 +26,7 @@
     {% if node.entries %}
         <div class="collapse" id="collapse{{ current_id }}">
             <ul class="tree-list">
-                {% include "library/alphabet_tree_node.html" with nodes=node.entries id_prefix=current_id hx_url=hx_url hx_target=hx_target %}
+                {% include "library/include/alphabet_tree_node.html" with nodes=node.entries id_prefix=current_id hx_url=hx_url hx_target=hx_target %}
             </ul>
         </div>
     {% endif %}

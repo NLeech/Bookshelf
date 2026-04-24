@@ -13,7 +13,7 @@
             <span class="tree-arrow invisible">▸</span>
         {% endif %}
 
-        <button hx-get="{% url 'library:book_details_chapter' book.pk node.flat_index %}"
+        <button hx-get="{% url 'library:book_chapter' book.pk node.flat_index %}"
                 hx-target="#book-content"
                 hx-push-url="true"
                 class="btn btn-link p-0 border-0 text-decoration-none text-reset {% if current_chapter and current_chapter.flat_index == node.flat_index %}fw-bold{% endif %}">

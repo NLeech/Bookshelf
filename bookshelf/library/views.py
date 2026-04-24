@@ -110,7 +110,7 @@ class AuthorListView(generic.ListView):
 
 class AuthorDetailView(generic.DetailView):
     model = Author
-    template_name = 'library/author_details.html'
+    template_name = 'library/author.html'
     context_object_name = 'author'
 
     def get_context_data(self, **kwargs):
@@ -190,7 +190,7 @@ class AuthorDetailView(generic.DetailView):
 
 class BookDetailView(generic.DetailView):
     model = Book
-    template_name = 'library/book_details.html'
+    template_name = 'library/book.html'
     context_object_name = 'book'
 
     def get_queryset(self):

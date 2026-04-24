@@ -66,7 +66,7 @@
                             <div class="accordion-body p-0">
                                 {% partialdef latest_arrivals inline %}
                                     <div id="latest-arrivals-container">
-                                        {% include 'library/pagination.html' with hx_target='#latest-arrivals-container' hx_swap='outerHTML' label='Latest arrivals pagination' %}
+                                        {% include 'library/include/pagination.html' with hx_target='#latest-arrivals-container' hx_swap='outerHTML' label='Latest arrivals pagination' %}
 
                                         <div class="accordion accordion-flush" id="booksAccordion">
                                             {% for book in latest_books %}
@@ -90,7 +90,7 @@
                                             {% endfor %}
                                         </div>
 
-                                        {% include 'library/pagination.html' with hx_target='#latest-arrivals-container' hx_swap='outerHTML' label='Latest arrivals pagination' %}
+                                        {% include 'library/include/pagination.html' with hx_target='#latest-arrivals-container' hx_swap='outerHTML' label='Latest arrivals pagination' %}
                                     </div>
                                 {% endpartialdef %}
                             </div>

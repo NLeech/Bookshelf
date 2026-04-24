@@ -8,7 +8,7 @@
     <aside class="sidebar-pane author-details-sidebar">
         <h5 class="mb-3">Filters</h5>
         
-        {% url 'library:author_details' author.id as hx_url %}
+        {% url 'library:author' author.id as hx_url %}
         {% include "library/include/_filters.html" with hx_url=hx_url hx_target="#authorTabsContent" %}
     </aside>
 
@@ -36,7 +36,7 @@
                 <li class="nav-item" role="presentation">
                     <button class="nav-link {% if active_tab == 'alpha' %}active text-dark{% else %}text-muted{% endif %}" 
                             id="alpha-tab" 
-                            hx-get="{% url 'library:author_details' author.id %}"
+                            hx-get="{% url 'library:author' author.id %}"
                             hx-vals='{"tab": "alpha"}'
                             hx-target="#authorTabsContent"
                             hx-include="#filter-form"
@@ -47,7 +47,7 @@
                 <li class="nav-item" role="presentation">
                     <button class="nav-link {% if active_tab == 'recent' %}active text-dark{% else %}text-muted{% endif %}" 
                             id="recent-tab" 
-                            hx-get="{% url 'library:author_details' author.id %}"
+                            hx-get="{% url 'library:author' author.id %}"
                             hx-vals='{"tab": "recent"}'
                             hx-target="#authorTabsContent"
                             hx-include="#filter-form"
@@ -58,7 +58,7 @@
                 <li class="nav-item" role="presentation">
                     <button class="nav-link {% if active_tab == 'series' %}active text-dark{% else %}text-muted{% endif %}" 
                             id="series-tab" 
-                            hx-get="{% url 'library:author_details' author.id %}"
+                            hx-get="{% url 'library:author' author.id %}"
                             hx-vals='{"tab": "series"}'
                             hx-target="#authorTabsContent"
                             hx-include="#filter-form"

@@ -46,15 +46,15 @@ class BookDetailViewTests(TestCase):
         Verify the view returns 200 OK and uses the correct template for both formats.
         """
         book = getattr(self, book_attr)
-        response = self.client.get(reverse('library:book_details', args=[book.id]))
+        response = self.client.get(reverse('library:book', args=[book.id]))
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'library/book_details.html')
+        self.assertTemplateUsed(response, 'library/book.html')
 
     def test_book_detail_view_404(self):
         """
         Verify the view returns 404 for a non-existent book.
         """
-        response = self.client.get(reverse('library:book_details', args=[999]))
+        response = self.client.get(reverse('library:book', args=[999]))
         self.assertEqual(response.status_code, 404)
 
     @parameterized.expand([
@@ -66,7 +66,7 @@ class BookDetailViewTests(TestCase):
         Verify hierarchical TOC structure and chapter content in context and response.
         """
         book = getattr(self, book_attr)
-        response = self.client.get(reverse('library:book_details', args=[book.id]))
+        response = self.client.get(reverse('library:book', args=[book.id]))
         self.assertEqual(response.status_code, 200)
         
         # Check context
@@ -111,7 +111,7 @@ class BookDetailViewTests(TestCase):
         5: Subchapter 3.1
         """
         book = getattr(self, book_attr)
-        response = self.client.get(reverse('library:book_details_chapter', args=[book.id, index]))
+        response = self.client.get(reverse('library:book_chapter', args=[book.id, index]))
         self.assertEqual(response.status_code, 200)
         
         current_chapter = response.context['current_chapter']
@@ -127,15 +127,15 @@ class BookDetailViewTests(TestCase):
         Verify HTMX partial rendering.
         """
         book = getattr(self, book_attr)
-        response = self.client.get(reverse('library:book_details', args=[book.id]), HTTP_HX_REQUEST='true')
+        response = self.client.get(reverse('library:book', args=[book.id]), HTTP_HX_REQUEST='true')
         self.assertEqual(response.status_code, 200)
-        self.assertIn('library/book_details.html#book_content', response.template_name)
+        self.assertIn('library/book.html#book_content', response.template_name)
 
     def test_book_detail_view_no_extractor(self):
         """
         Verify behavior when book has no file.
         """
-        response = self.client.get(reverse('library:book_details', args=[self.no_file_book.id]))
+        response = self.client.get(reverse('library:book', args=[self.no_file_book.id]))
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.context.get('chapters'))
         self.assertIsNone(response.context.get('current_chapter'))
@@ -146,7 +146,7 @@ class BookDetailViewTests(TestCase):
         Verify that an invalid chapter index defaults to the first chapter.
         """
         # Index 99 is invalid, structure has 6 chapters total
-        response = self.client.get(reverse('library:book_details_chapter', args=[self.epub_book.id, 99]))
+        response = self.client.get(reverse('library:book_chapter', args=[self.epub_book.id, 99]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['current_chapter'].title, 'Chapter 1')
 
@@ -161,7 +161,7 @@ class BookDetailViewTests(TestCase):
         Structure: 0: Ch 1, 1: Sub 1.1, 2: Sub 1.2
         """
         book = getattr(self, book_attr)
-        response = self.client.get(reverse('library:book_details_chapter', args=[book.id, 1]))
+        response = self.client.get(reverse('library:book_chapter', args=[book.id, 1]))
         self.assertEqual(response.status_code, 200)
 
         self.assertEqual(response.context['prev_chapter'].title, 'Chapter 1')
@@ -176,7 +176,7 @@ class BookDetailViewTests(TestCase):
         Verify navigation context for the first chapter (index 0).
         """
         book = getattr(self, book_attr)
-        response = self.client.get(reverse('library:book_details_chapter', args=[book.id, 0]))
+        response = self.client.get(reverse('library:book_chapter', args=[book.id, 0]))
         self.assertEqual(response.status_code, 200)
 
         self.assertNotIn('prev_chapter', response.context)
@@ -192,7 +192,7 @@ class BookDetailViewTests(TestCase):
         Structure: ... 4: Chapter 3, 5: Subchapter 3.1
         """
         book = getattr(self, book_attr)
-        response = self.client.get(reverse('library:book_details_chapter', args=[book.id, 5]))
+        response = self.client.get(reverse('library:book_chapter', args=[book.id, 5]))
         self.assertEqual(response.status_code, 200)
 
         self.assertEqual(response.context['prev_chapter'].title, 'Chapter 3')
@@ -208,7 +208,7 @@ class BookDetailViewTests(TestCase):
         """
         book = getattr(self, book_attr)
         # Request index 1 (Subchapter 1.1)
-        response = self.client.get(reverse('library:book_details_chapter', args=[book.id, 1]))
+        response = self.client.get(reverse('library:book_chapter', args=[book.id, 1]))
         self.assertEqual(response.status_code, 200)
 
         # Check for two navigation blocks
@@ -216,11 +216,11 @@ class BookDetailViewTests(TestCase):
 
         # Check for links with hx-get
         # Prev: Chapter 1 (index 0)
-        prev_url = reverse('library:book_details_chapter', args=[book.id, 0])
+        prev_url = reverse('library:book_chapter', args=[book.id, 0])
         self.assertContains(response, f'hx-get="{prev_url}"')
         self.assertContains(response, 'Chapter 1')
 
         # Next: Subchapter 1.2 (index 2)
-        next_url = reverse('library:book_details_chapter', args=[book.id, 2])
+        next_url = reverse('library:book_chapter', args=[book.id, 2])
         self.assertContains(response, f'hx-get="{next_url}"')
         self.assertContains(response, 'Subchapter 1.2')
