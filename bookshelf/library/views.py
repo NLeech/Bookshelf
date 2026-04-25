@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 from django.urls import reverse
 
-from .models import Author, BookSeriesLink, Book
+from .models import Author, BookSeriesLink, Book, Genre, Language
 from .services import (
     get_alphabet_tree,
     get_languages,
@@ -21,7 +21,8 @@ from .services import (
     get_author_genres_tree,
     get_book_extractor,
     get_book_file_content,
-    flatten_chapters
+    flatten_chapters,
+    find_alphabet_node
 )
 
 
@@ -185,6 +186,81 @@ class AuthorDetailView(generic.DetailView):
             tab = self.request.GET.get('tab', 'alpha')
             # Select the appropriate block based on the tab
             self.template_name = f"{self.template_name}#{tab}_tab"
+        return super().render_to_response(context, **response_kwargs)
+
+
+class BookListView(generic.ListView):
+    model = Book
+    template_name = 'library/book_list.html'
+    context_object_name = 'books'
+    paginate_by = settings.PAGINATE_BY
+
+    def get_queryset(self):
+        qs = Book.objects.prefetch_related('authors').distinct()
+
+        selected_langs = self.request.GET.getlist('lang')
+        selected_genres = self.request.GET.getlist('genre')
+        filter_string = self.request.GET.get('filter', '')
+        regex_string = self.request.GET.get('regex', '')
+
+        if selected_langs:
+            qs = qs.filter(language__code__in=selected_langs)
+
+        if selected_genres:
+            # Plan says: "including subgenres"
+            genre_ids = Genre.objects.filter(code__in=selected_genres).values_list('id', flat=True)
+            descendant_ids = set()
+
+            def get_descendants(parent_ids):
+                children = Genre.objects.filter(parent_id__in=parent_ids).values_list('id', flat=True)
+                if children:
+                    descendant_ids.update(children)
+                    get_descendants(children)
+
+            get_descendants(genre_ids)
+            all_genre_ids = set(genre_ids) | descendant_ids
+            qs = qs.filter(genres__id__in=all_genre_ids)
+
+        if regex_string:
+            qs = qs.filter(title__iregex=regex_string)
+        elif filter_string:
+            qs = qs.filter(title__istartswith=filter_string)
+
+        return qs.order_by('title')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Sidebar aggregates
+        context['available_languages'] = get_languages(Book.objects.all())
+        context['available_genres_tree'] = get_genres_tree(Book.objects.all())
+        alphabet_tree = get_alphabet_tree(Book.objects.all(), 'title')
+        context['alphabet_tree'] = alphabet_tree
+
+        selected_lang_codes = self.request.GET.getlist('lang')
+        selected_genre_codes = self.request.GET.getlist('genre')
+
+        context['selected_langs'] = selected_lang_codes
+        context['selected_genres'] = selected_genre_codes
+
+        if selected_lang_codes:
+            context['active_languages'] = Language.objects.filter(code__in=selected_lang_codes)
+        if selected_genre_codes:
+            context['active_genres'] = Genre.objects.filter(code__in=selected_genre_codes)
+
+        filter_val = self.request.GET.get('filter', '')
+        regex_val = self.request.GET.get('regex', '')
+        context['filter'] = filter_val
+        context['regex'] = regex_val
+
+        if filter_val or regex_val:
+            context['active_alphabet_node'] = find_alphabet_node(alphabet_tree, filter_val, regex_val)
+
+        return context
+
+    def render_to_response(self, context, **response_kwargs):
+        if self.request.headers.get('HX-Request'):
+            self.template_name = f"{self.template_name}#books_list-result"
         return super().render_to_response(context, **response_kwargs)
 
 

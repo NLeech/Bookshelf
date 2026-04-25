@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block head_title %}Books{% endblock %}
+
+{% block content %}
+<div class="main-layout-container">
+    <!-- Left Sidebar: Filters & Tree -->
+    <aside class="sidebar-pane">
+        <h5 class="mb-3">Filters</h5>
+        {% url 'library:book_list' as hx_url %}
+        {% include "library/include/_filters.html" with hx_url=hx_url hx_target="#books_list-result" %}
+
+        <hr>
+
+        <h5 class="mb-3">Alphabet Tree</h5>
+        <ul class="tree-list ps-0">
+            {% include "library/include/alphabet_tree_node.html" with nodes=alphabet_tree.entries id_prefix="book_alpha" hx_url=hx_url hx_target="#books_list-result" %}
+        </ul>
+    </aside>
+
+    <!-- Right Content: Books -->
+    <main class="content-pane position-relative">
+        <!-- Collapse Toggle Button -->
+        <button id="toggle-sidebar-btn" class="btn btn-secondary btn-sm" onclick="toggleSidebar()" title="Toggle Sidebar">
+            &lt;
+        </button>
+
+        <div class="container-fluid py-4">
+            <div id="books_list-result">
+                {% partialdef books_list-result inline %}
+                    <!-- Filters Summary -->
+                    <div class="mb-3">
+                        {% if selected_langs or selected_genres or filter or regex %}
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <span class="fw-bold me-1">Active Filters:</span>
+
+                                {% for lang in active_languages %}
+                                    <span class="badge bg-primary rounded-pill">
+                                        Lang: {{ lang.name }}
+                                    </span>
+                                {% endfor %}
+
+                                {% for genre in active_genres %}
+                                    <span class="badge bg-secondary rounded-pill">
+                                        Genre: {{ genre.name }}
+                                    </span>
+                                {% endfor %}
+
+                                {% if active_alphabet_node %}
+                                    <span class="badge bg-info text-dark rounded-pill">
+                                        Title: {{ active_alphabet_node.name }}
+                                    </span>
+                                {% elif filter %}
+                                    <span class="badge bg-info text-dark rounded-pill">
+                                        Prefix: {{ filter }}
+                                    </span>
+                                {% elif regex %}
+                                    <span class="badge bg-info text-dark rounded-pill">
+                                        Regex match
+                                    </span>
+                                {% endif %}
+
+                                <a href="{% url 'library:book_list' %}" class="btn btn-sm btn-link text-decoration-none">Clear all</a>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Pagination (Top) -->
+                    {% include 'library/include/pagination.html' with hx_target="#books_list-result" %}
+
+                    <!-- Books Accordion -->
+                    <div class="accordion accordion-flush" id="booksAccordion">
+                        {% for book in books %}
+                            <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-{{ book.id }}">
+                                        {{ book.title }} by {{ book.authors.all.0 }}{% if book.authors.count > 1 %} et al.{% endif %}
+                                    </button>
+                                </h2>
+                                <div id="book-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#booksAccordion">
+                                    <div class="accordion-body">
+                                        {% include 'library/include/book_item.html' %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <p class="text-muted">No books found matching your criteria.</p>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Pagination (Bottom) -->
+                    {% include 'library/include/pagination.html' with hx_target="#books_list-result" %}
+                {% endpartialdef %}
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock content %}

@@ -36,6 +36,9 @@
 10. **test_generic_alphabet_tree_books**: Verify that get_alphabet_tree works correctly for Book models using the 'title' field.
 11. **test_alphabet_tree_with_filtered_queryset**: Verify that get_alphabet_tree correctly calculates counts when provided with a pre-filtered queryset (e.g. by language).
 
+## Find Alphabet Node (FindAlphabetNodeTest)
+1. **test_find_alphabet_node**: Verifies find_alphabet_node behavior for various inputs (filter, regex, caps, not found, empty search) using `parameterized.expand`.
+
 ## EPUB Book File (test_epub_book_file.py)
 ### TestEpubBookFileLoad
 1. **test_load_from_stream**: Tests loading an EPUB from an in-memory stream and verifies title, authors and description. (one_author, two_authors, cyrillic)
@@ -154,3 +157,15 @@
 7. **test_homepage_no_latest_arrivals**: Verifies that an appropriate message is shown when no new books have been added in the last 7 days.
 8. **test_homepage_pagination_presence**: Verifies that pagination is present at both the top and bottom of the list when multiple pages exist.
 9. **test_homepage_jump_to_page**: Verifies the presence and correct HTMX attributes of the Jump to Page functionality on the homepage.
+
+## Book List View (BookListViewTests)
+1. **test_book_list_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
+2. **test_book_list_view_all_books_default**: Verify all books are shown by default (paged).
+3. **test_book_list_view_language_filter**: Verify filtering by language.
+4. **test_book_list_view_genre_filter_with_subgenres**: Verify filtering by genre includes subgenres.
+5. **test_book_list_view_alphabet_filter**: Verify filtering by alphabet prefix.
+6. **test_book_list_view_combined_filter**: Verify combined AND logic for language, genre, and alphabet.
+7. **test_book_list_view_htmx_partial**: Verify HTMX request returns partial fragment.
+8. **test_book_list_view_author_string_formatting**: Verify "Title by Author" vs "Title by Author et al.".
+9. **test_book_list_view_pagination_preserves_filters**: Verify pagination links preserve current filters.
+10. **test_book_list_view_filter_summary_human_readable**: Verify that active filters in summary show human-readable names.
