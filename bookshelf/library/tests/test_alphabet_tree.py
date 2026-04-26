@@ -1,6 +1,6 @@
 from django.test import TestCase, override_settings
 from library.models import Author, Book, Language
-from library.services import get_alphabet_tree
+from library.services import get_alphabet_tree, find_alphabet_node, AlphabetTree
 from parameterized import parameterized
 
 @override_settings(STORAGES={
@@ -239,3 +239,43 @@ class GetAlphabetTreeTest(TestCase):
         
         a_node = next(e for e in root.entries if e.name == 'a')
         self.assertEqual(a_node.quantity, 1)
+
+
+class FindAlphabetNodeTest(TestCase):
+    """
+    Tests for the find_alphabet_node function.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        """Set up a simple alphabet tree for testing."""
+        cls.root = AlphabetTree(name='')
+        
+        # Level 1
+        cls.node_a = AlphabetTree(name='a', filter='a')
+        cls.node_b = AlphabetTree(name='b', filter='b')
+        cls.node_other = AlphabetTree(name='other', regex='^[^[:alpha:][:digit:]]')
+        
+        cls.root.entries = [cls.node_a, cls.node_b, cls.node_other]
+        
+        # Level 2 under 'a'
+        cls.node_aa = AlphabetTree(name='aa', filter='aa')
+        cls.node_ab = AlphabetTree(name='ab', filter='ab')
+        cls.node_a_star = AlphabetTree(name='a*', regex='^a([^[:alpha:]].*)?$')
+        
+        cls.node_a.entries = [cls.node_aa, cls.node_ab, cls.node_a_star]
+
+    @parameterized.expand([
+        ("find_b", "b", "", "node_b"),
+        ("find_aa", "aa", "", "node_aa"),
+        ("find_aa_caps", "AA", "", "node_aa"),
+        ("find_other_regex", "", "^[^[:alpha:][:digit:]]", "node_other"),
+        ("find_a_star_regex", "", "^a([^[:alpha:]].*)?$", "node_a_star"),
+        ("not_found", "nonexistent", "", None),
+        ("empty_search", "", "", None),
+    ])
+    def test_find_alphabet_node(self, name, filter_val, regex_val, expected_node_attr):
+        """Verifies find_alphabet_node behavior for various inputs."""
+        expected_node = getattr(self, expected_node_attr) if expected_node_attr else None
+        result = find_alphabet_node(self.root, filter_val, regex_val)
+        self.assertEqual(result, expected_node)

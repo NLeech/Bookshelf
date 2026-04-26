@@ -241,6 +241,33 @@ def get_alphabet_tree(
     return root
 
 
+def find_alphabet_node(node: AlphabetTree, filter_val: str, regex_val: str) -> AlphabetTree | None:
+    """Recursively find a node in the alphabet tree that matches the given filter or regex.
+
+    The search is case-insensitive for filter_val.
+
+    Args:
+        node: The tree node to start search from.
+        filter_val: The filter string to match.
+        regex_val: The regex string to match.
+
+    Returns:
+        The matching AlphabetTree node or None if no match is found.
+    """
+    if (filter_val or regex_val):
+        if regex_val and node.regex == regex_val:
+            return node
+        if filter_val and node.filter.lower() == filter_val.lower():
+            return node
+
+    for entry in node.entries:
+        res = find_alphabet_node(entry, filter_val, regex_val)
+        if res:
+            return res
+
+    return None
+
+
 def get_languages(queryset: QuerySet[Book]) -> QuerySet[Language]:
     """Get all languages of the books in the provided queryset.
 
