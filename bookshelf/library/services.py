@@ -15,7 +15,7 @@ from django.db.models import Count, Case, When, Value, CharField, Q, QuerySet
 from django.db.models.functions import Left, Lower
 from django.utils.text import get_valid_filename
 
-from .models import Author, Genre, Language, Book
+from .models import Author, Genre, Language, Book, BookSeries
 from .book_utils.book_file import BookFile
 from .book_utils.epub_book_file import EpubBookFile
 from .book_utils.fb2_book_file import Fb2BookFile
@@ -560,3 +560,53 @@ def get_book_file_content(book: 'Book') -> tuple[str | None, bytes | None, str |
         except Exception as e:
             logging.getLogger(__name__).error(f'Failed to read book file {file_path}: {e}')
             return None, None, None
+
+
+def search_entities(query: str) -> dict[str, Any]:
+    """Search for authors, books, and series by query string.
+
+    Args:
+        query: The search query string.
+
+    Returns:
+        A dictionary containing search results and counts for each entity type.
+    """
+    if not query:
+        return {
+            'authors': Author.objects.none(),
+            'books': Book.objects.none(),
+            'series': BookSeries.objects.none(),
+            'authors_count': 0,
+            'books_count': 0,
+            'series_count': 0,
+            'total_count': 0,
+        }
+
+    authors = Author.objects.filter(
+        Q(first_name__icontains=query) |
+        Q(middle_name__icontains=query) |
+        Q(last_name__icontains=query) |
+        Q(nickname__icontains=query)
+    ).distinct().order_by('last_name', 'first_name', 'middle_name')
+
+    books = Book.objects.filter(
+        title__icontains=query
+    ).prefetch_related('authors').distinct().order_by('title')
+
+    series = BookSeries.objects.filter(
+        name__icontains=query
+    ).distinct().order_by('name')
+
+    authors_count = authors.count()
+    books_count = books.count()
+    series_count = series.count()
+
+    return {
+        'authors': authors,
+        'books': books,
+        'series': series,
+        'authors_count': authors_count,
+        'books_count': books_count,
+        'series_count': series_count,
+        'total_count': authors_count + books_count + series_count,
+    }

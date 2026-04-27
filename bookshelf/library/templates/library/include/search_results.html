@@ -1,0 +1,92 @@
+{% if query %}
+    <h4 class="h5 mb-3">Search results for: "{{ query }}"</h4>
+    <div class="border rounded overflow-hidden mb-4">
+        <!-- Authors Section -->
+        <div class="accordion" id="searchAuthorsAccordion">
+            <div class="accordion-item border-0 mx-1 my-1">
+                <h2 class="accordion-header border-bottom">
+                    <button class="accordion-button fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#searchAuthors">
+                        Authors ({{ search_results.authors_count }})
+                    </button>
+                </h2>
+                <div id="searchAuthors" class="accordion-collapse collapse show" data-bs-parent="#searchAuthorsAccordion">
+                    <div class="accordion-body">
+                        {% if search_results.authors %}
+                            <ul class="list-group list-group-flush">
+                                {% for author in search_results.authors %}
+                                    <li class="list-group-item border-0 {% cycle '' 'bg-light' %}">
+                                        <a href="{% url 'library:author' author.pk %}" class="text-decoration-none">{{ author.full_name }}</a>
+                                        {% if author.nickname %}
+                                            <span class="text-muted small">({{ author.nickname }})</span>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted mb-0">No authors found.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Books Section -->
+        <div class="accordion" id="searchBooksAccordion">
+            <div class="accordion-item border-0 border-top border-bottom mx-1 my-1">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#searchBooks">
+                        Books ({{ search_results.books_count }})
+                    </button>
+                </h2>
+                <div id="searchBooks" class="accordion-collapse collapse" data-bs-parent="#searchBooksAccordion">
+                    <div class="accordion-body p-0">
+                        {% if search_results.books %}
+                            <div class="accordion accordion-flush" id="searchBooksItems">
+                                {% for book in search_results.books %}
+                                    <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                        <h2 class="accordion-header">
+                                            <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#search-book-{{ book.id }}">
+                                                {{ book.title }}
+                                            </button>
+                                        </h2>
+                                        <div id="search-book-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#searchBooksItems">
+                                            <div class="accordion-body">
+                                                {% include 'library/include/book_item.html' %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="p-3 text-muted">No books found.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Series Section -->
+        <div class="accordion" id="searchSeriesAccordion">
+            <div class="accordion-item border-0 mx-1 my-1">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#searchSeries">
+                        Series ({{ search_results.series_count }})
+                    </button>
+                </h2>
+                <div id="searchSeries" class="accordion-collapse collapse" data-bs-parent="#searchSeriesAccordion">
+                    <div class="accordion-body">
+                        {% if search_results.series %}
+                            <ul class="list-group list-group-flush">
+                                {% for series in search_results.series %}
+                                    <li class="list-group-item border-0 {% cycle '' 'bg-light' %}">{{ series.name }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted mb-0">No series found.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}

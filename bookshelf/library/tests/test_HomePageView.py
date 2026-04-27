@@ -152,3 +152,61 @@ class HomePageViewTests(TestCase):
         self.assertIn('Jump to Page', content)
         self.assertIn('hx-target="#latest-arrivals-container"', content)
         self.assertIn('hx-swap="outerHTML"', content)
+
+
+    def test_home_page_with_search_query(self):
+        "Verify search results in context when q is provided, and latest arrivals still present."
+        Book.objects.create(title='Searchable Book', language=self.lang)
+        response = self.client.get(reverse('library:home'), {'q': 'Searchable'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('search_results', response.context)
+        self.assertEqual(response.context['search_results']['books_count'], 1)
+        self.assertEqual(response.context['query'], 'Searchable')
+        # Latest arrivals should still be in context
+        self.assertIn('latest_books', response.context)
+
+    def test_home_page_search_htmx(self):
+        "Verify partial rendering for HTMX search requests."
+        response = self.client.get(
+            reverse('library:home'),
+            {'q': 'test'},
+            HTTP_HX_REQUEST='true'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'library/include/search_results.html')
+        # Should not contain the full layout
+        self.assertNotContains(response, '<html')
+
+    def test_home_page_search_htmx_authenticated(self):
+        "Verify partial rendering for HTMX search requests when authenticated."
+        self.client.login(username='testuser', password='password')
+        response = self.client.get(
+            reverse('library:home'),
+            {'q': 'test'},
+            HTTP_HX_REQUEST='true'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'library/include/search_results.html')
+
+    def test_home_page_clear_search_htmx(self):
+        "Verify that an empty q parameter via HTMX results in search results partial (which will clear it)."
+        response = self.client.get(
+            reverse('library:home'),
+            {'q': ''},
+            HTTP_HX_REQUEST='true'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'library/include/search_results.html')
+        self.assertIn('search_results', response.context)
+        self.assertEqual(response.context['search_results']['total_count'], 0)
+
+    def test_home_page_no_query_htmx(self):
+        "Verify that no q parameter via HTMX results in latest arrivals partial."
+        response = self.client.get(
+            reverse('library:home'),
+            HTTP_HX_REQUEST='true'
+        )
+        self.assertEqual(response.status_code, 200)
+        # It uses template fragment syntax in render_to_response
+        # Template name will be library/index.html#latest_arrivals
+        self.assertTrue(response.template_name[0].endswith('#latest_arrivals'))

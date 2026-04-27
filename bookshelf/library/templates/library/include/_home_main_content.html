@@ -1,0 +1,80 @@
+{% if user.is_authenticated %}
+    <!-- Reading List (Authenticated Only) -->
+    <section class="mb-4">
+        <div class="accordion" id="readingListAccordion">
+            <div class="accordion-item border rounded">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseReadingList">
+                        Reading List (Placeholder)
+                    </button>
+                </h2>
+                <div id="collapseReadingList" class="accordion-collapse collapse" data-bs-parent="#readingListAccordion">
+                    <div class="accordion-body text-muted fst-italic">
+                        Your reading list will appear here.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Favorite Authors (Authenticated Only) -->
+    <section class="mb-4">
+        <div class="accordion" id="favoriteAuthorsAccordion">
+            <div class="accordion-item border rounded">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFavoriteAuthors">
+                        Favorite Authors (Placeholder)
+                    </button>
+                </h2>
+                <div id="collapseFavoriteAuthors" class="accordion-collapse collapse" data-bs-parent="#favoriteAuthorsAccordion">
+                    <div class="accordion-body text-muted fst-italic">
+                        Your favorite authors will appear here.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+{% endif %}
+
+<!-- Latest Arrivals -->
+<section class="mb-4" id="latest-arrivals-section">
+    <div class="accordion" id="latestArrivalsAccordion">
+        <div class="accordion-item border rounded">
+            <h2 class="accordion-header">
+                <button class="accordion-button fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLatestArrivals">
+                    Latest Arrivals
+                </button>
+            </h2>
+            <div id="collapseLatestArrivals" class="accordion-collapse collapse show" data-bs-parent="#latestArrivalsAccordion">
+                <div class="accordion-body p-0">
+                    <div id="latest-arrivals-container">
+                        {% include 'library/include/pagination.html' with hx_target='#latest-arrivals-container' hx_swap='outerHTML' label='Latest arrivals pagination' %}
+
+                        <div class="accordion accordion-flush" id="booksAccordion">
+                            {% for book in latest_books %}
+                                <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-{{ book.id }}">
+                                            <div class="d-flex justify-content-between w-100 me-3">
+                                                <span>{{ book.title }}</span>
+                                                <span class="text-muted small fw-normal">Added: {{ book.created_at|date:"Y-m-d" }}</span>
+                                            </div>
+                                        </button>
+                                    </h2>
+                                    <div id="book-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#booksAccordion">
+                                        <div class="accordion-body">
+                                            {% include 'library/include/book_item.html' %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <div class="p-3 text-muted">No new books added in the last 7 days.</div>
+                            {% endfor %}
+                        </div>
+                        {% include 'library/include/pagination.html' with hx_target='#latest-arrivals-container' hx_swap='outerHTML' label='Latest arrivals pagination' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

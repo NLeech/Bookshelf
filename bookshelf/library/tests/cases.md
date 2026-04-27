@@ -104,6 +104,11 @@
 14. **test_get_book_file_content_read_exception**: Verifies that file read errors are caught and logged, returning `None`.
 15. **test_get_languages_with_filtered_queryset**: Verify get_languages() returns correct book counts when provided with a filtered queryset.
 16. **test_get_genres_tree_with_filtered_queryset**: Verify get_genres_tree() returns correct hierarchy and counts when provided with a filtered queryset.
+17. **test_search_entities_authors**: Test searching authors by various fields and sorting.
+18. **test_search_entities_books**: Test searching books by title.
+19. **test_search_entities_series**: Test searching series by name.
+20. **test_search_entities_empty_query**: Test search with empty query.
+21. **test_search_entities_no_results**: Test search with no matches.
 
 ## Author List View (AuthorListViewTests)
 1. **test_author_list_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
@@ -157,6 +162,11 @@
 7. **test_homepage_no_latest_arrivals**: Verifies that an appropriate message is shown when no new books have been added in the last 7 days.
 8. **test_homepage_pagination_presence**: Verifies that pagination is present at both the top and bottom of the list when multiple pages exist.
 9. **test_homepage_jump_to_page**: Verifies the presence and correct HTMX attributes of the Jump to Page functionality on the homepage.
+10. **test_home_page_with_search_query**: Verify search results in context when q is provided, and that latest arrivals are still present.
+11. **test_home_page_search_htmx**: Verify partial rendering for HTMX search requests.
+12. **test_home_page_search_htmx_authenticated**: Verify partial rendering for HTMX search requests when authenticated.
+13. **test_home_page_clear_search_htmx**: Verify that an empty q parameter via HTMX results in search results partial (which will clear it).
+14. **test_home_page_no_query_htmx**: Verify that no q parameter via HTMX results in latest arrivals partial.
 
 ## Book List View (BookListViewTests)
 1. **test_book_list_view_status_code**: Verifies the view returns 200 OK and uses the correct template.

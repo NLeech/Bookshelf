@@ -22,7 +22,8 @@ from .services import (
     get_book_extractor,
     get_book_file_content,
     flatten_chapters,
-    find_alphabet_node
+    find_alphabet_node,
+    search_entities
 )
 
 
@@ -31,6 +32,12 @@ class HomePageView(generic.TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        q = self.request.GET.get('q', '')
+        context['query'] = q
+
+        if 'q' in self.request.GET:
+            context['search_results'] = search_entities(q)
 
         seven_days_ago = timezone.now() - timedelta(days=7)
 
@@ -51,7 +58,14 @@ class HomePageView(generic.TemplateView):
 
     def render_to_response(self, context, **response_kwargs):
         if self.request.headers.get('HX-Request'):
-            self.template_name = f"{self.template_name}#latest_arrivals"
+            if context.get('query'):
+                self.template_name = 'library/include/search_results.html'
+            else:
+                # If query is empty, remove the search results block
+                if 'q' in self.request.GET:
+                    self.template_name = 'library/include/search_results.html'
+                else:
+                    self.template_name = f"{self.template_name}#latest_arrivals"
         return super().render_to_response(context, **response_kwargs)
 
 
