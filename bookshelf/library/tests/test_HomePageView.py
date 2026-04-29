@@ -95,22 +95,19 @@ class HomePageViewTests(TestCase):
         self.assertIn('Reading List (Placeholder)', content)
         self.assertIn('Favorite Authors (Placeholder)', content)
 
-    def test_latest_arrivals_htmx_pagination(self):
+    def test_latest_arrivals_pagination(self):
         """Verify HTMX partial response and pagination content."""
         now = timezone.now()
         # Create 55 books to trigger pagination (PAGINATE_BY=50)
         for i in range(55):
             Book.objects.create(title=f'Book {i:02d}', language=self.lang, created_at=now)
 
-        # Page 2 request via HTMX
+        # Page 2 request
         response = self.client.get(
             reverse('library:home'),
-            HTTP_HX_REQUEST='true',
             data={'page': 2}
         )
         
-        # Should return partial, so no <html> tag
-        self.assertNotContains(response, '<html')
         # Should contain books from page 2 (index 50-54)
         # Note: Order is -created_at, title. Since created_at is same, it's title ASC.
         # titles are Book 00 to Book 54.
@@ -152,3 +149,60 @@ class HomePageViewTests(TestCase):
         self.assertIn('Jump to Page', content)
         self.assertIn('hx-target="#latest-arrivals-container"', content)
         self.assertIn('hx-swap="outerHTML"', content)
+
+
+    def test_home_page_with_search_query(self):
+        "Verify search results in context when q is provided, and latest arrivals still present."
+        Book.objects.create(title='Searchable Book', language=self.lang)
+        response = self.client.get(reverse('library:home'), {'q': 'Searchable'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('search_results', response.context)
+        self.assertEqual(response.context['search_results']['books_count'], 1)
+        self.assertEqual(response.context['query'], 'Searchable')
+        # Latest arrivals should still be in context
+        self.assertIn('latest_books', response.context)
+
+    def test_home_page_search_htmx(self):
+        "Verify partial rendering for HTMX search requests."
+        response = self.client.get(
+            reverse('library:home'),
+            {'q': 'test'},
+            HTTP_HX_REQUEST='true'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('library/index.html#search_results', response.template_name)
+        # Should not contain the full layout
+        self.assertNotContains(response, '<html')
+
+    def test_home_page_search_htmx_authenticated(self):
+        "Verify partial rendering for HTMX search requests when authenticated."
+        self.client.login(username='testuser', password='password')
+        response = self.client.get(
+            reverse('library:home'),
+            {'q': 'test'},
+            HTTP_HX_REQUEST='true'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('library/index.html#search_results', response.template_name)
+
+    def test_home_page_clear_search_htmx(self):
+        "Verify that an empty q parameter via HTMX results in search results partial (which will clear it)."
+        response = self.client.get(
+            reverse('library:home'),
+            {'q': ''},
+            HTTP_HX_REQUEST='true'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('library/index.html#search_results', response.template_name)
+        self.assertIn('search_results', response.context)
+        self.assertEqual(response.context['search_results']['total_count'], 0)
+
+    def test_home_page_no_query_htmx(self):
+        "Verify that no q parameter via HTMX results in search results partial (which will clear it)."
+        response = self.client.get(
+            reverse('library:home'),
+            HTTP_HX_REQUEST='true'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('library/index.html#search_results', response.template_name)
+        self.assertNotIn('search_results', response.context)

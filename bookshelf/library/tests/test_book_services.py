@@ -7,14 +7,15 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from parameterized import parameterized
 
-from library.models import Book, Language, Author, Genre
+from library.models import Book, Language, Author, Genre, BookSeries
 from library.services import (
     get_book_extractor,
     flatten_chapters,
     sanitize_filename,
     get_book_file_content,
     get_languages,
-    get_genres_tree
+    get_genres_tree,
+    search_entities
 )
 from library.book_utils import EpubBookFile, Fb2BookFile
 from library.tests.epub_test_utils import create_epub_one_author
@@ -325,3 +326,69 @@ class BookServicesTest(TestCase):
         self.assertEqual(len(tree[0]['children']), 1)
         self.assertEqual(tree[0]['children'][0]['genre'].code, 'dra')
         self.assertEqual(tree[0]['children'][0]['book_count'], 1)
+
+
+    def test_search_entities_authors(self):
+        "Test searching authors by various fields and sorting."
+        Author.objects.create(first_name='Isaac', last_name='Asimov', nickname='The Good Doctor')
+        Author.objects.create(first_name='Arthur', middle_name='C.', last_name='Clarke')
+        Author.objects.create(first_name='Robert', last_name='Heinlein')
+
+        # Search by last name
+        results = search_entities('Asimov')
+        self.assertEqual(results['authors_count'], 1)
+        self.assertEqual(results['authors'][0].last_name, 'Asimov')
+
+        # Search by first name
+        results = search_entities('Arthur')
+        self.assertEqual(results['authors_count'], 1)
+        self.assertEqual(results['authors'][0].first_name, 'Arthur')
+
+        # Search by nickname
+        results = search_entities('Doctor')
+        self.assertEqual(results['authors_count'], 1)
+        self.assertEqual(results['authors'][0].last_name, 'Asimov')
+
+        # Search multiple
+        results = search_entities('a')
+        # Isaac Asimov and Arthur Clarke have 'a' or 'A' in their names. Robert Heinlein does not.
+        self.assertEqual(results['authors_count'], 2)
+        # Sorting: Asimov, Clarke
+        self.assertEqual(results['authors'][0].last_name, 'Asimov')
+        self.assertEqual(results['authors'][1].last_name, 'Clarke')
+
+    def test_search_entities_books(self):
+        "Test searching books by title."
+        b1 = Book.objects.create(title='The Foundation', language=self.language)
+        b2 = Book.objects.create(title='Foundation and Empire', language=self.language)
+        b3 = Book.objects.create(title='Stranger in a Strange Land', language=self.language)
+
+        results = search_entities('Foundation')
+        self.assertEqual(results['books_count'], 2)
+        self.assertEqual(results['books'][0].title, 'Foundation and Empire')
+        self.assertEqual(results['books'][1].title, 'The Foundation')
+
+    def test_search_entities_series(self):
+        "Test searching series by name."
+        BookSeries.objects.create(name='Foundation')
+        BookSeries.objects.create(name='Robot')
+        BookSeries.objects.create(name='Empire')
+
+        results = search_entities('o')
+        self.assertEqual(results['series_count'], 2)
+        # Sorting: Foundation, Robot
+        self.assertEqual(results['series'][0].name, 'Foundation')
+        self.assertEqual(results['series'][1].name, 'Robot')
+
+    def test_search_entities_empty_query(self):
+        "Test search with empty query."
+        results = search_entities('')
+        self.assertEqual(results['total_count'], 0)
+        self.assertFalse(results['authors'].exists())
+        self.assertFalse(results['books'].exists())
+        self.assertFalse(results['series'].exists())
+
+    def test_search_entities_no_results(self):
+        "Test search with no matches."
+        results = search_entities('NonExistentQueryString')
+        self.assertEqual(results['total_count'], 0)
