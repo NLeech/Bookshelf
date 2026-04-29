@@ -39,33 +39,28 @@ class HomePageView(generic.TemplateView):
         if 'q' in self.request.GET:
             context['search_results'] = search_entities(q)
 
-        seven_days_ago = timezone.now() - timedelta(days=7)
 
-        latest_books_qs = Book.objects.filter(
-            created_at__gte=seven_days_ago
-        ).only(
-            'id', 'title', 'created_at', 'description', 'cover', 'file', 'file_type', 'size'
-        ).order_by('-created_at', 'title')
+        if not self.request.headers.get('HX-Request'):
+            seven_days_ago = timezone.now() - timedelta(days=7)
 
-        paginator = Paginator(latest_books_qs, settings.PAGINATE_BY)
-        page_number = self.request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
+            latest_books_qs = Book.objects.filter(
+                created_at__gte=seven_days_ago
+            ).only(
+                'id', 'title', 'created_at', 'description', 'cover', 'file', 'file_type', 'size'
+            ).order_by('-created_at', 'title')
 
-        context['latest_books'] = page_obj.object_list
-        context['page_obj'] = page_obj
+            paginator = Paginator(latest_books_qs, settings.PAGINATE_BY)
+            page_number = self.request.GET.get('page')
+            page_obj = paginator.get_page(page_number)
+
+            context['latest_books'] = page_obj.object_list
+            context['page_obj'] = page_obj
 
         return context
 
     def render_to_response(self, context, **response_kwargs):
         if self.request.headers.get('HX-Request'):
-            if context.get('query'):
-                self.template_name = 'library/include/search_results.html'
-            else:
-                # If query is empty, remove the search results block
-                if 'q' in self.request.GET:
-                    self.template_name = 'library/include/search_results.html'
-                else:
-                    self.template_name = f"{self.template_name}#latest_arrivals"
+            self.template_name = f'{self.template_name}#search_results'
         return super().render_to_response(context, **response_kwargs)
 
 
@@ -118,7 +113,7 @@ class AuthorListView(generic.ListView):
         If so, append the partial fragment to the template name.
         """
         if self.request.headers.get('HX-Request'):
-            self.template_name = f"{self.template_name}#authors_list-result"
+            self.template_name = f'{self.template_name}#authors_list-result'
 
         return super().render_to_response(context, **response_kwargs)
 
@@ -274,7 +269,7 @@ class BookListView(generic.ListView):
 
     def render_to_response(self, context, **response_kwargs):
         if self.request.headers.get('HX-Request'):
-            self.template_name = f"{self.template_name}#books_list-result"
+            self.template_name = f'{self.template_name}#books_list-result'
         return super().render_to_response(context, **response_kwargs)
 
 
@@ -317,5 +312,5 @@ class BookDetailView(generic.DetailView):
         If so, append the partial fragment to the template name.
         """
         if self.request.headers.get('HX-Request'):
-            self.template_name = f"{self.template_name}#book_content"
+            self.template_name = f'{self.template_name}#book_content'
         return super().render_to_response(context, **response_kwargs)

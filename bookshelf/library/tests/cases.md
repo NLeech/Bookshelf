@@ -158,7 +158,7 @@
 3. **test_homepage_status_and_template**: Verifies that the homepage returns a 200 OK status and uses the expected template.
 4. **test_homepage_unauthenticated_view**: Verifies that Search and Latest Arrivals are visible to guests, while personal sections are hidden.
 5. **test_homepage_authenticated_view**: Verifies that all sections, including Reading List and Favorite Authors, are visible to authenticated users.
-6. **test_latest_arrivals_htmx_pagination**: Verifies that HTMX requests return the correct template partial and paginated data.
+6. **test_latest_arrivals_pagination**: Verifies that request returns the correct paginated data.
 7. **test_homepage_no_latest_arrivals**: Verifies that an appropriate message is shown when no new books have been added in the last 7 days.
 8. **test_homepage_pagination_presence**: Verifies that pagination is present at both the top and bottom of the list when multiple pages exist.
 9. **test_homepage_jump_to_page**: Verifies the presence and correct HTMX attributes of the Jump to Page functionality on the homepage.
