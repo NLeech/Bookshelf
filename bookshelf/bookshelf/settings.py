@@ -63,6 +63,8 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'imagekit',
+    'django_celery_beat',
+    'django_celery_results',
 ]
 
 if DEBUG:
@@ -277,6 +279,15 @@ SOCIALACCOUNT_PROVIDERS = {
       }
   }
 }
+
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 60 * 60 # 1 hour
+
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_CACHE_BACKEND = 'django-cache'
+
+CELERY_BROKER_URL = f'redis://{os.environ.get("REDIS_CREDENTIALS", default="")}{os.environ.get("REDIS_ADDRESS")}'
 
 # Flibusta library
 # Authors and genres data can be found here:
