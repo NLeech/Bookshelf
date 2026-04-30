@@ -37,11 +37,15 @@ if not IS_DOCKER:
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
-INTERNAL_IPS = ALLOWED_HOSTS.copy()
+INTERNAL_IPS = ['127.0.0.1', 'localhost']
 
 PUBLIC_URLS = os.environ.get('APPLICATION_URLS')
 if PUBLIC_URLS:
     ALLOWED_HOSTS.extend(PUBLIC_URLS.split(','))
+
+CSRF_TRUSTED_ORIGINS = []
+for url in ALLOWED_HOSTS:
+    CSRF_TRUSTED_ORIGINS.extend([f"http://{url}", f"https://{url}"])
 
 # Application definition
 INSTALLED_APPS = [
@@ -73,7 +77,6 @@ if DEBUG:
 MIDDLEWARE = [
     'library.middleware.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -172,15 +175,6 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
-    },
-}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -282,6 +276,7 @@ SOCIALACCOUNT_PROVIDERS = {
 
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
+CELERY_RESULT_EXTENDED = True
 CELERY_TASK_TIME_LIMIT = 60 * 60 # 1 hour
 
 CELERY_RESULT_BACKEND = 'django-db'
