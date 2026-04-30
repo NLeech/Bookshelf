@@ -35,8 +35,8 @@ def trigger_full_import_workflow(**kwargs):
     # Create the chain using .si() (immutable signatures)
     # This prevents run_import_dump from passing its return value to run_import_books
     workflow = chain(
-        run_import_dump.si(kwargs),
-        run_import_books.si(kwargs)
+        run_import_dump.si(**kwargs),
+        run_import_books.si(**kwargs)
     )
     # 4. Fire the workflow
     workflow.apply_async()

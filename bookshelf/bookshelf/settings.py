@@ -204,16 +204,7 @@ LOGGING = {
         },
     },
     'handlers': {
-        'flibusta_file': {
-            'level': 'DEBUG',
-            'class': 'logging.handlers.RotatingFileHandler',
-            'maxBytes': 10 * 1024 * 1024,
-            'backupCount': 10,
-            'filename': os.path.join(BASE_DIR.parent, 'update.log'),
-            'formatter': 'simple',
-            'encoding': 'utf-8',
-        },
-        'console': {
+         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'colored',
@@ -231,7 +222,7 @@ LOGGING = {
             'propagate': True,
         },
         'flibusta': {
-            'handlers': ['console', 'flibusta_file', 'mail_admins'],
+            'handlers': ['console', 'mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
         },
