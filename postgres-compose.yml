@@ -15,11 +15,11 @@ services:
     ports:
       - "5432:5432"
     networks:
-      - front-tier
+      - test-front-tier
     restart: "unless-stopped"
 
 volumes:
   test_db-data:
 
 networks:
-  front-tier:
+  test-front-tier:
