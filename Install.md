@@ -1,3 +1,5 @@
+# Installation
+
 - Install docker and docker-compose (https://docs.docker.com/engine/install/debian/#install-using-the-repository)
 
 ```bash
@@ -30,7 +32,7 @@ If docker is not running, start it with:
 sudo systemctl start docker
 ```
 
-## Changing Docker's storage location
+## Changing Docker's storage location (optional)
 - Stop daemon
 ``` bash
 sudo systemctl stop docker docker.socket containerd
@@ -54,8 +56,39 @@ sudo systemctl daemon-reload
 sudo systemctl start docker
 ```
 
+## Setting up
+- Clone the project repository and navigate to the project directory
+```bash
+mkdir testdir
+cd testdir
+git clone https://github.com/NLeech/Bookshelf.git
+cd Bookshelf
+```
 
-## Test installation
+- Create images
+``` bash
+sudo docker compose build
+```
+- Run containers
+``` bash
+sudo docker compose up -d
+```
+
+- Add languages using Django admin.
+
+- Load Flibusta dump
+``` bash
+sudo docker compose run --rm web python /Bookshelf/bookshelf/manage.py import_flibusta_dump
+```
+
+- Import books
+``` bash
+sudo docker compose run --rm -v "/mnt/stor/Library:/import:ro"  web python /Bookshelf/bookshelf/manage.py import_flibusta_books --formats fb2 epub --genres Фантастика --langs en --path /import
+```
+
+
+
+# Test installation
 - Install uv package manager (https://docs.astral.sh/uv/getting-started/installation/)
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -88,7 +121,7 @@ uv run bookshelf\manage.py migrate
 ```
 - Create a superuser for the admin interface
 ```bash
-uv run bookshelf\python manage.py createsuperuser
+uv run bookshelf\manage.py createsuperuser
 ```
 - Run a development server
 ```bash
