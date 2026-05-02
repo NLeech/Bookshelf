@@ -1,6 +1,7 @@
 import io
 import os
 from typing import Any
+from collections.abc import Iterable
 
 from PIL import Image
 import ebooklib
@@ -192,7 +193,7 @@ class EpubBookFile(BookFile):
         chapters = []
         toc = self.book.toc
 
-        if toc:
+        if toc and isinstance(toc, Iterable):
             for toc_node in toc:
                 chapters.append(self._process_toc_node(toc_node,  0, None))
         else:

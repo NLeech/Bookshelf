@@ -278,6 +278,8 @@ class BookImporter:
                 if isinstance(isbn, str):
                      # clean string
                      isbn = ''.join(filter(str.isdigit, isbn)) or 0
+
+                isbn = str(isbn)[:13]    
                 
                 # Title from Flibusta
                 title = f_book.title
