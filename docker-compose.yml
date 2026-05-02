@@ -1,6 +1,8 @@
 services:
   web:
-    image: ghcr.io/YOUR_GITHUB_USERNAME/bookshelf-web:latest
+    # I never plan to scale that service to more than one instance on one host
+    container_name: bookshelf-web-prod
+    image: ghcr.io/nleech/bookshelf-web:latest
     depends_on:
       db:
         condition: service_healthy
@@ -69,10 +71,11 @@ services:
     restart: "unless-stopped"
 
   watchtower:
-      image: containrrr/watchtower
+      image: nickfedor/watchtower
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
-      command: --interval 300 web
+        - ~/.docker/config.json:/config.json:ro
+      command: --interval 300 bookshelf-web-prod
       restart: always
 
 volumes:
