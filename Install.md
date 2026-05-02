@@ -1,3 +1,5 @@
+# Installation
+
 - Install docker and docker-compose (https://docs.docker.com/engine/install/debian/#install-using-the-repository)
 
 ```bash
@@ -30,7 +32,63 @@ If docker is not running, start it with:
 sudo systemctl start docker
 ```
 
-## Test installation
+## Changing Docker's storage location (optional)
+- Stop daemon
+``` bash
+sudo systemctl stop docker docker.socket containerd
+```
+- Move Existing Data: Use rsync to preserve permissions and ownership.
+```bash
+# Create the new directory
+sudo mkdir -p /new/path/docker
+# Copy existing files
+sudo rsync -aqxP /var/lib/docker/ /new/path/docker
+```
+- Update Configuration: Edit (or create) the configuration file at /etc/docker/daemon.json.
+```json
+{
+  "data-root": "/new/path/docker"
+}
+```
+- Restart Docker:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl start docker
+```
+
+## Setting up
+- Clone the project repository and navigate to the project directory
+```bash
+mkdir testdir
+cd testdir
+git clone https://github.com/NLeech/Bookshelf.git
+cd Bookshelf
+```
+
+- Create images
+``` bash
+sudo docker compose build
+```
+- Run containers
+``` bash
+sudo docker compose up -d
+```
+
+- Add languages using Django admin.
+
+- Load Flibusta dump
+``` bash
+sudo docker compose run --rm web python /Bookshelf/bookshelf/manage.py import_flibusta_dump
+```
+
+- Import books
+``` bash
+sudo docker compose run --rm -v "/mnt/stor/Library:/import:ro"  web python /Bookshelf/bookshelf/manage.py import_flibusta_books --formats fb2 epub --genres Фантастика --langs en --path /import
+```
+
+
+
+# Test installation
 - Install uv package manager (https://docs.astral.sh/uv/getting-started/installation/)
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -59,17 +117,20 @@ sudo docker compose -f postgres-compose.yml up -d
 ```
 - Apply database migrations
 ```bash
-cd bookshelf
-python manage.py migrate
+uv run bookshelf\manage.py migrate
 ```
 - Create a superuser for the admin interface
 ```bash
-python manage.py createsuperuser
+uv run bookshelf\manage.py createsuperuser
 ```
 - Run a development server
 ```bash
-python manage.py runserver
+uv run bookshelf\python manage.py runserver
 ```
 
 
-
+{
+    "formats": ["fb2", "epub"],
+    "genres": ["Фантастика"],
+    "langs": ["uk", "en"]
+}

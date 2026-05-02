@@ -1,11 +1,11 @@
 services:
-  db:
+  test_db:
     build: postgres
     image:  leechlab/bookshelf_db:latest
     env_file:
       - .env_
     volumes:
-      - "db-data:/var/lib/postgresql/data"
+      - "test_db-data:/var/lib/postgresql/data"
     healthcheck:
       test: bash /healthchecks/postgres.sh
       interval: 30s
@@ -15,13 +15,11 @@ services:
     ports:
       - "5432:5432"
     networks:
-      - front-tier
+      - test-front-tier
     restart: "unless-stopped"
 
 volumes:
-  staticfiles:
-  media:
-  db-data:
+  test_db-data:
 
 networks:
-  front-tier:
+  test-front-tier:

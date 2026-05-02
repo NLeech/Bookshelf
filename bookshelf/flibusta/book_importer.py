@@ -264,7 +264,8 @@ class BookImporter:
                 zip_buffer = tempfile.TemporaryFile()
                 with pyzipper.AESZipFile(zip_buffer,
                                          'w',
-                                         compression=pyzipper.ZIP_DEFLATED,
+                                         compression=pyzipper.ZIP_LZMA,
+                                         compresslevel=9,
                                          encryption=pyzipper.WZ_AES) as zf:
                     zf.setpassword(self.book_pwd)
                     # File inside should have the name 'book_id.ext'

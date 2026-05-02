@@ -37,11 +37,15 @@ if not IS_DOCKER:
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
-INTERNAL_IPS = ALLOWED_HOSTS.copy()
+INTERNAL_IPS = ['127.0.0.1', 'localhost']
 
 PUBLIC_URLS = os.environ.get('APPLICATION_URLS')
 if PUBLIC_URLS:
     ALLOWED_HOSTS.extend(PUBLIC_URLS.split(','))
+
+CSRF_TRUSTED_ORIGINS = []
+for url in ALLOWED_HOSTS:
+    CSRF_TRUSTED_ORIGINS.extend([f"http://{url}", f"https://{url}"])
 
 # Application definition
 INSTALLED_APPS = [
@@ -63,6 +67,8 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'imagekit',
+    'django_celery_beat',
+    'django_celery_results',
 ]
 
 if DEBUG:
@@ -71,7 +77,6 @@ if DEBUG:
 MIDDLEWARE = [
     'library.middleware.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -171,15 +176,6 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
-    },
-}
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -208,16 +204,7 @@ LOGGING = {
         },
     },
     'handlers': {
-        'flibusta_file': {
-            'level': 'DEBUG',
-            'class': 'logging.handlers.RotatingFileHandler',
-            'maxBytes': 10 * 1024 * 1024,
-            'backupCount': 10,
-            'filename': os.path.join(BASE_DIR.parent, 'update.log'),
-            'formatter': 'simple',
-            'encoding': 'utf-8',
-        },
-        'console': {
+         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'colored',
@@ -235,7 +222,7 @@ LOGGING = {
             'propagate': True,
         },
         'flibusta': {
-            'handlers': ['console', 'flibusta_file', 'mail_admins'],
+            'handlers': ['console', 'mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
         },
@@ -277,6 +264,16 @@ SOCIALACCOUNT_PROVIDERS = {
       }
   }
 }
+
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_RESULT_EXTENDED = True
+CELERY_TASK_TIME_LIMIT = 60 * 60 # 1 hour
+
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_CACHE_BACKEND = 'django-cache'
+
+CELERY_BROKER_URL = f'redis://{os.environ.get("REDIS_CREDENTIALS", default="")}{os.environ.get("REDIS_ADDRESS")}'
 
 # Flibusta library
 # Authors and genres data can be found here:
