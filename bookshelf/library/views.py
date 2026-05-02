@@ -39,8 +39,10 @@ class HomePageView(generic.TemplateView):
         if 'q' in self.request.GET:
             context['search_results'] = search_entities(q)
 
+        hx_request = self.request.headers.get('HX-Request')
+        hx_target = self.request.headers.get('HX-Target')
 
-        if not self.request.headers.get('HX-Request'):
+        if not hx_request or hx_target == 'latest-arrivals-container':
             seven_days_ago = timezone.now() - timedelta(days=7)
 
             latest_books_qs = Book.objects.filter(
@@ -60,7 +62,11 @@ class HomePageView(generic.TemplateView):
 
     def render_to_response(self, context, **response_kwargs):
         if self.request.headers.get('HX-Request'):
-            self.template_name = f'{self.template_name}#search_results'
+            hx_target = self.request.headers.get('HX-Target')
+            if hx_target == 'latest-arrivals-container':
+                self.template_name = f'{self.template_name}#latest_arrivals'
+            else:
+                self.template_name = f'{self.template_name}#search_results'
         return super().render_to_response(context, **response_kwargs)
 
 

@@ -81,8 +81,8 @@ class HomePageViewTests(TestCase):
         
         self.assertIn('Search', content)
         self.assertIn('Latest Arrivals', content)
-        self.assertNotIn('Reading List (Placeholder)', content)
-        self.assertNotIn('Favorite Authors (Placeholder)', content)
+        self.assertNotIn('Reading List', content)
+        self.assertNotIn('Favorite Authors', content)
 
     def test_homepage_authenticated_view(self):
         """Verify section visibility for logged-in users."""
@@ -92,11 +92,11 @@ class HomePageViewTests(TestCase):
         
         self.assertIn('Search', content)
         self.assertIn('Latest Arrivals', content)
-        self.assertIn('Reading List (Placeholder)', content)
-        self.assertIn('Favorite Authors (Placeholder)', content)
+        self.assertIn('Reading List', content)
+        self.assertIn('Favorite Authors', content)
 
-    def test_latest_arrivals_pagination(self):
-        """Verify HTMX partial response and pagination content."""
+    def test_latest_arrivals_pagination_full_page(self):
+        """Verify pagination content on full page load (non-HTMX)."""
         now = timezone.now()
         # Create 55 books to trigger pagination (PAGINATE_BY=50)
         for i in range(55):
@@ -109,14 +109,57 @@ class HomePageViewTests(TestCase):
         )
         
         # Should contain books from page 2 (index 50-54)
-        # Note: Order is -created_at, title. Since created_at is same, it's title ASC.
-        # titles are Book 00 to Book 54.
-        # Page 1: Book 00 to Book 49
-        # Page 2: Book 50 to Book 54
         content = response.content.decode()
         self.assertIn('Book 50', content)
         self.assertIn('Book 54', content)
         self.assertNotIn('Book 00', content)
+        self.assertIn('<html', content)
+
+    def test_latest_arrivals_pagination_htmx(self):
+        """Verify HTMX partial response for latest arrivals pagination."""
+        now = timezone.now()
+        # Create 55 books to trigger pagination
+        for i in range(55):
+            Book.objects.create(title=f'Book {i:02d}', language=self.lang, created_at=now)
+
+        # Page 2 HTMX request targeting latest-arrivals-container
+        response = self.client.get(
+            reverse('library:home'),
+            data={'page': 2},
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TARGET='latest-arrivals-container'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('library/index.html#latest_arrivals', response.template_name)
+        
+        content = response.content.decode()
+        self.assertIn('Book 50', content)
+        self.assertIn('Book 54', content)
+        self.assertNotIn('Book 00', content)
+        # Should not contain the full layout
+        self.assertNotContains(response, '<html')
+        self.assertIn('id="latest-arrivals-container"', content)
+
+    def test_homepage_htmx_search_vs_pagination(self):
+        """Verify correct partial is returned based on HX-Target."""
+        # Search target
+        response = self.client.get(
+            reverse('library:home'),
+            {'q': 'test'},
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TARGET='search-results'
+        )
+        self.assertIn('library/index.html#search_results', response.template_name)
+
+        # Pagination target
+        response = self.client.get(
+            reverse('library:home'),
+            {'page': 1},
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TARGET='latest-arrivals-container'
+        )
+        self.assertIn('library/index.html#latest_arrivals', response.template_name)
 
     def test_homepage_no_latest_arrivals(self):
         """Verify empty state message."""

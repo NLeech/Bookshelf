@@ -139,7 +139,6 @@
             </section>
 
             <div id="main-content">
-                <!-- {% partialdef latest_arrivals inline %} -->
                 {% if user.is_authenticated %}
                     <!-- Reading List (Authenticated Only) -->
                     <section class="mb-4">
@@ -189,6 +188,7 @@
                             </h2>
                             <div id="collapseLatestArrivals" class="accordion-collapse collapse show" data-bs-parent="#latestArrivalsAccordion">
                                 <div class="accordion-body p-0">
+                                    {% partialdef latest_arrivals inline %}
                                     <div id="latest-arrivals-container">
                                         {% include 'library/include/pagination.html' with hx_target='#latest-arrivals-container' hx_swap='outerHTML' label='Latest arrivals pagination' %}
 
@@ -215,12 +215,12 @@
                                         </div>
                                         {% include 'library/include/pagination.html' with hx_target='#latest-arrivals-container' hx_swap='outerHTML' label='Latest arrivals pagination' %}
                                     </div>
+                                    {% endpartialdef %}
                                 </div>
                             </div>
                         </div>
                     </div>
                 </section>
-                <!-- {% endpartialdef %} -->
             </div>
         </div>
     </div>

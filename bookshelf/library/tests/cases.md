@@ -158,15 +158,17 @@
 3. **test_homepage_status_and_template**: Verifies that the homepage returns a 200 OK status and uses the expected template.
 4. **test_homepage_unauthenticated_view**: Verifies that Search and Latest Arrivals are visible to guests, while personal sections are hidden.
 5. **test_homepage_authenticated_view**: Verifies that all sections, including Reading List and Favorite Authors, are visible to authenticated users.
-6. **test_latest_arrivals_pagination**: Verifies that request returns the correct paginated data.
-7. **test_homepage_no_latest_arrivals**: Verifies that an appropriate message is shown when no new books have been added in the last 7 days.
-8. **test_homepage_pagination_presence**: Verifies that pagination is present at both the top and bottom of the list when multiple pages exist.
-9. **test_homepage_jump_to_page**: Verifies the presence and correct HTMX attributes of the Jump to Page functionality on the homepage.
-10. **test_home_page_with_search_query**: Verify search results in context when q is provided, and that latest arrivals are still present.
-11. **test_home_page_search_htmx**: Verify partial rendering for HTMX search requests.
-12. **test_home_page_search_htmx_authenticated**: Verify partial rendering for HTMX search requests when authenticated.
-13. **test_home_page_clear_search_htmx**: Verify that an empty q parameter via HTMX results in search results partial (which will clear it).
-14. **test_home_page_no_query_htmx**: Verify that no q parameter via HTMX results in latest arrivals partial.
+6. **test_latest_arrivals_pagination_full_page**: Verifies pagination content on full page load (non-HTMX).
+7. **test_latest_arrivals_pagination_htmx**: Verifies HTMX partial response for latest arrivals pagination, ensuring it returns only the #latest_arrivals partial.
+8. **test_homepage_htmx_search_vs_pagination**: Verifies correct partial is returned based on HX-Target (search results vs latest arrivals).
+9. **test_homepage_no_latest_arrivals**: Verifies that an appropriate message is shown when no new books have been added in the last 7 days.
+10. **test_homepage_pagination_presence**: Verifies that pagination is present at both the top and bottom of the list when multiple pages exist.
+11. **test_homepage_jump_to_page**: Verifies the presence and correct HTMX attributes of the Jump to Page functionality on the homepage.
+12. **test_home_page_with_search_query**: Verify search results in context when q is provided, and that latest arrivals are still present.
+13. **test_home_page_search_htmx**: Verify partial rendering for HTMX search requests.
+14. **test_home_page_search_htmx_authenticated**: Verify partial rendering for HTMX search requests when authenticated.
+15. **test_home_page_clear_search_htmx**: Verify that an empty q parameter via HTMX results in search results partial (which will clear it).
+16. **test_home_page_no_query_htmx**: Verify that no q parameter via HTMX results in search results partial.
 
 ## Book List View (BookListViewTests)
 1. **test_book_list_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
