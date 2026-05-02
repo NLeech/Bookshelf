@@ -1,6 +1,6 @@
 services:
   web:
-    image: ghcr.io/YOUR_GITHUB_USERNAME/bookshelf-web:latest
+    image: ghcr.io/nleech/bookshelf-web:latest
     depends_on:
       db:
         condition: service_healthy
