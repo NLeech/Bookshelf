@@ -1,0 +1,195 @@
+{% extends 'base.html'  %}
+
+{% block head_title %}{{ author.full_name }}{% endblock %}
+
+{% block content %}
+<div class="main-layout-container">
+    <!-- Left Sidebar: Filters -->
+    <aside class="sidebar-pane author-details-sidebar">
+        <h5 class="mb-3">Filters</h5>
+        
+        {% url 'library:author' author.id as hx_url %}
+        {% include "library/include/_filters.html" with hx_url=hx_url hx_target="#authorTabsContent" %}
+    </aside>
+
+    <!-- Right Content: Author Details & Books -->
+    <main class="content-pane position-relative">
+        <!-- Collapse Toggle Button -->
+        <button id="toggle-sidebar-btn" class="btn btn-secondary btn-sm" onclick="toggleSidebar()" title="Toggle Sidebar">
+            &lt;
+        </button>
+
+        <div class="container-fluid py-4">
+            <!-- Author Header -->
+            <div class="mb-4 pb-4 border-bottom">
+                <h1 class="display-5 fw-bold text-dark mb-2">{{ author.full_name }}</h1>
+                {% if author.nickname %}
+                    <p class="text-muted fs-5 mb-2">{{ author.nickname }}</p>
+                {% endif %}
+                {% if author.homepage %}
+                    <p class="mb-0"><a href="{{ author.homepage }}" target="_blank" class="text-decoration-none small"><i class="bi bi-link-45deg"></i> {{ author.homepage }}</a></p>
+                {% endif %}
+            </div>
+
+            <!-- Tabs Navigation -->
+            <ul class="nav nav-tabs mb-4" id="authorTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if active_tab == 'alpha' %}active text-dark{% else %}text-muted{% endif %}" 
+                            id="alpha-tab" 
+                            hx-get="{% url 'library:author' author.id %}"
+                            hx-vals='{"tab": "alpha"}'
+                            hx-target="#authorTabsContent"
+                            hx-include="#filter-form"
+                            hx-push-url="true"
+                            hx-on:click="document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.remove('active', 'text-dark')); document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.add('text-muted')); this.classList.add('active', 'text-dark'); this.classList.remove('text-muted'); document.querySelector('#active-tab-input').value='alpha';"
+                            type="button" role="tab">All Books (A-Z)</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if active_tab == 'recent' %}active text-dark{% else %}text-muted{% endif %}" 
+                            id="recent-tab" 
+                            hx-get="{% url 'library:author' author.id %}"
+                            hx-vals='{"tab": "recent"}'
+                            hx-target="#authorTabsContent"
+                            hx-include="#filter-form"
+                            hx-push-url="true"
+                            hx-on:click="document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.remove('active', 'text-dark')); document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.add('text-muted')); this.classList.add('active', 'text-dark'); this.classList.remove('text-muted'); document.querySelector('#active-tab-input').value='recent';"
+                            type="button" role="tab">Recently Added</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if active_tab == 'series' %}active text-dark{% else %}text-muted{% endif %}" 
+                            id="series-tab" 
+                            hx-get="{% url 'library:author' author.id %}"
+                            hx-vals='{"tab": "series"}'
+                            hx-target="#authorTabsContent"
+                            hx-include="#filter-form"
+                            hx-push-url="true"
+                            hx-on:click="document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.remove('active', 'text-dark')); document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.add('text-muted')); this.classList.add('active', 'text-dark'); this.classList.remove('text-muted'); document.querySelector('#active-tab-input').value='series';"
+                            type="button" role="tab">Grouped by Series</button>
+                </li>
+            </ul>
+
+            <!-- Tabs Content -->
+            <div class="tab-content" id="authorTabsContent">
+                {% partialdef alpha_tab inline %}
+                    <div class="tab-pane fade {% if active_tab == 'alpha' %}show active{% endif %}" id="alpha" role="tabpanel">
+                        <div class="accordion accordion-flush" id="alphaAccordion">
+                            {% for book in books_alpha %}
+                                <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-alpha-{{ book.id }}">
+                                            {{ book.title }}
+                                        </button>
+                                    </h2>
+                                    <div id="book-alpha-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#alphaAccordion">
+                                        <div class="accordion-body">
+                                            {% include 'library/include/book_item.html' %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <p class="text-muted">No books found.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endpartialdef %}
+
+                {% partialdef recent_tab inline %}
+                    <div class="tab-pane fade {% if active_tab == 'recent' %}show active{% endif %}" id="recent" role="tabpanel">
+                        <div class="accordion accordion-flush" id="recentAccordion">
+                            {% for book in books_recent %}
+                                <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-recent-{{ book.id }}">
+                                            <div class="d-flex justify-content-between w-100 me-3">
+                                                <span>{{ book.title }}</span>
+                                                <span class="text-muted small fw-normal">Added: {{ book.created_at|date:"Y-m-d" }}</span>
+                                            </div>
+                                        </button>
+                                    </h2>
+                                    <div id="book-recent-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#recentAccordion">
+                                        <div class="accordion-body">
+                                            {% include 'library/include/book_item.html' %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <p class="text-muted">No books found.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endpartialdef %}
+
+                {% partialdef series_tab inline %}
+                    <div class="tab-pane fade {% if active_tab == 'series' %}show active{% endif %}" id="series" role="tabpanel">
+                        <div class="accordion" id="seriesAccordion">
+                            {% for series_item in series_list %}
+                                <div class="accordion-item mb-3 border rounded">
+                                    <h2 class="accordion-header" id="heading-{{ series_item.series.id }}">
+                                        <button class="accordion-button collapsed fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ series_item.series.id }}" aria-expanded="false">
+                                            {{ series_item.series.name }} <span class="text-muted fw-normal ms-2 fs-6">({{ series_item.count }} books)</span>
+                                        </button>
+                                    </h2>
+                                    <div id="collapse-{{ series_item.series.id }}" class="accordion-collapse collapse" data-bs-parent="#seriesAccordion">
+                                        <div class="accordion-body p-2">
+                                            <div class="accordion accordion-flush" id="booksAccordion-{{ series_item.series.id }}">
+                                                {% for info in series_item.books_info %}
+                                                    <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                                        <h2 class="accordion-header">
+                                                            <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-{{ info.book.id }}-{{ series_item.series.id }}">
+                                                                <span class="text-muted me-2">{{ info.seq }}</span> {{ info.book.title }}
+                                                            </button>
+                                                        </h2>
+                                                        <div id="book-{{ info.book.id }}-{{ series_item.series.id }}" class="accordion-collapse collapse" data-bs-parent="#booksAccordion-{{ series_item.series.id }}">
+                                                            <div class="accordion-body">
+                                                                {% with book=info.book %}
+                                                                    {% include 'library/include/book_item.html' %}
+                                                                {% endwith %}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+
+                            {% if standalone_books %}
+                                <div class="accordion-item mb-3 border rounded">
+                                    <h2 class="accordion-header" id="headingStandalone">
+                                        <button class="accordion-button collapsed fw-bold bg-light text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStandalone">
+                                            Standalone Books <span class="text-muted fw-normal ms-2 fs-6">({{ standalone_count }} books)</span>
+                                        </button>
+                                    </h2>
+                                    <div id="collapseStandalone" class="accordion-collapse collapse" data-bs-parent="#seriesAccordion">
+                                        <div class="accordion-body p-2">
+                                            <div class="accordion accordion-flush" id="standaloneAccordion">
+                                                {% for book in standalone_books %}
+                                                    <div class="accordion-item border-0 {% cycle '' 'bg-light' %}">
+                                                        <h2 class="accordion-header">
+                                                            <button class="accordion-button collapsed py-2 px-3 text-dark fw-medium bg-transparent" type="button" data-bs-toggle="collapse" data-bs-target="#book-standalone-{{ book.id }}">
+                                                                {{ book.title }}
+                                                            </button>
+                                                        </h2>
+                                                        <div id="book-standalone-{{ book.id }}" class="accordion-collapse collapse" data-bs-parent="#standaloneAccordion">
+                                                            <div class="accordion-body">
+                                                                {% include 'library/include/book_item.html' %}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            {% if not series_list and not standalone_books %}
+                                <p class="text-muted">No books found.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endpartialdef %}
+            </div>
+</div>
+{% endblock content %}

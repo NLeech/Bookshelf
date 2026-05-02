@@ -1,0 +1,122 @@
+{% comment %}
+    Reusable pagination template.
+    Expects:
+    - page_obj: The Paginator Page object
+    - base_url: The URL for links (resolved, e.g. from {% url ... %}, default: request.path)
+    - hx_target: The HTMX target selector (default: '#authors_list')
+    - hx_swap: The HTMX swap method (default: 'innerHTML')
+    - label: Aria label for the nav (default: 'Pagination')
+{% endcomment %}
+
+{% if page_obj.has_other_pages %}
+    {% with current_path=base_url|default:request.path current_target=hx_target|default:'#authors_list' current_swap=hx_swap|default:'innerHTML' %}
+        <nav aria-label="{{ label|default:'Pagination' }}" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" 
+                           href="{{ current_path }}?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-get="{{ current_path }}?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-target="{{ current_target }}"
+                           hx-swap="{{ current_swap }}">&laquo; First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="{{ current_path }}?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-get="{{ current_path }}?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-target="{{ current_target }}"
+                           hx-swap="{{ current_swap }}">Previous</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&laquo; First</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Previous</span>
+                    </li>
+                {% endif %}
+
+                <!-- Page numbers -->
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" 
+                               href="{{ current_path }}?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                               hx-get="{{ current_path }}?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                               hx-target="{{ current_target }}"
+                               hx-swap="{{ current_swap }}">{{ num }}</a>
+                        </li>
+                    {% elif num == 1 or num == page_obj.paginator.num_pages %}
+                        <li class="page-item">
+                            <a class="page-link" 
+                               href="{{ current_path }}?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                               hx-get="{{ current_path }}?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                               hx-target="{{ current_target }}"
+                               hx-swap="{{ current_swap }}">{{ num }}</a>
+                        </li>
+                    {% elif num == page_obj.number|add:'-3' or num == page_obj.number|add:'3' %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" 
+                           href="{{ current_path }}?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-get="{{ current_path }}?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-target="{{ current_target }}"
+                           hx-swap="{{ current_swap }}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" 
+                           href="{{ current_path }}?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-get="{{ current_path }}?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-target="{{ current_target }}"
+                           hx-swap="{{ current_swap }}">Last &raquo;</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Next</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Last &raquo;</span>
+                    </li>
+                {% endif %}
+
+                <li class="page-item">
+                    <div class="jump-to-page-container" style="position: relative; display: inline-block;">
+                        <button type="button"
+                                id="jump-to-page-btn"
+                                class="btn btn-link page-link"
+                                onclick="const dialog = this.nextElementSibling; dialog.style.display = dialog.style.display === 'block' ? 'none' : 'block'">
+                            Jump to Page
+                        </button>
+
+                        <div class="jump-to-page-dialog" style="display: none; position: absolute; top: 100%; left: 0; margin-top: 5px; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 1000;">
+                            <form hx-get="{{ current_path }}"
+                                  hx-target="{{ current_target }}"
+                                  hx-swap="{{ current_swap }}">
+                                {% csrf_token %}
+                                {% for key, value in request.GET.items %}
+                                    {% if key != 'page' %}
+                                        <input type="hidden" name="{{ key|urlencode }}" value="{{ value }}">
+                                    {% endif %}
+                                {% endfor %}
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="number" name="page" class="form-control" placeholder="Page #" style="width: 100px;">
+                                    <button type="submit" class="btn btn-primary btn-sm">OK</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </nav>
+    {% endwith %}
+{% endif %}

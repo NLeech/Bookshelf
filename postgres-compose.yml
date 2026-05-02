@@ -1,0 +1,25 @@
+services:
+  test_db:
+    build: postgres
+    image:  leechlab/bookshelf_db:latest
+    env_file:
+      - .env_
+    volumes:
+      - "test_db-data:/var/lib/postgresql/data"
+    healthcheck:
+      test: bash /healthchecks/postgres.sh
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    ports:
+      - "5432:5432"
+    networks:
+      - test-front-tier
+    restart: "unless-stopped"
+
+volumes:
+  test_db-data:
+
+networks:
+  test-front-tier:

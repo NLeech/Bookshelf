@@ -1,0 +1,91 @@
+services:
+  web:
+    # I never plan to scale that service to more than one instance on one host
+    container_name: bookshelf-web-prod
+    image: ghcr.io/nleech/bookshelf-web:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: curl -f http://localhost:8080/ping/ || exit 1
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    env_file:
+      - .env_
+    environment:
+      - PG_DATABASE_ADDRESS=db
+      - IS_DOCKER=true
+    volumes:
+      - "staticfiles:/Bookshelf/bookshelf/staticfiles"
+      - "media:/Bookshelf/bookshelf/media"
+    networks:
+      - front-tier
+      - back-tier
+    restart: "unless-stopped"
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - "./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro"
+      - "staticfiles:/Bookshelf/bookshelf/staticfiles"
+      - "media:/Bookshelf/bookshelf/media"
+    depends_on:
+      - web
+    networks:
+      - front-tier
+    restart: "unless-stopped"
+
+  db:
+    build: postgres
+    image:  leechlab/bookshelf_db:latest
+    env_file:
+      - .env_
+    volumes:
+      - "db-data:/var/lib/postgresql/data"
+    healthcheck:
+      test: bash /healthchecks/postgres.sh
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - back-tier
+    restart: "unless-stopped"
+
+  broker:
+    image: redis:8.6.2-alpine
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - back-tier
+    volumes:
+      - "broker-data:/data"
+    restart: "unless-stopped"
+
+  watchtower:
+      image: nickfedor/watchtower
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+        - ~/.docker/config.json:/config.json:ro
+      command: --interval 300 bookshelf-web-prod
+      restart: always
+
+volumes:
+  staticfiles:
+  media:
+  db-data:
+  broker-data:
+
+networks:
+  front-tier:
+    name: external_network
+  back-tier:
+    internal: true

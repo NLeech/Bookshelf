@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block head_title %}{{ book.title }} - Bookshelf{% endblock %}
+
+{% block content %}
+<div class="main-layout-container">
+    <!-- Left Sidebar: TOC -->
+    <aside class="sidebar-pane book-details-sidebar">
+        <div class="p-3 border-bottom mb-2">
+            <div class="authors-list">
+                {% for author in book.authors.all %}
+                    <a href="{% url 'library:author' author.id %}" class="text-decoration-none large d-block">
+                        {{ author.full_name }}
+                    </a>
+                {% endfor %}
+            </div>
+            <p></p>
+            <h4 class="fw-bold mb-1">{{ book.title }}</h4>
+        </div>
+        <h5 class="p-2 border-bottom">Table of Contents</h5>
+        <div class="toc-container">
+            <ul class="tree-list ps-0">
+                {% if chapters %}
+                    {% include "library/include/toc_node.html" with nodes=chapters initial_expand=True %}
+                {% else %}
+                    <li class="p-2 text-muted fst-italic">No TOC available</li>
+                {% endif %}
+            </ul>
+        </div>
+    </aside>
+
+    <!-- Right Content: Book Content -->
+    <main class="content-pane position-relative">
+        <!-- Collapse Toggle Button -->
+        <button id="toggle-sidebar-btn" class="btn btn-secondary btn-sm" onclick="toggleSidebar()" title="Toggle Sidebar">
+            &lt;
+        </button>
+
+        <div id="book-content" class="h-100 overflow-auto p-4">
+            {% partialdef book_content inline %}
+                {% if current_chapter %}
+                    <div class="chapter-container mx-auto" ">
+                        {% include "library/include/_chapter_navigation.html" %}
+                        <h2 class="mb-4">{{ current_chapter.title }}</h2>
+                        <div class="chapter-body">
+                            {{ current_chapter.content|safe }}
+                        </div>
+                        {% include "library/include/_chapter_navigation.html" %}
+                    </div>
+                {% else %}
+                    <div class="text-center mt-5">
+                        <p class="text-muted">Select a chapter from the TOC to start reading.</p>
+                    </div>
+                {% endif %}
+            {% endpartialdef %}
+        </div>
+    </main>
+</div>
+{% endblock content %}
