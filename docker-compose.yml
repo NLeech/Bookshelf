@@ -1,7 +1,6 @@
 services:
   web:
-    build: .
-    image: leechlab/bookshelf:latest
+    image: ghcr.io/YOUR_GITHUB_USERNAME/bookshelf-web:latest
     depends_on:
       db:
         condition: service_healthy
@@ -69,6 +68,13 @@ services:
       - "broker-data:/data"
     restart: "unless-stopped"
 
+  watchtower:
+      image: containrrr/watchtower
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+      command: --interval 300 web
+      restart: always
+
 volumes:
   staticfiles:
   media:
@@ -77,5 +83,6 @@ volumes:
 
 networks:
   front-tier:
+    name: external_network
   back-tier:
     internal: true
