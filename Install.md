@@ -32,6 +32,11 @@ If docker is not running, start it with:
 sudo systemctl start docker
 ```
 
+- Add user to the docker group (allows using docker command without sudo)
+``` bash
+sudo usermod -aG docker $USER
+```
+
 ## Changing Docker's storage location (optional)
 - Stop daemon
 ``` bash
@@ -56,6 +61,21 @@ sudo systemctl daemon-reload
 sudo systemctl start docker
 ```
 
+## Setup CD process with GitHub
+- Generate a GitHub Personal Access Token (PAT)
+To push and pull images from the GitHub Container Registry (GHCR), you need authentication.
+
+1. In GitHub, go to your user Settings -> Developer settings -> Personal access tokens -> Tokens (classic).
+2. Generate a new token. Give it the write:packages and read:packages scopes.
+3. Copy the token.
+4. Go to the Bookshelf repository Settings -> Secrets and variables -> Actions.
+5. Create a new repository secret named CR_PAT and paste the token.
+
+- Authenticate Docker with GitHub so it can pull the private image
+``` bash
+echo "YOUR_COPIED_PAT_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+```
+
 ## Setting up
 - Clone the project repository and navigate to the project directory
 ```bash
@@ -67,23 +87,24 @@ cd Bookshelf
 
 - Create images
 ``` bash
-sudo docker compose build
+docker compose pull web
+docker compose build
 ```
 - Run containers
 ``` bash
-sudo docker compose up -d
+docker compose up -d
 ```
 
 - Add languages using Django admin.
 
 - Load Flibusta dump
 ``` bash
-sudo docker compose run --rm web python /Bookshelf/bookshelf/manage.py import_flibusta_dump
+docker compose run --rm web python /Bookshelf/bookshelf/manage.py import_flibusta_dump
 ```
 
 - Import books
 ``` bash
-sudo docker compose run --rm -v "/mnt/stor/Library:/import:ro"  web python /Bookshelf/bookshelf/manage.py import_flibusta_books --formats fb2 epub --genres Фантастика --langs en --path /import
+docker compose run --rm -v "/mnt/stor/Library:/import:ro" web python /Bookshelf/bookshelf/manage.py import_flibusta_books --formats fb2 epub --genres Фантастика --langs en --path /import 
 ```
 
 
