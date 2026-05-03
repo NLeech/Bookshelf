@@ -47,6 +47,8 @@ CSRF_TRUSTED_ORIGINS = []
 for url in ALLOWED_HOSTS:
     CSRF_TRUSTED_ORIGINS.extend([f"http://{url}", f"https://{url}"])
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
