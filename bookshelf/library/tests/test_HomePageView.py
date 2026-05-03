@@ -3,7 +3,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-from library.models import Book, Language
+from library.models import Book, Language, Author, BookSeries
 
 User = get_user_model()
 
@@ -193,6 +193,14 @@ class HomePageViewTests(TestCase):
         self.assertIn('hx-target="#latest-arrivals-container"', content)
         self.assertIn('hx-swap="outerHTML"', content)
 
+    def test_homepage_disclaimer_presence(self):
+        """Verify the disclaimer footer is present on the homepage."""
+        response = self.client.get(reverse('library:home'))
+        self.assertContains(
+            response, 
+            'Disclaimer: This website does not host or distribute full copies of any books.'
+        )
+
 
     def test_home_page_with_search_query(self):
         "Verify search results in context when q is provided, and latest arrivals still present."
@@ -249,3 +257,83 @@ class HomePageViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('library/index.html#search_results', response.template_name)
         self.assertNotIn('search_results', response.context)
+
+    def test_triple_independent_pagination(self):
+        """Verify all three search paginators work independently."""
+        # Create 60 authors, 60 books, and 60 series matching "Test"
+        for i in range(60):
+            Author.objects.create(last_name=f'Test Author {i:02d}')
+            Book.objects.create(title=f'Test Book {i:02d}', language=self.lang)
+            BookSeries.objects.create(name=f'Test Series {i:02d}')
+
+        # Request with different page numbers for each
+        response = self.client.get(
+            reverse('library:home'),
+            data={'q': 'Test', 'apage': 2, 'bpage': 1, 'spage': 1}
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['authors_page_obj'].number, 2)
+        self.assertEqual(response.context['books_page_obj'].number, 1)
+        self.assertEqual(response.context['series_page_obj'].number, 1)
+        
+        self.assertIn('authors_page_obj', response.context)
+        self.assertIn('books_page_obj', response.context)
+        self.assertIn('series_page_obj', response.context)
+
+    def test_htmx_partial_authors(self):
+        """Verify HTMX partial for authors search pagination."""
+        for i in range(60):
+            Author.objects.create(last_name=f'Test Author {i:02d}')
+
+        response = self.client.get(
+            reverse('library:home'),
+            data={'q': 'Test', 'apage': 2},
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TARGET='search-authors-body'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('library/index.html#search_authors_results', response.template_name)
+        content = response.content.decode()
+        self.assertIn('hx-target="#search-authors-body"', content)
+        self.assertIn('Test Author 50', content)
+        self.assertNotIn('Test Author 00', content)
+
+    def test_htmx_partial_books(self):
+        """Verify HTMX partial for books search pagination."""
+        for i in range(60):
+            Book.objects.create(title=f'Test Book {i:02d}', language=self.lang)
+
+        response = self.client.get(
+            reverse('library:home'),
+            data={'q': 'Test', 'bpage': 2},
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TARGET='search-books-body'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('library/index.html#search_books_results', response.template_name)
+        content = response.content.decode()
+        self.assertIn('hx-target="#search-books-body"', content)
+        self.assertIn('Test Book 50', content)
+        self.assertNotIn('Test Book 00', content)
+
+    def test_htmx_partial_series(self):
+        """Verify HTMX partial for series search pagination."""
+        for i in range(60):
+            BookSeries.objects.create(name=f'Test Series {i:02d}')
+
+        response = self.client.get(
+            reverse('library:home'),
+            data={'q': 'Test', 'spage': 2},
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TARGET='search-series-body'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('library/index.html#search_series_results', response.template_name)
+        content = response.content.decode()
+        self.assertIn('hx-target="#search-series-body"', content)
+        self.assertIn('Test Series 50', content)
+        self.assertNotIn('Test Series 00', content)

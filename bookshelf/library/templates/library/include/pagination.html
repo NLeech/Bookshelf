@@ -6,24 +6,25 @@
     - hx_target: The HTMX target selector (default: '#authors_list')
     - hx_swap: The HTMX swap method (default: 'innerHTML')
     - label: Aria label for the nav (default: 'Pagination')
+    - page_param: The GET parameter name for page number (default: 'page')
 {% endcomment %}
 
 {% if page_obj.has_other_pages %}
-    {% with current_path=base_url|default:request.path current_target=hx_target|default:'#authors_list' current_swap=hx_swap|default:'innerHTML' %}
+    {% with current_path=base_url|default:request.path current_target=hx_target|default:'#authors_list' current_swap=hx_swap|default:'innerHTML' p_param=page_param|default:'page' %}
         <nav aria-label="{{ label|default:'Pagination' }}" class="mt-4">
             <ul class="pagination justify-content-center">
                 {% if page_obj.has_previous %}
                     <li class="page-item">
                         <a class="page-link" 
-                           href="{{ current_path }}?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
-                           hx-get="{{ current_path }}?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           href="{{ current_path }}?{{ p_param }}=1{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-get="{{ current_path }}?{{ p_param }}=1{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
                            hx-target="{{ current_target }}"
                            hx-swap="{{ current_swap }}">&laquo; First</a>
                     </li>
                     <li class="page-item">
                         <a class="page-link"
-                           href="{{ current_path }}?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
-                           hx-get="{{ current_path }}?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           href="{{ current_path }}?{{ p_param }}={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-get="{{ current_path }}?{{ p_param }}={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
                            hx-target="{{ current_target }}"
                            hx-swap="{{ current_swap }}">Previous</a>
                     </li>
@@ -45,16 +46,16 @@
                     {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                         <li class="page-item">
                             <a class="page-link" 
-                               href="{{ current_path }}?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
-                               hx-get="{{ current_path }}?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                               href="{{ current_path }}?{{ p_param }}={{ num }}{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                               hx-get="{{ current_path }}?{{ p_param }}={{ num }}{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
                                hx-target="{{ current_target }}"
                                hx-swap="{{ current_swap }}">{{ num }}</a>
                         </li>
                     {% elif num == 1 or num == page_obj.paginator.num_pages %}
                         <li class="page-item">
                             <a class="page-link" 
-                               href="{{ current_path }}?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
-                               hx-get="{{ current_path }}?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                               href="{{ current_path }}?{{ p_param }}={{ num }}{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                               hx-get="{{ current_path }}?{{ p_param }}={{ num }}{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
                                hx-target="{{ current_target }}"
                                hx-swap="{{ current_swap }}">{{ num }}</a>
                         </li>
@@ -68,15 +69,15 @@
                 {% if page_obj.has_next %}
                     <li class="page-item">
                         <a class="page-link" 
-                           href="{{ current_path }}?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
-                           hx-get="{{ current_path }}?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           href="{{ current_path }}?{{ p_param }}={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-get="{{ current_path }}?{{ p_param }}={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
                            hx-target="{{ current_target }}"
                            hx-swap="{{ current_swap }}">Next</a>
                     </li>
                     <li class="page-item">
                         <a class="page-link" 
-                           href="{{ current_path }}?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
-                           hx-get="{{ current_path }}?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           href="{{ current_path }}?{{ p_param }}={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
+                           hx-get="{{ current_path }}?{{ p_param }}={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != p_param %}&{{ key|urlencode }}={{ value|urlencode }}{% endif %}{% endfor %}"
                            hx-target="{{ current_target }}"
                            hx-swap="{{ current_swap }}">Last &raquo;</a>
                     </li>
@@ -104,12 +105,12 @@
                                   hx-swap="{{ current_swap }}">
                                 {% csrf_token %}
                                 {% for key, value in request.GET.items %}
-                                    {% if key != 'page' %}
+                                    {% if key != p_param %}
                                         <input type="hidden" name="{{ key|urlencode }}" value="{{ value }}">
                                     {% endif %}
                                 {% endfor %}
                                 <div style="display: flex; gap: 5px;">
-                                    <input type="number" name="page" class="form-control" placeholder="Page #" style="width: 100px;">
+                                    <input type="number" name="{{ p_param }}" class="form-control" placeholder="Page #" style="width: 100px;">
                                     <button type="submit" class="btn btn-primary btn-sm">OK</button>
                                 </div>
                             </form>
@@ -120,3 +121,4 @@
         </nav>
     {% endwith %}
 {% endif %}
+
