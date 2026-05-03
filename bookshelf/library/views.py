@@ -39,7 +39,30 @@ class HomePageView(generic.TemplateView):
         context['query'] = q
 
         if 'q' in self.request.GET:
-            context['search_results'] = search_entities(q)
+            search_results = search_entities(q)
+
+            # Paginate authors
+            authors_paginator = Paginator(search_results['authors'], settings.PAGINATE_BY)
+            apage = self.request.GET.get('apage')
+            authors_page_obj = authors_paginator.get_page(apage)
+            context['authors_page_obj'] = authors_page_obj
+            search_results['authors'] = authors_page_obj.object_list
+
+            # Paginate books
+            books_paginator = Paginator(search_results['books'], settings.PAGINATE_BY)
+            bpage = self.request.GET.get('bpage')
+            books_page_obj = books_paginator.get_page(bpage)
+            context['books_page_obj'] = books_page_obj
+            search_results['books'] = books_page_obj.object_list
+
+            # Paginate series
+            series_paginator = Paginator(search_results['series'], settings.PAGINATE_BY)
+            spage = self.request.GET.get('spage')
+            series_page_obj = series_paginator.get_page(spage)
+            context['series_page_obj'] = series_page_obj
+            search_results['series'] = series_page_obj.object_list
+
+            context['search_results'] = search_results
 
         hx_request = self.request.headers.get('HX-Request')
         hx_target = self.request.headers.get('HX-Target')
@@ -67,6 +90,12 @@ class HomePageView(generic.TemplateView):
             hx_target = self.request.headers.get('HX-Target')
             if hx_target == 'latest-arrivals-container':
                 self.template_name = f'{self.template_name}#latest_arrivals'
+            elif hx_target == 'search-authors-body':
+                self.template_name = f'{self.template_name}#search_authors_results'
+            elif hx_target == 'search-books-body':
+                self.template_name = f'{self.template_name}#search_books_results'
+            elif hx_target == 'search-series-body':
+                self.template_name = f'{self.template_name}#search_series_results'
             else:
                 self.template_name = f'{self.template_name}#search_results'
         return super().render_to_response(context, **response_kwargs)

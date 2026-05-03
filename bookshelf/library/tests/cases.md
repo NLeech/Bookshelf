@@ -169,6 +169,11 @@
 14. **test_home_page_search_htmx_authenticated**: Verify partial rendering for HTMX search requests when authenticated.
 15. **test_home_page_clear_search_htmx**: Verify that an empty q parameter via HTMX results in search results partial (which will clear it).
 16. **test_home_page_no_query_htmx**: Verify that no q parameter via HTMX results in search results partial.
+17. **test_triple_independent_pagination**: Verifies all three search paginators (Authors, Books, Series) work independently in a single request.
+18. **test_htmx_partial_authors**: Verifies HTMX partial for authors search pagination (#search_authors_results).
+19. **test_htmx_partial_books**: Verifies HTMX partial for books search pagination (#search_books_results).
+20. **test_htmx_partial_series**: Verifies HTMX partial for series search pagination (#search_series_results).
+21. **test_homepage_disclaimer_presence**: Verifies the disclaimer footer is present on the homepage.
 
 ## Book List View (BookListViewTests)
 1. **test_book_list_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
