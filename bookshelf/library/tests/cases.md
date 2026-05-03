@@ -181,3 +181,13 @@
 8. **test_book_list_view_author_string_formatting**: Verify "Title by Author" vs "Title by Author et al.".
 9. **test_book_list_view_pagination_preserves_filters**: Verify pagination links preserve current filters.
 10. **test_book_list_view_filter_summary_human_readable**: Verify that active filters in summary show human-readable names.
+
+## Access Control (test_access_control.py)
+1. **test_book_detail_unauthenticated**: Verify that unauthenticated users are redirected to login.
+2. **test_book_detail_authenticated_no_group**: Verify that authenticated users without 'book_access' see truncated content.
+3. **test_book_detail_authenticated_with_group**: Verify that authenticated users with 'book_access' see full content.
+4. **test_book_download_unauthenticated**: Verify that unauthenticated users cannot download books (redirect to login).
+5. **test_book_download_authenticated_no_group**: Verify that authenticated users without 'book_access' get 403 Forbidden on download.
+6. **test_book_download_authenticated_with_group**: Verify that authenticated users with 'book_access' can download books.
+7. **test_book_item_labels**: Verify "Preview" vs "Read" labels in book_item.html based on user permissions.
+8. **test_book_item_download_visibility**: Verify download link visibility in book_item.html based on user permissions.

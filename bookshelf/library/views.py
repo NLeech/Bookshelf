@@ -9,8 +9,10 @@ from django.views import generic
 from django.conf import settings
 from django.db.models import Prefetch, Q
 from django.utils import timezone
+from django.utils.text import Truncator
 from django.core.paginator import Paginator
 from django.urls import reverse
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 
 from .models import Author, BookSeriesLink, Book, Genre, Language
 from .services import (
@@ -70,7 +72,9 @@ class HomePageView(generic.TemplateView):
         return super().render_to_response(context, **response_kwargs)
 
 
-class BookDownloadView(generic.View):
+class BookDownloadView(PermissionRequiredMixin, generic.View):
+    permission_required = 'library.view_book'
+
     def get(self, request: HttpRequest, pk: int) -> FileResponse:
 
         book = get_object_or_404(Book, pk=pk)
@@ -279,7 +283,7 @@ class BookListView(generic.ListView):
         return super().render_to_response(context, **response_kwargs)
 
 
-class BookDetailView(generic.DetailView):
+class BookDetailView(LoginRequiredMixin, generic.DetailView):
     model = Book
     template_name = 'library/book.html'
     context_object_name = 'book'
@@ -302,7 +306,14 @@ class BookDetailView(generic.DetailView):
                 chapter_index = 0
 
             if flat_chapters:
-                context['current_chapter'] = flat_chapters[chapter_index]
+                current_chapter = flat_chapters[chapter_index]
+
+                # Truncate content if user lacks permission
+                if not self.request.user.has_perm('library.view_book'):
+                    current_chapter.content = Truncator(current_chapter.content).words(500, html=True)
+
+                context['current_chapter'] = current_chapter
+
                 if chapter_index > 0:
                     context['prev_chapter'] = flat_chapters[chapter_index - 1]
                 if chapter_index < len(flat_chapters) - 1:

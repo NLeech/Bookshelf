@@ -1,6 +1,9 @@
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.contrib.auth import get_user_model
 from library.models import Author, Language, Book
+
+User = get_user_model()
 
 @override_settings(STORAGES={
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
@@ -22,6 +25,12 @@ class BookDetailSidebarTests(TestCase):
         
         cls.book_multiple_authors = Book.objects.create(title='Multiple Authors Book', language=cls.lang_en)
         cls.book_multiple_authors.authors.add(cls.author1, cls.author2)
+
+        # User for authentication
+        cls.user = User.objects.create_user(username='testuser', email='test@example.com', password='password')
+
+    def setUp(self):
+        self.client.login(username='testuser', password='password')
 
     def test_book_sidebar_contains_title(self):
         """
