@@ -96,7 +96,7 @@ def create_epub_two_authors() -> io.BytesIO:
     stream.seek(0)
     return stream
 
-def create_epub_nested_chapters() -> io.BytesIO:
+def create_epub_nested_chapters(content: str | None = None) -> io.BytesIO:
     """
     Creates an EPUB file stream with a title, one author, and three chapters,
     containing 2-3 nested subchapters.
@@ -112,7 +112,7 @@ def create_epub_nested_chapters() -> io.BytesIO:
 
     # Create chapters and subchapters
     c1 = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
-    c1.content = '<h1>Chapter 1</h1><p>Content of chapter 1.</p>'
+    c1.content = f'<h1>Chapter 1</h1><p>{content or "Content of chapter 1."}</p>'
     c1.id = 'chap_01'
 
     sc1_1 = epub.EpubHtml(title='Subchapter 1.1', file_name='sub_chap_01_01.xhtml', lang='en')
