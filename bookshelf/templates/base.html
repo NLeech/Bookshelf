@@ -74,7 +74,7 @@
                 if (isExpanding) {
                     target.style.maxHeight = target.scrollHeight + 'px';
                     target.classList.add('expanded');
-                    btn.textContent = 'Show less';
+                    btn.textContent = 'Less';
                     
                     // Allow content to be truly responsive after transition (e.g., on window resize)
                     target.addEventListener('transitionend', function handler() {
@@ -91,7 +91,7 @@
                     
                     target.classList.remove('expanded');
                     target.style.maxHeight = '120px';
-                    btn.textContent = 'Show more';
+                    btn.textContent = 'More';
                     
                     target.addEventListener('transitionend', function handler() {
                         if (!target.classList.contains('expanded')) {
@@ -110,8 +110,8 @@
 
                     // 1. Batch Read
                     elements.forEach(el => {
-                        const parentCol = el.closest('.flex-column');
-                        const btn = parentCol ? parentCol.querySelector('.expand-btn') : null;
+                        const card = el.closest('.card');
+                        const btn = card ? card.querySelector('.expand-btn') : null;
                         if (!btn) return;
 
                         results.push({
