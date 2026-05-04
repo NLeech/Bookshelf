@@ -9,7 +9,7 @@
         <h5 class="mb-3">Filters</h5>
         
         {% url 'library:author' author.id as hx_url %}
-        {% include "library/include/_filters.html" with hx_url=hx_url hx_target="#authorTabsContent" %}
+        {% include "library/include/filters.html" with hx_url=hx_url hx_target="#authorTabsContent" %}
     </aside>
 
     <!-- Right Content: Author Details & Books -->

@@ -8,7 +8,7 @@
     <aside class="sidebar-pane">
         <h5 class="mb-3">Filters</h5>
         {% url 'library:book_list' as hx_url %}
-        {% include "library/include/_filters.html" with hx_url=hx_url hx_target="#books_list-result" %}
+        {% include "library/include/filters.html" with hx_url=hx_url hx_target="#books_list-result" %}
 
         <hr>
 
