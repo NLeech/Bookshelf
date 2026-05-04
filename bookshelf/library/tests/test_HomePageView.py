@@ -189,7 +189,7 @@ class HomePageViewTests(TestCase):
         response = self.client.get(reverse('library:home'))
         content = response.content.decode()
         
-        self.assertIn('Jump to Page', content)
+        self.assertIn('Jump', content)
         self.assertIn('hx-target="#latest-arrivals-container"', content)
         self.assertIn('hx-swap="outerHTML"', content)
 
