@@ -1,22 +1,15 @@
-from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group, Permission
+from django.contrib.auth.models import Group
 from django.core.files.base import ContentFile
-from django.utils.text import Truncator
-from parameterized import parameterized
-
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import Author, Language, Book
 from library.tests.epub_test_utils import create_epub_nested_chapters
 
 User = get_user_model()
 
 
-@override_settings(STORAGES={
-    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
-    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
-})
-class AccessControlTests(TestCase):
+class AccessControlTests(BaseTestCase):
     """
     Tests for book access control, including authentication, permissions,
     and content truncation.

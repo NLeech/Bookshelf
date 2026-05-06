@@ -1,5 +1,8 @@
 # Library App Test Cases
 
+## Test Setup & Environment
+- Tests involving models with file or image fields shouls use BaseTestCase as the base class.
+
 ## Admin Interface (BookAdminTest)
 1. **test_book_admin_registered**: Verifies BookAdmin is registered.
 2. **test_book_admin_list_display**: Verifies list display fields in BookAdmin.

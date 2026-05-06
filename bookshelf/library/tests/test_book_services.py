@@ -1,12 +1,11 @@
 import io
-import os
 import pyzipper
 from unittest import mock
-from django.test import TestCase
 from django.conf import settings
 from django.core.files.base import ContentFile
 from parameterized import parameterized
 
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import Book, Language, Author, Genre, BookSeries
 from library.services import (
     get_book_extractor,
@@ -27,7 +26,8 @@ class ChapterMock:
         self.subchapters = subchapters or []
         self.flat_index = None
 
-class BookServicesTest(TestCase):
+
+class BookServicesTest(BaseTestCase):
     def setUp(self):
         self.language = Language.objects.create(code='en', name='English')
 
@@ -51,9 +51,9 @@ class BookServicesTest(TestCase):
         
         extractor = get_book_extractor(book)
         self.assertIsInstance(extractor, expected_cls)
-        # Cleanup file
+        # Cleanup file (BaseTestCase handles MEDIA_ROOT cleanup, but closing is good)
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     @parameterized.expand([
         ("zip_epub", ".epub", create_epub_one_author, EpubBookFile),
@@ -74,9 +74,8 @@ class BookServicesTest(TestCase):
         
         extractor = get_book_extractor(book)
         self.assertIsInstance(extractor, expected_cls)
-        # Cleanup file
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     def test_get_book_extractor_unsupported(self):
         """Test with unsupported extension."""
@@ -85,9 +84,8 @@ class BookServicesTest(TestCase):
         
         extractor = get_book_extractor(book)
         self.assertIsNone(extractor)
-        # Cleanup file
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     def test_get_book_extractor_invalid_zip(self):
         """Test with invalid or damaged ZIP file."""
@@ -100,9 +98,8 @@ class BookServicesTest(TestCase):
             self.assertIsNone(extractor)
             self.assertTrue(any("Failed to extract book from ZIP" in output for output in cm.output))
         
-        # Cleanup file
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     def test_get_book_extractor_empty_zip(self):
         """Test with empty ZIP file."""
@@ -116,9 +113,8 @@ class BookServicesTest(TestCase):
         
         extractor = get_book_extractor(book)
         self.assertIsNone(extractor)
-        # Cleanup file
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     def test_get_book_extractor_zip_unsupported(self):
         """Test extraction from ZIP containing unsupported file extension."""
@@ -132,9 +128,8 @@ class BookServicesTest(TestCase):
         
         extractor = get_book_extractor(book)
         self.assertIsNone(extractor)
-        # Cleanup file
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     def test_flatten_chapters_nested(self):
         """Test flattening of nested chapters."""
@@ -209,7 +204,7 @@ class BookServicesTest(TestCase):
         self.assertEqual(content_type, expected_type)
         
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     def test_get_book_file_content_mimetype_registration(self):
         """Specifically cover mimetypes.add_type lines by mocking types_map to be empty."""
@@ -228,7 +223,7 @@ class BookServicesTest(TestCase):
                 mock_add.assert_any_call('application/x-fictionbook+xml', '.fb2')
 
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     def test_get_book_file_content_missing_file(self):
         """Test get_book_file_content with book.file = None."""
@@ -252,7 +247,7 @@ class BookServicesTest(TestCase):
         self.assertIsNone(content)
         
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     def test_get_book_file_content_zip_exception(self):
         """Test get_book_file_content ZIP extraction exception."""
@@ -265,22 +260,22 @@ class BookServicesTest(TestCase):
             self.assertTrue(any("Failed to extract book from ZIP" in output for output in cm.output))
 
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     def test_get_book_file_content_read_exception(self):
         """Test get_book_file_content file read exception."""
         book = Book.objects.create(title="Read Exception", language=self.language)
         book.file.save("test.epub", ContentFile(b"content"))
         
-        # Mock Path.read_bytes to raise an exception
-        with mock.patch('library.services.Path.read_bytes', side_effect=Exception("Read error")):
+        # Mock book.file.read to raise an exception
+        with mock.patch.object(Book.file.field.attr_class, 'read', side_effect=Exception("Read error")):
             with self.assertLogs('library.services', level='ERROR') as cm:
                 filename, content, content_type = get_book_file_content(book)
                 self.assertIsNone(filename)
                 self.assertTrue(any("Failed to read book file" in output for output in cm.output))
 
         if book.file:
-            os.remove(book.file.path)
+            book.file.close()
 
     def test_get_languages_with_filtered_queryset(self):
         """Verify get_languages() returns correct book counts when filtered."""

@@ -1,17 +1,13 @@
 from datetime import timedelta
-from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from parameterized import parameterized
 
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import Author, Language, Genre, Book, BookSeries, BookSeriesLink
 
 
-@override_settings(STORAGES={
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-})
-class AuthorDetailViewTests(TestCase):
+class AuthorDetailViewTests(BaseTestCase):
     """
     Tests for the AuthorDetailView in library.views.
     """

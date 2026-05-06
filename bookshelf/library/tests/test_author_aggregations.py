@@ -1,8 +1,8 @@
-from django.test import TestCase
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import Author, Book, Language, Genre
 from library.services import get_author_languages, get_author_genres_tree
 
-class AuthorAggregationsTest(TestCase):
+class AuthorAggregationsTest(BaseTestCase):
     @classmethod
     def setUpTestData(cls):
         cls.author_a = Author.objects.create(first_name='Author', last_name='A')

@@ -1,5 +1,5 @@
-from django.test import TestCase
 from django.contrib.admin.sites import AdminSite
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import Book, Genre, BookSeries, Author, Language
 from library.admin import BookAdmin, GenreAdmin, BookSeriesAdmin
 
@@ -8,8 +8,9 @@ class MockRequest:
     pass
 
 
-class BookAdminTest(TestCase):
+class BookAdminTest(BaseTestCase):
     def setUp(self):
+        super().setUp()
         self.site = AdminSite()
         self.book_admin = BookAdmin(Book, self.site)
         self.language = Language.objects.create(code='en', name='English')

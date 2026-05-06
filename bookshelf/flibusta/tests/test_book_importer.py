@@ -2,13 +2,6 @@ from django.test import TestCase
 from unittest.mock import patch, MagicMock, call
 import io
 import os
-import zipfile
-import pyzipper
-import shutil
-import tempfile
-from django.core.files import File
-from django.conf import settings
-from django.test import override_settings
 
 from flibusta.book_importer import (
     BookImporter, LanguageFilter, FormatFilter, GenreFilter,
@@ -22,10 +15,12 @@ from flibusta.models import (
 from library.models import Author, Genre, Book, Language, BookSeries, BookSeriesLink
 from library.tests.epub_test_utils import create_epub_with_cover, create_epub_with_isbn
 from library.tests.fb2_test_utils import create_simple_fb2
+from bookshelf.tests.base_test import BaseTestCase
 
 
-class TestBookFilters(TestCase):
+class TestBookFilters(BaseTestCase):
     def setUp(self):
+        super().setUp()
         self.genre_sf = FlibustaGenre.objects.create(genre_code='sf', genre_desc='Sci-Fi', genre_meta='Fiction')
         self.book_ru = FlibustaBook.objects.create(id=1, title='Book RU', lang='ru', file_type='fb2', md5='md5_1')
         self.book_en = FlibustaBook.objects.create(id=2, title='Book EN', lang='en', file_type='epub', md5='md5_2')
@@ -69,17 +64,9 @@ class TestBookFilters(TestCase):
         self.assertEqual(qs.count(), 0)
 
 
-# Create a temporary directory for media files
-temp_media_root = tempfile.mkdtemp()
-
-@override_settings(MEDIA_ROOT=temp_media_root)
-class TestBookImporterService(TestCase):
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(temp_media_root, ignore_errors=True)
-
+class TestBookImporterService(BaseTestCase):
     def setUp(self):
+        super().setUp()
         self.importer = BookImporter()
         self.lang_ru = Language.objects.create(code='ru', name='Russian')
 
@@ -397,13 +384,7 @@ class TestUtilityFunctions(TestCase):
         mock_process.assert_not_called()
 
 
-@override_settings(MEDIA_ROOT=temp_media_root)
-class TestBookImporterMetadata(TestCase):
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        shutil.rmtree(temp_media_root, ignore_errors=True)
-
+class TestBookImporterMetadata(BaseTestCase):
     def setUp(self):
         self.importer = BookImporter()
         self.lang_en = Language.objects.create(code='en', name='English')

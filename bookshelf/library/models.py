@@ -5,6 +5,18 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from imagekit.models import ImageSpecField
 from imagekit.processors import ResizeToFill
+from django.core.files.storage import storages
+from django.utils.functional import LazyObject
+
+
+class CloudStorage(LazyObject):
+    """ Lazy initialization, delays the evaluation of the storage until it’s actually needed, 
+        allowing using 'override_settings' in tests without issues. """
+    def _setup(self):
+        self._wrapped = storages['cloud']
+
+
+cloud_storage = CloudStorage()
 
 
 class BaseModel(models.Model):
@@ -245,7 +257,7 @@ class Book(BaseModel):
     language = models.ForeignKey('Language', on_delete=models.RESTRICT, related_name='books',
                                  verbose_name='Language')
     isbn = models.DecimalField(max_digits=13, decimal_places=0, default=0, verbose_name='ISBN')
-    file = models.FileField(upload_to='books/', null=True, blank=True, verbose_name='Book File')
+    file = models.FileField(upload_to='books/', null=True, blank=True, verbose_name='Book File', storage=cloud_storage)
     size = models.PositiveIntegerField(default=0, verbose_name='File size (bytes)')
     file_type = models.CharField(max_length=20, blank=True, verbose_name='File type')
 
