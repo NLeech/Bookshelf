@@ -5,6 +5,18 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from imagekit.models import ImageSpecField
 from imagekit.processors import ResizeToFill
+from django.core.files.storage import storages
+from django.utils.functional import LazyObject
+
+
+class CloudStorage(LazyObject):
+    """ Lazy initialization, delays the evaluation of the storage until it’s actually needed, 
+        allowing using 'override_settings' in tests without issues. """
+    def _setup(self):
+        self._wrapped = storages['cloud']
+
+
+cloud_storage = CloudStorage()
 
 
 class BaseModel(models.Model):

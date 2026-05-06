@@ -1,14 +1,13 @@
 import io
-import os
 import pyzipper
-from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.core.files.base import ContentFile
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group, Permission
+from django.contrib.auth.models import Group
 from parameterized import parameterized
 
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import Author, Language, Book
 from library.tests.epub_test_utils import create_epub_nested_chapters
 from library.tests.fb2_test_utils import create_fb2_nested_chapters
@@ -16,11 +15,7 @@ from library.tests.fb2_test_utils import create_fb2_nested_chapters
 User = get_user_model()
 
 
-@override_settings(STORAGES={
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-})
-class BookDownloadViewTests(TestCase):
+class BookDownloadViewTests(BaseTestCase):
     """
     Tests for the BookDownloadView in library.views.
     """
@@ -35,18 +30,11 @@ class BookDownloadViewTests(TestCase):
 
         # User for authentication
         cls.user = User.objects.create_user(username='testuser', email='test@example.com', password='password')
-        group = Group.objects.get(name='Book access')
+        group, _ = Group.objects.get_or_create(name='Book access')
         cls.user.groups.add(group)
 
     def setUp(self):
         self.client.login(username='testuser', password='password')
-
-    def tearDown(self):
-        """Clean up book files created during tests."""
-        for book in Book.objects.all():
-            if book.file:
-                if os.path.exists(book.file.path):
-                    os.remove(book.file.path)
 
     @parameterized.expand([
         ("epub", "Test EPUB", "epub", create_epub_nested_chapters, 'application/epub+zip', 'Doe_John_-_Test_EPUB.epub', False),
@@ -128,5 +116,10 @@ class BookDownloadViewTests(TestCase):
         """
         Verify 404 for non-existent book ID.
         """
-        response = self.client.get(reverse('library:book_download', args=[999]))
+        # Make sure the book doesn't exist
+        invalid_id = 999
+        while Book.objects.filter(id=invalid_id).exists():
+            invalid_id += 1
+            
+        response = self.client.get(reverse('library:book_download', args=[invalid_id]))
         self.assertEqual(response.status_code, 404)

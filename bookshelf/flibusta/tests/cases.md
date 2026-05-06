@@ -1,5 +1,8 @@
 # Complete List of Test Cases
 
+## Test Setup & Environment
+- Tests involving models with file or image fields shouls use BaseTestCase as the base class.
+
 ## Filtering & Pre-processing (TestBookFilters)
 1.  **test_language_filter**: Verifies LanguageFilter correctly filters FlibustaBook by language code.
 2.  **test_format_filter**: Verifies FormatFilter correctly filters FlibustaBook by file extension/type (e.g., 'fb2', 'epub').

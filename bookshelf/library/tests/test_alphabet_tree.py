@@ -1,13 +1,10 @@
-from django.test import TestCase, override_settings
 from library.models import Author, Book, Language
 from library.services import get_alphabet_tree, find_alphabet_node, AlphabetTree
 from parameterized import parameterized
+from bookshelf.tests.base_test import BaseTestCase
 
-@override_settings(STORAGES={
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-})
-class GetAlphabetTreeTest(TestCase):
+
+class GetAlphabetTreeTest(BaseTestCase):
     """
     Tests for the get_alphabet_tree function.
     """
@@ -241,7 +238,7 @@ class GetAlphabetTreeTest(TestCase):
         self.assertEqual(a_node.quantity, 1)
 
 
-class FindAlphabetNodeTest(TestCase):
+class FindAlphabetNodeTest(BaseTestCase):
     """
     Tests for the find_alphabet_node function.
     """

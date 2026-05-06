@@ -1,7 +1,7 @@
-from django.test import TestCase
 from django.core.exceptions import ValidationError
 from parameterized import parameterized_class, parameterized
 
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import BookSeries, Genre, Author, Book, Language
 
 
@@ -13,7 +13,7 @@ from library.models import BookSeries, Genre, Author, Book, Language
         (Author,),
     ]
 )
-class LoopHierarchyTest(TestCase):
+class LoopHierarchyTest(BaseTestCase):
     def test_wrong_parent(self):
         instance = self.model()
         instance.name = 'Test'
@@ -51,7 +51,7 @@ class LoopHierarchyTest(TestCase):
         self.assertEqual(self.model.objects.count(), 2)
 
 
-class AuthorHierarchyTest(TestCase):
+class AuthorHierarchyTest(BaseTestCase):
     def test_wrong_parent(self):
         main_author = Author.objects.create(last_name='Main')
         main_author.full_clean()
@@ -64,7 +64,7 @@ class AuthorHierarchyTest(TestCase):
             child_author_2.full_clean()
 
 
-class BookModelTest(TestCase):
+class BookModelTest(BaseTestCase):
     def test_book_str(self):
         language = Language.objects.create(code='en', name='English')
         book = Book.objects.create(title='Test Book', language=language)

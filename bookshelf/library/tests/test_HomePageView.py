@@ -1,21 +1,14 @@
 from datetime import timedelta
-from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django.contrib.auth import get_user_model
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import Book, Language, Author, BookSeries
 
 User = get_user_model()
 
-@override_settings(STORAGES={
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-    },
-})
-class HomePageViewTests(TestCase):
+
+class HomePageViewTests(BaseTestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(username='testuser', password='password')
