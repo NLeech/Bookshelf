@@ -15,21 +15,18 @@ class Chapter:
         content: HTML content of the chapter.
         subchapters: List of nested Chapter objects.
         level: Depth level of the chapter in the hierarchy.
-        parent: Parent Chapter object if any.
     """
 
     def __init__(self,
                  title: str,
                  content: str | None = None,
                  level: int = 0,
-                 parent: 'Chapter | None' = None,
                  chapter_id: str | None = None):
         self.id = chapter_id
         self.title = title
         self.content = content
         self.subchapters: list['Chapter'] = []
         self.level = level
-        self.parent = parent
 
 
     @property

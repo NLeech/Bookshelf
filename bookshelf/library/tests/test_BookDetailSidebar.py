@@ -1,15 +1,12 @@
-from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import Author, Language, Book
 
 User = get_user_model()
 
-@override_settings(STORAGES={
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-})
-class BookDetailSidebarTests(TestCase):
+
+class BookDetailSidebarTests(BaseTestCase):
     """
     Tests for the sidebar in BookDetailView.
     """

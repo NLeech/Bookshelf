@@ -275,7 +275,33 @@ CELERY_TASK_TIME_LIMIT = 60 * 60 # 1 hour
 CELERY_RESULT_BACKEND = 'django-db'
 CELERY_CACHE_BACKEND = 'django-cache'
 
-CELERY_BROKER_URL = f'redis://{os.environ.get("REDIS_CREDENTIALS", default="")}{os.environ.get("REDIS_ADDRESS")}'
+REDIS_BASE_URL = f'redis://{os.environ.get("REDIS_CREDENTIALS", default="")}{os.environ.get("REDIS_ADDRESS", "broker")}'
+
+CELERY_BROKER_URL = f'{REDIS_BASE_URL}/0'
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": f'{REDIS_BASE_URL}', 
+        "OPTIONS": {
+            "db": 1,
+            "socket_connect_timeout": 5,
+            "socket_timeout": 15,
+        },
+        "KEY_PREFIX": "bookshelf",
+    },
+    "book_chapters": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": f'{REDIS_BASE_URL}', 
+        "TIMEOUT": 60 * 60 * 12, # 12 hours
+        "OPTIONS": {
+            "db": 2,
+            "socket_connect_timeout": 5,
+            "socket_timeout": 15,
+        },
+        "KEY_PREFIX": "book_chapters",
+    },
+}
 
 # Flibusta library
 # Authors and genres data can be found here:
@@ -284,3 +310,24 @@ FLIBUSTA_BASE_URL = 'https://flibusta.is'
 BOOK_PWD = os.environ.get('BOOK_PWD', default='1booKshelf23').encode('utf-8')
 
 PAGINATE_BY = 50
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "cloud": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "access_key": os.environ.get('AWS_ACCESS_KEY_ID'),
+            "secret_key": os.environ.get('AWS_SECRET_ACCESS_KEY'),
+            "bucket_name": os.environ.get('AWS_STORAGE_BUCKET_NAME'),
+            "region_name": os.environ.get('AWS_S3_REGION_NAME'),
+            "endpoint_url": os.environ.get('AWS_S3_ENDPOINT_URL'),
+        },
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+DEFAULT_FILE_STORAGE = "storages.backends.s3.S3Storage"

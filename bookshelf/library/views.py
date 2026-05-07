@@ -7,14 +7,15 @@ from django.http import FileResponse, HttpRequest, Http404
 from django.shortcuts import render, get_object_or_404
 from django.views import generic
 from django.conf import settings
-from django.db.models import Prefetch, Q
 from django.utils import timezone
 from django.utils.text import Truncator
 from django.core.paginator import Paginator
 from django.urls import reverse
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.core.cache import caches
 
-from .models import Author, BookSeriesLink, Book, Genre, Language
+from library.book_utils.book_file import Chapter
+from .models import Author, Book, Genre, Language
 from .services import (
     get_alphabet_tree,
     get_languages,
@@ -317,6 +318,19 @@ class BookDetailView(LoginRequiredMixin, generic.DetailView):
     template_name = 'library/book.html'
     context_object_name = 'book'
 
+    def _get_chapters(self, book: Book) -> list['Chapter'] | None:
+        """Helper method to retrieve chapters for a given book.
+
+        Arguments:
+            book: Book instance for which to retrieve chapters.
+        Returns:
+            List of Chapter objects if an extractor is available, otherwise None.
+        """
+        extractor = get_book_extractor(book)
+        if extractor:
+            return extractor.chapters
+        return None
+
     def get_queryset(self):
         return super().get_queryset().prefetch_related('authors')
 
@@ -325,9 +339,13 @@ class BookDetailView(LoginRequiredMixin, generic.DetailView):
         book = self.get_object()
         chapter_index = self.kwargs.get('chapter_index', 0)
 
-        extractor = get_book_extractor(book)
-        if extractor:
-            chapters = extractor.chapters
+        cache = caches['book_chapters']
+        chapters = cache.get(f'book_{book.id}_chapters')
+        if chapters is None:
+            chapters = self._get_chapters(book)
+            cache.set(f'book_{book.id}_chapters', chapters)
+
+        if chapters:
             flat_chapters, _ = flatten_chapters(chapters)
 
             context['chapters'] = chapters  # Original hierarchical list for TOC

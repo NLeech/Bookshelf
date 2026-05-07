@@ -79,8 +79,6 @@ echo "YOUR_COPIED_PAT_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --pa
 ## Setting up
 - Clone the project repository and navigate to the project directory
 ```bash
-mkdir testdir
-cd testdir
 git clone https://github.com/NLeech/Bookshelf.git
 cd Bookshelf
 ```
@@ -132,9 +130,9 @@ source .venv/bin/activate
 uv sync
 ```
 - Create a .env_ file with the necessary environment variables
-- run PostgreSQL server
+- run PostgreSQL and Redis servers
 ```bash
-sudo docker compose -f postgres-compose.yml up -d
+sudo docker compose -f db-compose.yml up -d
 ```
 - Apply database migrations
 ```bash

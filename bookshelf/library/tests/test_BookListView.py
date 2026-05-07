@@ -1,17 +1,12 @@
-from django.test import TestCase, override_settings
 from django.urls import reverse
-from django.conf import settings
 from parameterized import parameterized
 
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import Author, Book, Language, Genre
 from library.services import AlphabetTree
 
 
-@override_settings(STORAGES={
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-})
-class BookListViewTests(TestCase):
+class BookListViewTests(BaseTestCase):
     """
     Tests for the BookListView in library.views.
     """

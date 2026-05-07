@@ -1,10 +1,10 @@
-from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.core.files.base import ContentFile
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group, Permission
+from django.contrib.auth.models import Group
 from parameterized import parameterized
 
+from bookshelf.tests.base_test import BaseTestCase
 from library.models import Author, Language, Book
 from library.tests.epub_test_utils import create_epub_nested_chapters
 from library.tests.fb2_test_utils import create_fb2_nested_chapters
@@ -12,11 +12,7 @@ from library.tests.fb2_test_utils import create_fb2_nested_chapters
 User = get_user_model()
 
 
-@override_settings(STORAGES={
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-})
-class BookDetailViewTests(TestCase):
+class BookDetailViewTests(BaseTestCase):
     """
     Tests for the BookDetailView in library.views.
     """
@@ -50,6 +46,12 @@ class BookDetailViewTests(TestCase):
 
     def setUp(self):
         self.client.login(username='testuser', password='password')
+
+    def tearDown(self):
+        # Ensure files are closed
+        for book in Book.objects.all():
+            if book.file:
+                book.file.close()
 
     @parameterized.expand([
         ('epub', 'epub_book'),

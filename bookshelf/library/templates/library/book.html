@@ -40,12 +40,12 @@
             {% partialdef book_content inline %}
                 {% if current_chapter %}
                     <div class="chapter-container mx-auto" ">
-                        {% include "library/include/_chapter_navigation.html" %}
+                        {% include "library/include/chapter_navigation.html" %}
                         <h2 class="mb-4">{{ current_chapter.title }}</h2>
                         <div class="chapter-body">
                             {{ current_chapter.content|safe }}
                         </div>
-                        {% include "library/include/_chapter_navigation.html" %}
+                        {% include "library/include/chapter_navigation.html" %}
                     </div>
                 {% else %}
                     <div class="text-center mt-5">
