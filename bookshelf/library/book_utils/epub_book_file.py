@@ -142,14 +142,13 @@ class EpubBookFile(BookFile):
 
         return None
 
-    def _process_toc_node(self, toc_node: Any, level: int = 0, parent: Chapter | None = None) -> Chapter:
+    def _process_toc_node(self, toc_node: Any, level: int = 0) -> Chapter:
         """Recursively processes a TOC node to create a Chapter object.
 
         Args:
             toc_node: A node from the EPUB table of contents, which can be a
                 tuple (link, children) or a single link.
             level: The depth level of the chapter in the hierarchy (0 for top-level).
-            parent: The parent Chapter object, or None if this is top-level.
 
         Returns:
             A Chapter object representing the current TOC node and its subchapters.
@@ -176,13 +175,12 @@ class EpubBookFile(BookFile):
             chapter_id=link.href,
             title=title,
             content=content_html,
-            level=level,
-            parent=parent
+            level=level
         )
 
         for child_node in children:
             chapter.subchapters.append(
-                self._process_toc_node(child_node, level + 1, chapter)
+                self._process_toc_node(child_node, level + 1)
             )
 
         return chapter
@@ -195,7 +193,7 @@ class EpubBookFile(BookFile):
 
         if toc and isinstance(toc, Iterable):
             for toc_node in toc:
-                chapters.append(self._process_toc_node(toc_node,  0, None))
+                chapters.append(self._process_toc_node(toc_node,  0))
         else:
             # Fallback to spine if TOC is not available
             for item_id, _ in self.book.spine:

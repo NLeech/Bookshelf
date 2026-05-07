@@ -132,6 +132,7 @@
 6. **test_author_detail_view_context_data**: Verifies that `available_languages` and `available_genres_tree` are correctly populated.
 
 ## Book Detail View (BookDetailViewTests)
+- *Note: These tests run with DummyCache by default to ensure isolation.*
 1. **test_book_detail_view_status_code**: Verifies the view returns 200 OK and uses the correct template for both EPUB and FB2.
 2. **test_book_detail_view_404**: Verifies the view returns 404 for a non-existent book.
 3. **test_book_detail_view_content**: Verifies hierarchical TOC structure and chapter content in context and response for both EPUB and FB2.
@@ -143,6 +144,11 @@
 9. **test_book_detail_last_chapter_navigation**: Verifies navigation context for the last chapter (next_chapter is None).
 10. **test_book_detail_navigation_rendering**: Verifies that navigation links with hx-get are rendered correctly in the HTML.
 11. **test_book_detail_view_invalid_chapter_index**: Verifies that an invalid chapter index defaults to the first chapter.
+
+## Book Detail View Cache (BookDetailViewCacheTests)
+1. **test_chapters_cache_population**: Verifies that a request to BookDetailView populates the cache.
+2. **test_chapters_cache_hit**: Verifies that subsequent requests retrieve data from the cache (mocked extraction).
+3. **test_cache_key_isolation**: Verifies that different books use different cache keys and don't overlap.
 
 ## Book Detail Sidebar (BookDetailSidebarTests)
 1. **test_book_sidebar_contains_title**: Verify that the book title is present in the sidebar.

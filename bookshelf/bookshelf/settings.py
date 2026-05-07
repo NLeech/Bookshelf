@@ -275,7 +275,33 @@ CELERY_TASK_TIME_LIMIT = 60 * 60 # 1 hour
 CELERY_RESULT_BACKEND = 'django-db'
 CELERY_CACHE_BACKEND = 'django-cache'
 
-CELERY_BROKER_URL = f'redis://{os.environ.get("REDIS_CREDENTIALS", default="")}{os.environ.get("REDIS_ADDRESS")}'
+REDIS_BASE_URL = f'redis://{os.environ.get("REDIS_CREDENTIALS", default="")}{os.environ.get("REDIS_ADDRESS", "broker")}'
+
+CELERY_BROKER_URL = f'{REDIS_BASE_URL}/0'
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": f'{REDIS_BASE_URL}', 
+        "OPTIONS": {
+            "db": 1,
+            "socket_connect_timeout": 5,
+            "socket_timeout": 15,
+        },
+        "KEY_PREFIX": "bookshelf",
+    },
+    "book_chapters": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": f'{REDIS_BASE_URL}', 
+        "TIMEOUT": 60 * 60 * 12, # 12 hours
+        "OPTIONS": {
+            "db": 2,
+            "socket_connect_timeout": 5,
+            "socket_timeout": 15,
+        },
+        "KEY_PREFIX": "book_chapters",
+    },
+}
 
 # Flibusta library
 # Authors and genres data can be found here:
