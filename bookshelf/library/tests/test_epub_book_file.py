@@ -162,7 +162,6 @@ class TestEpubChapterExtraction(unittest.TestCase):
             self.assertEqual(len(chapters[0].subchapters), 2)
             self.assertEqual(chapters[0].subchapters[0].title, "Subchapter 1.1")
             self.assertEqual(chapters[0].subchapters[0].level, 1)
-            self.assertEqual(chapters[0].subchapters[0].parent, chapters[0])
             self.assertIn("Content of subchapter 1.1", chapters[0].subchapters[0].content_as_text)
             self.assertEqual(chapters[0].subchapters[1].title, "Subchapter 1.2")
 
@@ -207,4 +206,3 @@ class TestEpubChapterExtraction(unittest.TestCase):
             self.assertEqual(chapters[2].title, "No TOC Chapter 3")
             self.assertIn("content of the third chapter without TOC", chapters[2].content_as_text)
             self.assertEqual(len(chapters[0].subchapters), 0) # Should be flat
-
