@@ -205,3 +205,11 @@
 6. **test_book_download_authenticated_with_group**: Verify that authenticated users with 'book_access' can download books.
 7. **test_book_item_labels**: Verify "Preview" vs "Read" labels in book_item.html based on user permissions.
 8. **test_book_item_download_visibility**: Verify download link visibility in book_item.html based on user permissions.
+
+## E2E Tests (Playwright)
+### Homepage E2ETest (test_e2e_homepage.py)
+1. **test_homepage_anonymous_visibility**: Verifies homepage visibility for anonymous users, ensuring personal sections are hidden.
+2. **test_homepage_authenticated_visibility**: Verifies homepage visibility for authenticated users, ensuring personal sections are visible.
+3. **test_htmx_search**: Parameterized test verifying HTMX search functionality for Books, Authors, and Series, including "no results" cases.
+4. **test_htmx_pagination_navigation**: Verifies HTMX pagination navigation for Latest Arrivals, including button states and page transitions.
+5. **test_htmx_pagination_jump**: Verifies HTMX pagination "Jump to page" functionality.

@@ -35,4 +35,5 @@ dev = [
     "django-extensions",
     "ipython>=9.11.0",
     "parameterized>=0.9.0",
+    "playwright>=1.59.0",
 ]
