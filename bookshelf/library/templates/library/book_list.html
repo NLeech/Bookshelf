@@ -13,9 +13,13 @@
         <hr>
 
         <h5 class="mb-3">Alphabet Tree</h5>
-        <ul class="tree-list ps-0">
-            {% include "library/include/alphabet_tree_node.html" with nodes=alphabet_tree.entries id_prefix="book_alpha" hx_url=hx_url hx_target="#books_list-result" %}
-        </ul>
+        <div id="alphabet-tree-sidebar">
+            {% partialdef alphabet_tree_content inline %}
+                <ul class="tree-list ps-0">
+                    {% include "library/include/alphabet_tree_node.html" with nodes=alphabet_tree.entries id_prefix="book_alpha" hx_url=hx_url hx_target="#books_list-result" %}
+                </ul>
+            {% endpartialdef %}
+        </div>
     </aside>
 
     <!-- Right Content: Books -->
@@ -28,6 +32,11 @@
         <div class="container-fluid py-4">
             <div id="books_list-result">
                 {% partialdef books_list-result inline %}
+                    {% if request.headers.HX_Request and request.headers.HX_Trigger == 'filter-form' %}
+                        <div id="alphabet-tree-sidebar" hx-swap-oob="true">
+                            {% partial alphabet_tree_content %}
+                        </div>
+                    {% endif %}
                     <!-- Filters Summary -->
                     <div class="mb-3">
                         {% if selected_langs or selected_genres or filter or regex %}

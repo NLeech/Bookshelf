@@ -256,19 +256,7 @@ class BookListView(generic.ListView):
             qs = qs.filter(language__code__in=selected_langs)
 
         if selected_genres:
-            # Plan says: "including subgenres"
-            genre_ids = Genre.objects.filter(code__in=selected_genres).values_list('id', flat=True)
-            descendant_ids = set()
-
-            def get_descendants(parent_ids):
-                children = Genre.objects.filter(parent_id__in=parent_ids).values_list('id', flat=True)
-                if children:
-                    descendant_ids.update(children)
-                    get_descendants(children)
-
-            get_descendants(genre_ids)
-            all_genre_ids = set(genre_ids) | descendant_ids
-            qs = qs.filter(genres__id__in=all_genre_ids)
+            qs = qs.filter(genres__code__in=selected_genres)
 
         if regex_string:
             qs = qs.filter(title__iregex=regex_string)
@@ -283,11 +271,19 @@ class BookListView(generic.ListView):
         # Sidebar aggregates
         context['available_languages'] = get_languages(Book.objects.all())
         context['available_genres_tree'] = get_genres_tree(Book.objects.all())
-        alphabet_tree = get_alphabet_tree(Book.objects.all(), 'title')
-        context['alphabet_tree'] = alphabet_tree
 
         selected_lang_codes = self.request.GET.getlist('lang')
         selected_genre_codes = self.request.GET.getlist('genre')
+
+        tree_qs = Book.objects.all()
+        if selected_lang_codes:
+            tree_qs = tree_qs.filter(language__code__in=selected_lang_codes)
+
+        if selected_genre_codes:
+            tree_qs = tree_qs.filter(genres__code__in=selected_genre_codes)
+
+        alphabet_tree = get_alphabet_tree(tree_qs.distinct(), 'title')
+        context['alphabet_tree'] = alphabet_tree
 
         context['selected_langs'] = selected_lang_codes
         context['selected_genres'] = selected_genre_codes

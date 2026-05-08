@@ -27,10 +27,27 @@
 <script>
     function toggleChildren(parentCheckbox) {
         const container = parentCheckbox.closest('.genre-item');
+        
+        // 1. Check/Uncheck all descendants
         const childCheckboxes = container.querySelectorAll('.genre-children .genre-checkbox');
         childCheckboxes.forEach(cb => {
             cb.checked = parentCheckbox.checked;
         });
+
+        // 2. If unchecked, uncheck all ancestors
+        if (!parentCheckbox.checked) {
+            let current = container;
+            while (current) {
+                const parentItem = current.parentElement.closest('.genre-item');
+                if (!parentItem) break;
+                
+                const parentCheckboxInput = parentItem.querySelector(':scope > .form-check > .genre-checkbox');
+                if (parentCheckboxInput) {
+                    parentCheckboxInput.checked = false;
+                }
+                current = parentItem;
+            }
+        }
     }
 </script>
 {% endif %}

@@ -195,6 +195,9 @@
 8. **test_book_list_view_author_string_formatting**: Verify "Title by Author" vs "Title by Author et al.".
 9. **test_book_list_view_pagination_preserves_filters**: Verify pagination links preserve current filters.
 10. **test_book_list_view_filter_summary_human_readable**: Verify that active filters in summary show human-readable names.
+11. **test_alphabet_tree_oob_update**: Verify HTMX request returns OOB swap for alphabet tree containing filtered results.
+12. **test_alphabet_tree_respects_genre**: Verify alphabet tree counts and nodes respect active genre filter.
+13. **test_alphabet_tree_no_oob_on_tree_click**: Verify HTMX request from Alphabet Tree does NOT return OOB swap.
 
 ## Access Control (test_access_control.py)
 1. **test_book_detail_unauthenticated**: Verify that unauthenticated users are redirected to login.
