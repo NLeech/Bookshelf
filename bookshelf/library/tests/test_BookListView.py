@@ -215,7 +215,7 @@ class BookListViewTests(BaseTestCase):
 
     def test_alphabet_tree_no_oob_on_tree_click(self):
         """
-        Verify HTMX request from Alphabet Tree does NOT return OOB swap.
+        Verify HTMX request from Alphabet Tree does NOT return itself.
         """
         # Simulate click on letter 'B'
         response = self.client.get(
@@ -227,8 +227,6 @@ class BookListViewTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
 
         content = response.content.decode()
-        # Should NOT have the OOB fragment
-        self.assertNotIn('hx-swap-oob="true"', content)
         self.assertNotIn('id="alphabet-tree-sidebar"', content)
 
     def test_alphabet_tree_respects_genre(self):

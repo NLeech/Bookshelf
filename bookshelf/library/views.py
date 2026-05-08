@@ -26,7 +26,8 @@ from .services import (
     get_book_file_content,
     flatten_chapters,
     find_alphabet_node,
-    search_entities
+    search_entities,
+    get_descendants
 )
 
 
@@ -256,7 +257,10 @@ class BookListView(generic.ListView):
             qs = qs.filter(language__code__in=selected_langs)
 
         if selected_genres:
-            qs = qs.filter(genres__code__in=selected_genres)
+            genre_ids = Genre.objects.filter(code__in=selected_genres).values_list('id', flat=True)
+
+            all_genre_ids = set(genre_ids) | get_descendants(list(genre_ids))
+            qs = qs.filter(genres__id__in=all_genre_ids)
 
         if regex_string:
             qs = qs.filter(title__iregex=regex_string)
@@ -280,7 +284,10 @@ class BookListView(generic.ListView):
             tree_qs = tree_qs.filter(language__code__in=selected_lang_codes)
 
         if selected_genre_codes:
-            tree_qs = tree_qs.filter(genres__code__in=selected_genre_codes)
+            genre_ids = Genre.objects.filter(code__in=selected_genre_codes).values_list('id', flat=True)
+
+            all_genre_ids = set(genre_ids) | get_descendants(list(genre_ids))
+            tree_qs = tree_qs.filter(genres__id__in=all_genre_ids)
 
         alphabet_tree = get_alphabet_tree(tree_qs.distinct(), 'title')
         context['alphabet_tree'] = alphabet_tree
