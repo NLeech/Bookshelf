@@ -113,6 +113,14 @@
 20. **test_search_entities_empty_query**: Test search with empty query.
 21. **test_search_entities_no_results**: Test search with no matches.
 
+## Genre Services (GenreServicesTest)
+1. **test_get_descendants_logic**: Parameterized test verifying leaf-node identification for various inputs.
+    - **Scenarios**:
+        - Single parent -> returns its leaf descendants.
+        - Multiple parents -> returns leaf descendants of all parents.
+        - Leaf node as input -> returns empty set (not included).
+        - Non-existent ID -> returns empty set.
+
 ## Author List View (AuthorListViewTests)
 1. **test_author_list_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
 2. **test_author_list_view_pagination**: Verifies pagination works correctly (showing 50 authors per page).
@@ -195,6 +203,9 @@
 8. **test_book_list_view_author_string_formatting**: Verify "Title by Author" vs "Title by Author et al.".
 9. **test_book_list_view_pagination_preserves_filters**: Verify pagination links preserve current filters.
 10. **test_book_list_view_filter_summary_human_readable**: Verify that active filters in summary show human-readable names.
+11. **test_alphabet_tree_oob_update**: Verify HTMX request returns OOB swap for alphabet tree containing filtered results.
+12. **test_alphabet_tree_respects_genre**: Verify alphabet tree counts and nodes respect active genre filter.
+13. **test_alphabet_tree_no_oob_on_tree_click**: Verify HTMX request from Alphabet Tree does NOT return itself.
 
 ## Access Control (test_access_control.py)
 1. **test_book_detail_unauthenticated**: Verify that unauthenticated users are redirected to login.

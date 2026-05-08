@@ -32,45 +32,49 @@
             </div>
 
             <!-- Tabs Navigation -->
-            <ul class="nav nav-tabs mb-4" id="authorTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link {% if active_tab == 'alpha' %}active text-dark{% else %}text-muted{% endif %}" 
-                            id="alpha-tab" 
-                            hx-get="{% url 'library:author' author.id %}"
-                            hx-vals='{"tab": "alpha"}'
-                            hx-target="#authorTabsContent"
-                            hx-include="#filter-form"
-                            hx-push-url="true"
-                            hx-on:click="document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.remove('active', 'text-dark')); document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.add('text-muted')); this.classList.add('active', 'text-dark'); this.classList.remove('text-muted'); document.querySelector('#active-tab-input').value='alpha';"
-                            type="button" role="tab">All Books (A-Z)</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link {% if active_tab == 'recent' %}active text-dark{% else %}text-muted{% endif %}" 
-                            id="recent-tab" 
-                            hx-get="{% url 'library:author' author.id %}"
-                            hx-vals='{"tab": "recent"}'
-                            hx-target="#authorTabsContent"
-                            hx-include="#filter-form"
-                            hx-push-url="true"
-                            hx-on:click="document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.remove('active', 'text-dark')); document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.add('text-muted')); this.classList.add('active', 'text-dark'); this.classList.remove('text-muted'); document.querySelector('#active-tab-input').value='recent';"
-                            type="button" role="tab">Recently Added</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link {% if active_tab == 'series' %}active text-dark{% else %}text-muted{% endif %}" 
-                            id="series-tab" 
-                            hx-get="{% url 'library:author' author.id %}"
-                            hx-vals='{"tab": "series"}'
-                            hx-target="#authorTabsContent"
-                            hx-include="#filter-form"
-                            hx-push-url="true"
-                            hx-on:click="document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.remove('active', 'text-dark')); document.querySelectorAll('#authorTabs .nav-link').forEach(el => el.classList.add('text-muted')); this.classList.add('active', 'text-dark'); this.classList.remove('text-muted'); document.querySelector('#active-tab-input').value='series';"
-                            type="button" role="tab">Grouped by Series</button>
-                </li>
-            </ul>
+            <!-- A single click updates the books, the hidden filter inputs, and the tab highlighting all at once. -->
+            {% partialdef author_tabs inline %} 
+                <ul class="nav nav-tabs mb-4" id="authorTabs" role="tablist" hx-swap-oob="true">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if active_tab == 'alpha' %}active text-dark{% else %}text-muted{% endif %}" 
+                                id="alpha-tab" 
+                                hx-get="{% url 'library:author' author.id %}"
+                                hx-vals='{"tab": "alpha"}'
+                                hx-target="#authorTabsContent"
+                                hx-include="#filter-form"
+                                hx-push-url="true"
+                                type="button" role="tab">All Books (A-Z)</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if active_tab == 'recent' %}active text-dark{% else %}text-muted{% endif %}" 
+                                id="recent-tab" 
+                                hx-get="{% url 'library:author' author.id %}"
+                                hx-vals='{"tab": "recent"}'
+                                hx-target="#authorTabsContent"
+                                hx-include="#filter-form"
+                                hx-push-url="true"
+                                type="button" role="tab">Recently Added</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if active_tab == 'series' %}active text-dark{% else %}text-muted{% endif %}" 
+                                id="series-tab" 
+                                hx-get="{% url 'library:author' author.id %}"
+                                hx-vals='{"tab": "series"}'
+                                hx-target="#authorTabsContent"
+                                hx-include="#filter-form"
+                                hx-push-url="true"
+                                type="button" role="tab">Grouped by Series</button>
+                    </li>
+                </ul>
+            {% endpartialdef %}
 
             <!-- Tabs Content -->
             <div class="tab-content" id="authorTabsContent">
                 {% partialdef alpha_tab inline %}
+                    {% if request.headers.hx_request %}
+                        {% include "library/include/filters.html#filter_state" %}
+                        {% partial author_tabs %}
+                    {% endif %}
                     <div class="tab-pane fade {% if active_tab == 'alpha' %}show active{% endif %}" id="alpha" role="tabpanel">
                         <div class="accordion accordion-flush" id="alphaAccordion">
                             {% for book in books_alpha %}
@@ -94,6 +98,10 @@
                 {% endpartialdef %}
 
                 {% partialdef recent_tab inline %}
+                    {% if request.headers.hx_request %}
+                        {% include "library/include/filters.html#filter_state" %}
+                        {% partial author_tabs %}
+                    {% endif %}
                     <div class="tab-pane fade {% if active_tab == 'recent' %}show active{% endif %}" id="recent" role="tabpanel">
                         <div class="accordion accordion-flush" id="recentAccordion">
                             {% for book in books_recent %}
@@ -120,6 +128,10 @@
                 {% endpartialdef %}
 
                 {% partialdef series_tab inline %}
+                    {% if request.headers.hx_request %}
+                        {% include "library/include/filters.html#filter_state" %}
+                        {% partial author_tabs %}
+                    {% endif %}
                     <div class="tab-pane fade {% if active_tab == 'series' %}show active{% endif %}" id="series" role="tabpanel">
                         <div class="accordion" id="seriesAccordion">
                             {% for series_item in series_list %}

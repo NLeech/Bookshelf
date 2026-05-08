@@ -17,7 +17,7 @@
         <button hx-get="{{ hx_url }}?{% if node.regex %}regex={{ node.regex|urlencode }}{% else %}filter={{ node.filter|urlencode }}{% endif %}"
                 hx-target="{{ hx_target|default:'#authors_list' }}"
                 hx-swap="innerHTML"
-                hx-include="#filter-form"
+                hx-include="#filter-form input:not([name='filter']):not([name='regex']), #filter-form select"
                 hx-push-url="true"
                 class="btn btn-link p-0 border-0 text-decoration-none text-reset">
             {{ node }} ({{ node.quantity }})

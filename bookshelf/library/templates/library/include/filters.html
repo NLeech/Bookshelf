@@ -5,9 +5,19 @@
       hx-swap="innerHTML"
       hx-push-url="true">
     
-    {% if active_tab %}
-        <input type="hidden" name="tab" id="active-tab-input" value="{{ active_tab }}">
-    {% endif %}
+    {% partialdef filter_state inline %}
+        <div id="filter-form-state" hx-swap-oob="true">
+            {% if active_tab %}
+                <input type="hidden" name="tab" value="{{ active_tab }}">
+            {% endif %}
+            {% if filter %}
+                <input type="hidden" name="filter" value="{{ filter }}">
+            {% endif %}
+            {% if regex %}
+                <input type="hidden" name="regex" value="{{ regex }}">
+            {% endif %}
+        </div>
+    {% endpartialdef %}
 
     <div class="mb-4">
         <h6 class="border-bottom pb-1">Languages</h6>
