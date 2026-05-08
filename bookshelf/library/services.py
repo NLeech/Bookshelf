@@ -611,3 +611,25 @@ def search_entities(query: str) -> dict[str, Any]:
         'series_count': series_count,
         'total_count': authors_count + books_count + series_count,
     }
+
+
+def get_descendants(parent_ids: list[int]) -> set[int]:
+    """ Recursively get all descendant genre IDs for the given parent genre IDs.
+    
+    Args:
+        parent_ids: A list of genre ID.
+
+    Returns: A set of descendant genre IDs.
+    """
+    descendant_ids = set()
+    children = Genre.objects.filter(parent_id__in=parent_ids).values_list('id', flat=True)
+
+    for item in children:
+        # get only children without descendants (end nodes)
+        item_descendants_ids = get_descendants([item])
+        if item_descendants_ids:
+            descendant_ids.update(item_descendants_ids)
+        else:
+            descendant_ids.add(item)
+
+    return descendant_ids

@@ -14,7 +14,8 @@ from library.services import (
     get_book_file_content,
     get_languages,
     get_genres_tree,
-    search_entities
+    search_entities,
+    get_descendants
 )
 from library.book_utils import EpubBookFile, Fb2BookFile
 from library.tests.epub_test_utils import create_epub_one_author
@@ -387,3 +388,31 @@ class BookServicesTest(BaseTestCase):
         "Test search with no matches."
         results = search_entities('NonExistentQueryString')
         self.assertEqual(results['total_count'], 0)
+
+class GenreServicesTest(BaseTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        # root_a -> child_a1 (leaf), child_a2 -> grandchild_a2_1 (leaf)
+        cls.root_a = Genre.objects.create(name='Root A', code='root_a')
+        cls.child_a1 = Genre.objects.create(name='Child A1', code='child_a1', parent=cls.root_a)
+        cls.child_a2 = Genre.objects.create(name='Child A2', code='child_a2', parent=cls.root_a)
+        cls.grandchild_a2_1 = Genre.objects.create(name='Grandchild A2-1', code='grandchild_a2_1', parent=cls.child_a2)
+
+        # root_b (leaf)
+        cls.root_b = Genre.objects.create(name='Root B', code='root_b')
+
+        # root_c -> child_c1 (leaf)
+        cls.root_c = Genre.objects.create(name='Root C', code='root_c')
+        cls.child_c1 = Genre.objects.create(name='Child C1', code='child_c1', parent=cls.root_c)
+
+    @parameterized.expand([
+        ('single_parent_root_a', lambda: [GenreServicesTest.root_a.id], lambda: {GenreServicesTest.child_a1.id, GenreServicesTest.grandchild_a2_1.id}),
+        ('multiple_parents', lambda: [GenreServicesTest.root_a.id, GenreServicesTest.root_b.id], lambda: {GenreServicesTest.child_a1.id, GenreServicesTest.grandchild_a2_1.id}),
+        ('leaf_node_input', lambda: [GenreServicesTest.root_b.id], lambda: set()),
+        ('non_existent_id', lambda: [9999], lambda: set()),
+    ])
+    def test_get_descendants_logic(self, name, input_ids_func, expected_ids_func):
+        input_ids = input_ids_func()
+        expected_ids = expected_ids_func()
+        result = get_descendants(input_ids)
+        self.assertEqual(result, expected_ids)

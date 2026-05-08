@@ -81,8 +81,8 @@ class BookListViewTests(BaseTestCase):
         """
         Verify filtering by genre includes subgenres.
         """
-        # Filter by 'fiction' should include 'fiction' (book1) and 'scifi' (book2)
-        response = self.client.get(reverse('library:book_list'), {'genre': ['fiction']})
+        # Filter by 'fiction' AND 'scifi' (simulating frontend behavior)
+        response = self.client.get(reverse('library:book_list'), {'genre': ['fiction', 'scifi']})
         # book1 and book2 match.
         titles = [b.title for b in response.context['books']]
         self.assertIn('A-Book', titles)
@@ -192,4 +192,61 @@ class BookListViewTests(BaseTestCase):
         response = self.client.get(reverse('library:book_list'), params)
         content = response.content.decode()
         self.assertIn('Title: * (all non-alpha)', content)
+
+    def test_alphabet_tree_oob_update(self):
+        """
+        Verify HTMX request returns OOB swap for alphabet tree when filters change.
+        """
+        response = self.client.get(
+            reverse('library:book_list'), 
+            {'lang': ['ru']}, 
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TRIGGER='filter-form'
+        )
+        self.assertEqual(response.status_code, 200)
+
+        content = response.content.decode()
+        # Should have the OOB fragment
+        self.assertIn('id="alphabet-tree-sidebar"', content)
+        self.assertIn('hx-swap-oob="true"', content)
+
+        # Check counts in the tree (partial)
+        self.assertIn('B (1)', content)
+
+    def test_alphabet_tree_no_oob_on_tree_click(self):
+        """
+        Verify HTMX request from Alphabet Tree does NOT return itself.
+        """
+        # Simulate click on letter 'B'
+        response = self.client.get(
+            reverse('library:book_list'), 
+            {'filter': 'B'}, 
+            HTTP_HX_REQUEST='true'
+            # HX-Trigger is missing or different
+        )
+        self.assertEqual(response.status_code, 200)
+
+        content = response.content.decode()
+        self.assertNotIn('id="alphabet-tree-sidebar"', content)
+
+    def test_alphabet_tree_respects_genre(self):
+        """
+        Verify alphabet tree counts and nodes respect active genre filter.
+        """
+        # Filter by history -> only book3 (Title: C-Book) matches
+        response = self.client.get(reverse('library:book_list'), {'genre': ['history']})
+        content = response.content.decode()
+
+        # Only 'C' should have a count
+        self.assertIn('C (1)', content)
+        self.assertNotIn('A (1)', content)
+        self.assertNotIn('B (1)', content)
+
+        # Filter by fiction AND subgenre scifi (simulating frontend behavior)
+        # book1 (A-Book) is fiction, book2 (B-Book) is scifi
+        response = self.client.get(reverse('library:book_list'), {'genre': ['fiction', 'scifi']})
+        content = response.content.decode()
+        self.assertIn('A (1)', content)
+        self.assertIn('B (1)', content)
+        self.assertNotIn('C (1)', content)
 
