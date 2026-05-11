@@ -1,53 +1,47 @@
+{% load genres_tags %}
+
 {% for node in nodes %}
-    <div class="genre-item ms-3">
-        <div class="form-check">
-            <input class="form-check-input genre-checkbox" 
-                   type="checkbox" 
-                   name="genre" 
-                   value="{{ node.genre.code }}" 
-                   id="genre-{{ node.genre.code }}"
-                   {% if node.genre.code in selected_genres %}checked{% endif %}
-                   onchange="toggleChildren(this)">
-            <label class="form-check-label small" for="genre-{{ node.genre.code }}">
-                {{ node.genre.name }} 
-                {% if node.book_count > 0 %}
-                    <span class="text-muted">({{ node.book_count }})</span>
-                {% endif %}
-            </label>
+    <div class="genre-item ms-1">
+        <div class="d-flex align-items-center">
+            {% if node.children %}
+                {% with is_expanded=node|has_selected_genre:selected_genres %}
+                <span class="tree-arrow {% if not is_expanded %}collapsed{% endif %}" 
+                      style="cursor: pointer;"
+                      data-bs-toggle="collapse" 
+                      data-bs-target="#genre-collapse-{{ node.genre.id }}"
+                      aria-expanded="{% if is_expanded %}true{% else %}false{% endif %}"
+                      aria-controls="genre-collapse-{{ node.genre.id }}">▸</span>
+                {% endwith %}
+            {% else %}
+                <span class="tree-arrow invisible">▸</span>
+            {% endif %}
+
+            <div class="form-check mb-0">
+                <input class="form-check-input genre-checkbox" 
+                       type="checkbox" 
+                       name="genre" 
+                       value="{{ node.genre.code }}" 
+                       id="genre-{{ node.genre.code }}"
+                       {% if node.genre.code in selected_genres %}checked{% endif %}
+                       onchange="toggleChildren(this)">
+                <label class="form-check-label small" for="genre-{{ node.genre.code }}">
+                    {{ node.genre.name }} 
+                    {% if node.book_count > 0 %}
+                        <span class="text-muted">({{ node.book_count }})</span>
+                    {% endif %}
+                </label>
+            </div>
         </div>
+
         {% if node.children %}
-            <div class="genre-children">
-                {% include "library/include/genre_filter_node.html" with nodes=node.children %}
+            <div class="collapse {% if node|has_selected_genre:selected_genres %}show{% endif %}" id="genre-collapse-{{ node.genre.id }}">
+                <div class="genre-children ms-3">
+                    {% include "library/include/genre_filter_node.html" with nodes=node.children %}
+                </div>
             </div>
         {% endif %}
     </div>
 {% endfor %}
 
-{% if forloop.first %}
-<script>
-    function toggleChildren(parentCheckbox) {
-        const container = parentCheckbox.closest('.genre-item');
-        
-        // 1. Check/Uncheck all descendants
-        const childCheckboxes = container.querySelectorAll('.genre-children .genre-checkbox');
-        childCheckboxes.forEach(cb => {
-            cb.checked = parentCheckbox.checked;
-        });
 
-        // 2. If unchecked, uncheck all ancestors
-        if (!parentCheckbox.checked) {
-            let current = container;
-            while (current) {
-                const parentItem = current.parentElement.closest('.genre-item');
-                if (!parentItem) break;
-                
-                const parentCheckboxInput = parentItem.querySelector(':scope > .form-check > .genre-checkbox');
-                if (parentCheckboxInput) {
-                    parentCheckboxInput.checked = false;
-                }
-                current = parentItem;
-            }
-        }
-    }
-</script>
-{% endif %}
+
