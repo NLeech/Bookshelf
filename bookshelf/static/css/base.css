@@ -238,8 +238,12 @@ body {
     pointer-events: none;
 }
 
+.book-list-sidebar {
+    width: 450px;
+}
+
 .author-details-sidebar {
-    width: 300px;
+    width: 450px;
 }
 
 .book-details-sidebar {

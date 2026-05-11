@@ -5,7 +5,7 @@
 {% block content %}
 <div class="main-layout-container">
     <!-- Left Sidebar: Filters & Tree -->
-    <aside class="sidebar-pane">
+    <aside class="sidebar-pane book-list-sidebar">
         <h5 class="mb-3">Filters</h5>
         {% url 'library:book_list' as hx_url %}
         {% include "library/include/filters.html" with hx_url=hx_url hx_target="#books_list-result" %}
