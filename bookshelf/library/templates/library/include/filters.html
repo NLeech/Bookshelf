@@ -1,22 +1,22 @@
 <form id="filter-form" 
-      hx-get="{{ hx_url }}" 
-      hx-trigger="change" 
-      hx-target="{{ hx_target }}" 
-      hx-swap="innerHTML"
-      hx-push-url="true">
-    
+    hx-get="{{ hx_url }}" 
+    hx-trigger="change" 
+    hx-target="{{ hx_target }}" 
+    hx-swap="innerHTML"
+    hx-push-url="true">
+
     {% partialdef filter_state inline %}
-        <div id="filter-form-state" hx-swap-oob="true">
-            {% if active_tab %}
-                <input type="hidden" name="tab" value="{{ active_tab }}">
-            {% endif %}
-            {% if filter %}
-                <input type="hidden" name="filter" value="{{ filter }}">
-            {% endif %}
-            {% if regex %}
-                <input type="hidden" name="regex" value="{{ regex }}">
-            {% endif %}
-        </div>
+    <div id="filter-form-state" hx-swap-oob="true">
+        {% if active_tab %}
+            <input type="hidden" name="tab" value="{{ active_tab }}">
+        {% endif %}
+        {% if filter %}
+            <input type="hidden" name="filter" value="{{ filter }}">
+        {% endif %}
+        {% if regex %}
+            <input type="hidden" name="regex" value="{{ regex }}">
+        {% endif %}
+    </div>
     {% endpartialdef %}
 
     <div class="mb-4">
@@ -35,9 +35,47 @@
     </div>
 
     <div class="mb-4">
-        <h6 class="border-bottom pb-1">Genres</h6>
-        <div class="genre-tree-container" style="max-height: 400px; overflow-y: auto;">
-            {% include "library/include/genre_filter_node.html" with nodes=available_genres_tree %}
+        <h6 class="border-bottom pb-1">
+            <span class="tree-arrow"
+                style="cursor: pointer;"
+                data-bs-toggle="collapse" 
+                data-bs-target="#genres-collapse" 
+                aria-expanded="true"
+                aria-controls="genres-collapse">▸</span>
+            <span>Genres</span>
+        </h6>
+
+        <div class="collapse show" id="genres-collapse">
+            <div class="genre-tree-container" style="max-height: 400px; overflow-y: auto;">
+                {% include "library/include/genre_filter_node.html" with nodes=available_genres_tree %}
+            </div>
         </div>
     </div>
 </form>
+
+<script>
+    function toggleChildren(parentCheckbox) {
+        const container = parentCheckbox.closest('.genre-item');
+
+        // 1. Check/Uncheck all descendants
+        const childCheckboxes = container.querySelectorAll('.genre-children .genre-checkbox');
+        childCheckboxes.forEach(cb => {
+            cb.checked = parentCheckbox.checked;
+        });
+
+        // 2. If unchecked, uncheck all ancestors
+        if (!parentCheckbox.checked) {
+            let current = container;
+            while (current) {
+                const parentItem = current.parentElement.closest('.genre-item');
+                if (!parentItem) break;
+
+                const parentCheckboxInput = parentItem.querySelector(':scope > .d-flex > .form-check > .genre-checkbox');
+                if (parentCheckboxInput) {
+                    parentCheckboxInput.checked = false;
+                }
+                current = parentItem;
+            }
+        }
+    }
+</script>
