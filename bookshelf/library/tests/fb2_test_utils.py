@@ -1,13 +1,25 @@
 import io
 import base64
+from typing import Any
 
-def create_simple_fb2(title="Test Title", authors=None, lang="en", annotation="Test Annotation", sections=None, cover_data=None, isbn=None) -> io.BytesIO:
+def create_simple_fb2(
+    title: str = "Test Title",
+    authors: list[dict[str, str]] | None = None,
+    lang: str = "en",
+    annotation: str = "Test Annotation",
+    sections: list[dict[str, Any]] | None = None,
+    body_content: str | None = None,
+    cover_data: bytes | None = None,
+    isbn: str | None = None
+) -> io.BytesIO:
     """
     Creates a simple FB2 file in memory.
     """
     if authors is None:
         authors = [{"first": "John", "last": "Doe"}]
-    if sections is None:
+    
+    # Only default sections if neither sections nor body_content is provided
+    if sections is None and body_content is None:
         sections = [{"title": "Chapter 1", "content": "<p>Content 1</p>"}]
 
     fb2_xml = [
@@ -44,22 +56,25 @@ def create_simple_fb2(title="Test Title", authors=None, lang="en", annotation="T
     fb2_xml.append('  </description>')
 
     fb2_xml.append('  <body>')
-    for section in sections:
-        fb2_xml.append('    <section>')
-        if section.get("title"):
-            fb2_xml.append(f'      <title><p>{section["title"]}</p></title>')
-        fb2_xml.append(f'      {section["content"]}')
-        
-        # Handle one level of sub-sections for testing
-        if section.get("subsections"):
-            for sub in section["subsections"]:
-                fb2_xml.append('      <section>')
-                if sub.get("title"):
-                    fb2_xml.append(f'        <title><p>{sub["title"]}</p></title>')
-                fb2_xml.append(f'        {sub["content"]}')
-                fb2_xml.append('      </section>')
-                
-        fb2_xml.append('    </section>')
+    if body_content:
+        fb2_xml.append(f'    {body_content}')
+    elif sections:
+        for section in sections:
+            fb2_xml.append('    <section>')
+            if section.get("title"):
+                fb2_xml.append(f'      <title><p>{section["title"]}</p></title>')
+            fb2_xml.append(f'      {section["content"]}')
+            
+            # Handle one level of sub-sections for testing
+            if section.get("subsections"):
+                for sub in section["subsections"]:
+                    fb2_xml.append('      <section>')
+                    if sub.get("title"):
+                        fb2_xml.append(f'        <title><p>{sub["title"]}</p></title>')
+                    fb2_xml.append(f'        {sub["content"]}')
+                    fb2_xml.append('      </section>')
+                    
+            fb2_xml.append('    </section>')
     fb2_xml.append('  </body>')
 
     if cover_data:

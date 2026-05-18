@@ -74,6 +74,9 @@
 1. **test_get_simple_chapters**: Tests extraction of a simple, flat list of chapters.
 2. **test_get_nested_chapters**: Tests extraction of chapters with a nested structure.
 3. **test_cyrillic_chapters**: Tests extraction of chapters with Cyrillic titles and content.
+4. **test_get_chapters_no_sections**: Verifies extraction when <body> contains content directly without <section> tags.
+5. **test_get_chapters_empty_body**: Verifies fallback behavior for empty <body>.
+6. **test_get_chapters_whitespace_body**: Verifies fallback behavior for <body> with only whitespace.
 
 ## Middleware (HealthCheckTest)
 1. **test_health_check**: Verifies the /ping/ endpoint returns pong.

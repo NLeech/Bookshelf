@@ -3,7 +3,7 @@ from django.utils.html import format_html
 from imagekit.admin import AdminThumbnail
 
 from .models import (
-    Language, Author, BookSeries, BookSeriesName, Genre, GenreName, Book, BookSeriesLink
+    Language, Author, BookSeries, Genre, GenreName, Book, BookSeriesLink
 )
 
 
@@ -21,11 +21,6 @@ class SubGenreAdminInline(admin.StackedInline):
     can_delete = False
     max_num = 0
     extra = 0
-
-class SeriesNameInline(admin.TabularInline):
-    model = BookSeriesName
-    extra = 1
-
 
 class SubSeriesAdminInline(admin.StackedInline):
     model = BookSeries
@@ -101,7 +96,7 @@ class BookSeriesBookInline(admin.TabularInline):
 
 class BookSeriesAdmin(admin.ModelAdmin):
     search_fields = ('name',)
-    inlines = [SubSeriesAdminInline, SeriesNameInline, BookSeriesBookInline]
+    inlines = [SubSeriesAdminInline, BookSeriesBookInline]
 
 
 class BookSeriesLinkInline(admin.TabularInline):
@@ -127,6 +122,5 @@ admin.site.register(GenreName)
 admin.site.register(Author, AuthorAdmin)
 
 admin.site.register(BookSeries, BookSeriesAdmin)
-admin.site.register(BookSeriesName)
 
 admin.site.register(Book, BookAdmin)
