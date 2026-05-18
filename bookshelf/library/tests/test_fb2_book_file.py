@@ -148,6 +148,41 @@ class TestFb2ChapterExtraction(unittest.TestCase):
             self.assertEqual(chapters[1].title, "Глава 2")
             self.assertEqual(chapters[2].title, "Глава 3")
 
+    def test_get_chapters_no_sections(self):
+        """
+        Tests extraction when <body> contains content directly without <section> tags.
+        """
+        body_content = "<p>Paragraph 1</p><p>Paragraph 2</p>"
+        title = "No Sections Book"
+        with create_simple_fb2(title=title, body_content=body_content) as fb2_stream:
+            self.book_file.load_from_stream(fb2_stream)
+            chapters = self.book_file.chapters
+            self.assertEqual(len(chapters), 1)
+            self.assertEqual(chapters[0].title, title)
+            self.assertIn("Paragraph 1", chapters[0].content_as_text)
+            self.assertIn("Paragraph 2", chapters[0].content_as_text)
+            self.assertEqual(chapters[0].id, "body")
+
+    def test_get_chapters_empty_body(self):
+        """
+        Tests fallback behavior for empty <body>.
+        """
+        with create_simple_fb2(body_content="") as fb2_stream:
+            self.book_file.load_from_stream(fb2_stream)
+            chapters = self.book_file.chapters
+            self.assertEqual(len(chapters), 1)
+            self.assertEqual(chapters[0].content_as_text, "")
+
+    def test_get_chapters_whitespace_body(self):
+        """
+        Tests fallback behavior for <body> with only whitespace.
+        """
+        with create_simple_fb2(body_content="\n    ") as fb2_stream:
+            self.book_file.load_from_stream(fb2_stream)
+            chapters = self.book_file.chapters
+            self.assertEqual(len(chapters), 1)
+            self.assertEqual(chapters[0].content_as_text, "")
+
     def test_no_body(self):
         """Tests FB2 without <body> tag."""
         fb2_xml = '<?xml version="1.0" encoding="UTF-8"?><FictionBook><description><title-info><book-title>No Body</book-title></title-info></description></FictionBook>'
