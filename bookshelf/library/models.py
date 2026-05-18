@@ -10,7 +10,7 @@ from django.utils.functional import LazyObject
 
 
 class CloudStorage(LazyObject):
-    """ Lazy initialization, delays the evaluation of the storage until it’s actually needed, 
+    """ Lazy initialization, delays the evaluation of the storage until it's actually needed, 
         allowing using 'override_settings' in tests without issues. """
     def _setup(self):
         self._wrapped = storages['cloud']
@@ -97,35 +97,6 @@ class Genre(BaseModel):
     class Meta:
         ordering = ['name']
         verbose_name_plural = 'Genres'
-
-
-class BookSeriesName(BaseModel):
-    """
-    Series names (translated titles, different translation variants, etc.)
-    """
-
-    name = models.CharField(max_length=255, verbose_name='Series name')
-    series = models.ForeignKey(
-        'BookSeries',
-        on_delete=models.CASCADE,
-        related_name='different_names',
-        verbose_name='Series'
-    )
-    language = models.ForeignKey(
-        'Language',
-        on_delete=models.RESTRICT,
-        verbose_name='Language',
-    )
-
-    def __str__(self):
-        return f'{self.name} ({self.series})'
-
-    class Meta:
-        ordering = ['series', 'name']
-        verbose_name_plural = 'Series names'
-        constraints = [
-            models.UniqueConstraint(fields=['name', 'series', 'language'], name='unique_series_name'),
-        ]
 
 
 class BookSeries(BaseModel):

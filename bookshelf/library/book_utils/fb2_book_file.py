@@ -136,6 +136,11 @@ class Fb2BookFile(BookFile):
         for section_number, section in enumerate(sections):
             chapters.append(self._process_section(section, level=0, section_number=section_number))
         
+        if not chapters:
+            # If no sections, treat the entire body as one chapter
+            content = "".join([str(c) for c in body.contents]).strip()
+            chapters.append(Chapter(title=self.title or "Untitled", content=content, level=0, chapter_id="body"))
+
         return chapters
 
     def _process_section(self, section: Any, level: int = 0, section_number: int = 0) -> Chapter:
