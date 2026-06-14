@@ -363,23 +363,23 @@ Two complementary fixture sets are used depending on what is being tested:
 **A. Canonical dataset (factory)** — used by structural/alphabetic tests that need realistic tree depth and counts. Call `create_test_dataset()` from `library.tests.test_data_factory` in `setUpTestData`. Provides:
 
 ```
-Authors : 243  (A=137, B=58, C=19, Ш=15, Other=14)
+Authors : 255  (A=137, B=58, C=19, Ш=15, 0-9=12, Other=14)
   A tree: A(137) → Ab(110) → Aba(60) → Abak(21)/Aban(39)/All 'Aba'(60)
                               Abi(42) / Aby(8) / All 'Ab'(110)
                    Ac(11) / Ad(16) / All 'A'(137)
-           B(58) / C(19) / Ш(15) / Other(14)
+           B(58) / C(19) / Ш(15) / 0-9(12) / Other(14)
 
-Books   : 546  (English=459, Ukrainian=87)
+Books   : 560  (English=473, Ukrainian=87)
   A tree: A(222) → Al(96) → Ali(57) → Alid(23)/Alit(34)/All 'Ali'(57)
                              All(39) / All 'Al'(96)
                    An(83) / Ar(43) / All 'A'(222)
-           B(167) / M(43) / П(83) / Other(31)
+           B(167) / M(43) / П(83) / 0-9(14) / Other(31)
 
-Series  : 98   (C=14, S=62, T=11, Other=11)
+Series  : 108  (C=14, S=62, T=11, 0-9=10, Other=11)
   C tree: C(14) → Ch(6)/Cr(8)/All 'C'(14)
   S tree: S(62) → Sh(6) / St(54) → Sta(28)/Ste(26)/All 'St'(54)
                             Sw(2) / All 'S'(62)
-           T(11) / Other(11)
+           T(11) / 0-9(10) / Other(11)
 
 Genres  : 3 top-level → 7 leaf genres (see test_template.md for book counts per leaf/letter)
 ```
@@ -447,7 +447,7 @@ The factory dataset guarantees deep expansion on multiple letters, so the "all" 
 | 4 | `test_alphabet_feed_entries_have_subsection_links[<name>]` | Each entry has `<link rel="subsection">` or `<link rel="http://opds-spec.org/facet">` |
 | 5 | `test_alphabet_feed_self_link[<name>]` | Feed has `<link rel="self" href="<url>">` |
 | 6 | `test_alphabet_feed_quantity_in_content[<name>]` | Each entry `<content>` contains the item count |
-| 7 | `test_alphabet_feed_only_reflects_existing_data[<name>]` | Feed does not contain entries for letters absent from the dataset (authors: no `"z"`; books: no `"z"`; series: no `"z"`) |
+| 7 | `test_alphabet_feed_only_reflects_existing_data[<name>]` | Feed does not contain entries for letters absent from the dataset (authors: no `"z"`; books: no `"z"`; series: no `"z"`); `"0-9"` IS present for all three |
 
 ---
 
@@ -456,38 +456,41 @@ The factory dataset guarantees deep expansion on multiple letters, so the "all" 
 **Fixture:** canonical dataset via `create_test_dataset()`. Verifies that the tree structure and entry counts precisely match the canonical template values for each entity type.
 
 Authors tree (from `test_template.md`):
-- Root: `A(137)`, `B(58)`, `C(19)`, `Ш(15)`, `Other(14)` — no `D`, `E`, etc.
+- Root: `A(137)`, `B(58)`, `C(19)`, `Ш(15)`, `0-9(12)`, `Other(14)` — no `D`, `E`, etc.
 - `/opds/v1/authors/a/`: entries `Ab(110)`, `Ac(11)`, `Ad(16)`, `all a(137)`
 - `/opds/v1/authors/ab/`: entries `Aba(60)`, `Abi(42)`, `Aby(8)`, `all ab(110)`
 - `/opds/v1/authors/aba/`: entries `Abak(21)`, `Aban(39)`, `all aba(60)` — leaf sub-tree
 
 Books tree (from `test_template.md`):
-- Root: `A(222)`, `B(167)`, `M(43)`, `П(83)`, `Other(31)` — no `C`, `D`, etc.
+- Root: `A(222)`, `B(167)`, `M(43)`, `П(83)`, `0-9(14)`, `Other(31)` — no `C`, `D`, etc.
 - `/opds/v1/books/a/`: entries `Al(96)`, `An(83)`, `Ar(43)`, `all a(222)`
 - `/opds/v1/books/al/`: entries `Ali(57)`, `All(39)`, `all al(96)`
 - `/opds/v1/books/ali/`: entries `Alid(23)`, `Alit(34)`, `all ali(57)`
 
 Series tree (from `test_template.md`):
-- Root: `C(14)`, `S(62)`, `T(11)`, `Other(11)` — no `A`, `B`, etc.
+- Root: `C(14)`, `S(62)`, `T(11)`, `0-9(10)`, `Other(11)` — no `A`, `B`, etc.
 - `/opds/v1/series/c/`: entries `Ch(6)`, `Cr(8)`, `all c(14)`
 - `/opds/v1/series/s/`: entries `Sh(6)`, `St(54)`, `Sw(2)`, `all s(62)`
 - `/opds/v1/series/st/`: entries `Sta(28)`, `Ste(26)`, `all st(54)`
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_authors_root_entry_count` | `/opds/v1/authors/` contains exactly 5 top-level entries: A, B, C, Ш, Other |
+| 1 | `test_authors_root_entry_count` | `/opds/v1/authors/` contains exactly 6 top-level entries: A, B, C, Ш, `0-9`, Other |
 | 2 | `test_authors_root_a_count_is_137` | `"A"` entry `<content>` contains `137` |
-| 3 | `test_authors_a_sub_entries` | `/opds/v1/authors/a/` contains entries `Ab(110)`, `Ac(11)`, `Ad(16)`, `all a(137)` — no others |
-| 4 | `test_authors_ab_sub_entries` | `/opds/v1/authors/ab/` contains entries `Aba(60)`, `Abi(42)`, `Aby(8)`, `all ab(110)` — no others |
-| 5 | `test_authors_aba_sub_entries` | `/opds/v1/authors/aba/` contains entries `Abak(21)`, `Aban(39)`, `all aba(60)` — no others |
-| 6 | `test_books_root_entry_count` | `/opds/v1/books/` contains exactly 5 top-level entries: A, B, M, П, Other |
-| 7 | `test_books_a_count_is_222` | `"A"` entry `<content>` contains `222` |
-| 8 | `test_books_a_sub_entries` | `/opds/v1/books/a/` contains entries `Al(96)`, `An(83)`, `Ar(43)`, `all a(222)` — no others |
-| 9 | `test_books_ali_sub_entries` | `/opds/v1/books/ali/` contains entries `Alid(23)`, `Alit(34)`, `all ali(57)` — no others |
-| 10 | `test_series_root_entry_count` | `/opds/v1/series/` contains exactly 4 top-level entries: C, S, T, Other |
-| 11 | `test_series_s_count_is_62` | `"S"` entry `<content>` contains `62` |
-| 12 | `test_series_s_sub_entries` | `/opds/v1/series/s/` contains entries `Sh(6)`, `St(54)`, `Sw(2)`, `all s(62)` — no others |
-| 13 | `test_series_st_sub_entries` | `/opds/v1/series/st/` contains entries `Sta(28)`, `Ste(26)`, `all st(54)` — no others |
+| 3 | `test_authors_root_digits_count_is_12` | `"0-9"` entry `<content>` contains `12` |
+| 4 | `test_authors_a_sub_entries` | `/opds/v1/authors/a/` contains entries `Ab(110)`, `Ac(11)`, `Ad(16)`, `all a(137)` — no others |
+| 5 | `test_authors_ab_sub_entries` | `/opds/v1/authors/ab/` contains entries `Aba(60)`, `Abi(42)`, `Aby(8)`, `all ab(110)` — no others |
+| 6 | `test_authors_aba_sub_entries` | `/opds/v1/authors/aba/` contains entries `Abak(21)`, `Aban(39)`, `all aba(60)` — no others |
+| 7 | `test_books_root_entry_count` | `/opds/v1/books/` contains exactly 6 top-level entries: A, B, M, П, `0-9`, Other |
+| 8 | `test_books_a_count_is_222` | `"A"` entry `<content>` contains `222` |
+| 9 | `test_books_root_digits_count_is_14` | `"0-9"` entry `<content>` contains `14` |
+| 10 | `test_books_a_sub_entries` | `/opds/v1/books/a/` contains entries `Al(96)`, `An(83)`, `Ar(43)`, `all a(222)` — no others |
+| 11 | `test_books_ali_sub_entries` | `/opds/v1/books/ali/` contains entries `Alid(23)`, `Alit(34)`, `all ali(57)` — no others |
+| 12 | `test_series_root_entry_count` | `/opds/v1/series/` contains exactly 5 top-level entries: C, S, T, `0-9`, Other |
+| 13 | `test_series_root_digits_count_is_10` | `"0-9"` entry `<content>` contains `10` |
+| 14 | `test_series_s_count_is_62` | `"S"` entry `<content>` contains `62` |
+| 15 | `test_series_s_sub_entries` | `/opds/v1/series/s/` contains entries `Sh(6)`, `St(54)`, `Sw(2)`, `all s(62)` — no others |
+| 16 | `test_series_st_sub_entries` | `/opds/v1/series/st/` contains entries `Sta(28)`, `Ste(26)`, `all st(54)` — no others |
 
 *(Other node structure and counts are covered in depth by `OPDSOtherNodeTest`.)*
 
@@ -508,6 +511,7 @@ Series tree (from `test_template.md`):
 | 7 | `test_all_node_present_at_third_level` | `/opds/v1/authors/aba/` is expanded (has Abak/Aban children); `"all aba"` is first `<entry>`, count=60 |
 | 8 | `test_books_expanded_node_has_all_child` | `/opds/v1/books/a/` has `"all a"` as first entry, count=222 |
 | 9 | `test_series_expanded_node_has_all_child` | `/opds/v1/series/s/` has `"all s"` as first entry, count=62 |
+| 10 | `test_digits_node_is_leaf_no_all_entry` | `"0-9"` node (authors, books, series) is always a leaf (no sub-entries) → following its `?regex=` link returns a flat list with no `"all 0-9"` entry |
 
 ---
 
@@ -553,12 +557,13 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 | 18 | `test_books_other_x_child_count` | Books Other feed contains `"X"` entry with count 8 |
 | 19 | `test_series_other_n_child_count` | Series Other feed contains `"N"` entry with count 4 |
 | 20 | `test_series_other_cyrillic_в_child_count` | Series Other feed contains `"В"` entry with count 3 |
+| 21 | `test_digits_node_is_separate_from_other` | Root feed for authors, books, and series: the `"0-9"` entry exists as a **sibling** of `"Other"`, not as a child inside it; the `Other` feed does NOT contain a `"0-9"` child entry |
 
 ---
 
 #### `OPDSAuthorListFeedTest`
 
-**Fixture:** canonical dataset via `create_test_dataset()`. Uses Authors: A=137, B=58; no author starts with Z.
+**Fixture:** canonical dataset via `create_test_dataset()`. Uses Authors: A=137, B=58, 0-9=12; no author starts with Z.
 
 | # | Test | Assertion |
 |---|------|-----------|
@@ -570,6 +575,7 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 | 6 | `test_author_list_entry_links_to_author_detail` | Each entry `<link href>` points to `/opds/v1/authors/<pk>/` |
 | 7 | `test_author_list_letter_not_found_returns_empty_feed` | GET `/opds/v1/authors/y/` → 200 with 0 `<entry>` elements (no author starts with Y in factory dataset) |
 | 8 | `test_author_list_sorted_alphabetically` | Entries on `/opds/v1/authors/b/` are ordered by author last name ascending (Ba* before Be*) |
+| 9 | `test_author_digits_node_list` | GET `/opds/v1/authors/?regex=^[0-9]` → 200 with exactly 12 entries (all digit-prefix authors) |
 
 ---
 
@@ -609,9 +615,9 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_genre_root_sf_fantasy_count` | `Science Fiction & Fantasy` entry `<content>` contains `243` (84+80+79) |
-| 2 | `test_genre_root_mysteries_count` | `Mysteries & Thrillers` entry `<content>` contains `155` (79+76) |
-| 3 | `test_genre_root_action_adv_count` | `Action & Adventure` entry `<content>` contains `148` (76+72) |
+| 1 | `test_genre_root_sf_fantasy_count` | `Science Fiction & Fantasy` entry `<content>` contains `249` (86+82+81) |
+| 2 | `test_genre_root_mysteries_count` | `Mysteries & Thrillers` entry `<content>` contains `159` (81+78) |
+| 3 | `test_genre_root_action_adv_count` | `Action & Adventure` entry `<content>` contains `152` (78+74) |
 | 4 | `test_dystopia_detail_alphabet_has_alid_entry` | `Dystopia` genre detail: alphabet tree contains `"alid"` or `"ali"` (23 dystopia books in Alid group) |
 | 5 | `test_fantasy_detail_alphabet_no_yu_entry` | `Fantasy` genre detail: alphabet tree does NOT contain `"ю"` entry (fantasy has 0 books starting with Ю per template) |
 | 6 | `test_nature_animals_detail_has_correct_total` | `Nature & Animals` genre book list count is 72 |
@@ -622,7 +628,7 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 
 #### `OPDSSeriesListFeedTest`
 
-**Fixture:** canonical dataset via `create_test_dataset()`. Series: C=14, S=62, T=11, Other=11; no series starts with Z.
+**Fixture:** canonical dataset via `create_test_dataset()`. Series: C=14, S=62, T=11, 0-9=10, Other=11; no series starts with Z.
 
 | # | Test | Assertion |
 |---|------|-----------|
@@ -635,12 +641,13 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 | 7 | `test_series_list_entry_links_to_series_detail` | Each entry has `<link href="/opds/v1/series/<pk>/">` |
 | 8 | `test_series_list_empty_letter_returns_empty_feed` | GET `/opds/v1/series/z/` → 200 with 0 entries |
 | 9 | `test_series_s_is_expanded_not_flat_list` | GET `/opds/v1/series/s/` → feed contains navigation sub-entries (`Sh`, `St`, `Sw`, `all s`), NOT a flat list of 62 series |
+| 10 | `test_series_digits_node_list` | GET `/opds/v1/series/?regex=^[0-9]` → 200 with exactly 10 entries (all digit-prefix series) |
 
 ---
 
 #### `OPDSBookListFeedTest`
 
-**Fixture:** canonical dataset via `create_test_dataset()`. Books: A=222, B=167, M=43, П=83, Other=31; no book starts with Z.
+**Fixture:** canonical dataset via `create_test_dataset()`. Books: A=222, B=167, M=43, П=83, 0-9=14, Other=31; no book starts with Z.
 
 | # | Test | Assertion |
 |---|------|-----------|
@@ -654,6 +661,7 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 | 8 | `test_book_list_empty_letter_returns_empty_feed` | GET `/opds/v1/books/z/` → 200 with 0 entries |
 | 9 | `test_book_a_is_expanded_not_flat_list` | GET `/opds/v1/books/a/` → returns navigation sub-entries (`Al`, `An`, `Ar`, `all a`), NOT a flat list of 222 books |
 | 10 | `test_book_list_cyrillic_letter` | GET `/opds/v1/books/п/` → 200 with entries for П=83 books (Ukrainian) |
+| 11 | `test_book_digits_node_list` | GET `/opds/v1/books/?regex=^[0-9]` → 200 with exactly 14 entries (all digit-prefix books) |
 
 ---
 

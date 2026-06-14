@@ -2,9 +2,9 @@
 Test dataset factory: creates the canonical dataset described in test_template.md.
 
 Summary:
-  Authors : 243  (A=137, B=58, C=19, Ш=15, Other=14)
-  Books   : 546  (English=459, Ukrainian=87)
-  Series  : 98   (C=14, S=62, T=11, Other=11)
+  Authors : 255  (A=137, B=58, C=19, Ш=15, 0-9=12, Other=14)
+  Books   : 560  (English=473, Ukrainian=87)
+  Series  : 108  (C=14, S=62, T=11, 0-9=10, Other=11)
   Genres  : 7 leaf genres under 3 parent genres
 """
 
@@ -74,7 +74,7 @@ def _create_languages_and_genres() -> tuple[Language, Language, list[Genre], dic
 
 
 def _create_authors() -> None:
-    """Bulk-create 243 authors spread across letter groups A, B, C, Ш, and Other."""
+    """Bulk-create 255 authors spread across letter groups A, B, C, Ш, 0-9, and Other."""
     def _batch(prefix: str, n: int) -> list[Author]:
         return [Author(last_name=f'{prefix}{i + 1}', first_name='') for i in range(n)]
 
@@ -88,6 +88,8 @@ def _create_authors() -> None:
         # single-letter groups
         _batch('C',    19) +                         # C: 19
         _batch('Ш',    15) +                         # Ш: 15
+        # 0-9 group (digit-prefix last names)
+        [Author(last_name=f'({i}', first_name='') for i in range(12)] + 
         # Other (non-alpha=3, Z=8, Ї=2, Э=1)
         [Author(last_name='!_1', first_name=''),
          Author(last_name='(_2', first_name=''),
@@ -98,7 +100,7 @@ def _create_authors() -> None:
 
 
 def _create_books(lang_en: Language, lang_uk: Language, leaf_genres: list[Genre]) -> list[Book]:
-    """Bulk-create 546 books (459 English, 87 Ukrainian) across 7 leaf genres.
+    """Bulk-create 560 books (473 English, 87 Ukrainian) across 7 leaf genres.
 
     Args:
         lang_en: English Language instance.
@@ -112,6 +114,7 @@ def _create_books(lang_en: Language, lang_uk: Language, leaf_genres: list[Genre]
     # Each row total equals the number of books in that title-prefix group.
     # non-alpha (*) books are split: 12 English + 2 Ukrainian = 14 total.
     GROUPS = [
+        ('0',    lang_en, [2, 2, 2, 2, 2, 2, 2]),   # 14 digit-prefix (0-9 node)
         ('Alid', lang_en, [4, 3, 3, 4, 3, 3, 3]),   # 23
         ('Alit', lang_en, [5, 5, 5, 5, 5, 5, 4]),   # 34
         ('All',  lang_en, [6, 6, 6, 6, 5, 5, 5]),   # 39
@@ -159,7 +162,7 @@ def _create_books(lang_en: Language, lang_uk: Language, leaf_genres: list[Genre]
 
 
 def _create_series() -> list[BookSeries]:
-    """Bulk-create 98 book series spread across groups C (14), S (62), T (11), and Other (11).
+    """Bulk-create 108 book series spread across groups C (14), S (62), T (11), 0-9 (10), and Other (11).
 
     Returns:
         List of created BookSeries instances in insertion order.
@@ -174,6 +177,8 @@ def _create_series() -> list[BookSeries]:
         _batch('Sh',  6) + _batch('Sta', 28) + _batch('Ste', 26) + _batch('Sw', 2) +
         # T group: 11
         _batch('T',  11) +
+        # 0-9 group (digit-prefix names): 10
+        _batch('0series', 10) +
         # Other: non-alpha=4, N=4, В=3 → 11
         [BookSeries(name=f'({i + 1}') for i in range(2)] +
         [BookSeries(name=f'_{i + 1}') for i in range(2)] +
