@@ -85,21 +85,25 @@ Base prefix: `/opds/v1/`
 | URL | View | Feed type |
 |-----|------|-----------|
 | `/opds/v1/` | `RootFeedView` | Navigation |
-| `/opds/v1/authors/` | `AuthorAlphabetFeedView` | Navigation (alphabet tree) |
-| `/opds/v1/authors/<letter>/` | `AuthorListFeedView` | Navigation |
+| `/opds/v1/authors/` | `AuthorListFeedView` | Navigation (flat author list — full set or `?filter=`/`?regex=` results) |
+| `/opds/v1/authors/tree/` | `AuthorTreeFeedView` | Navigation (alphabet tree root) |
+| `/opds/v1/authors/tree/<name>/` | `AuthorTreeFeedView` | Navigation (alphabet sub-tree) |
 | `/opds/v1/authors/<int:pk>/` | `AuthorDetailFeedView` | Navigation |
 | `/opds/v1/authors/<int:pk>/series/` | `AuthorSeriesFeedView` | Navigation |
 | `/opds/v1/authors/<int:pk>/books/` | `AuthorBooksFeedView` | Acquisition |
 | `/opds/v1/authors/<int:pk>/books/recent/` | `AuthorRecentBooksFeedView` | Acquisition |
 | `/opds/v1/genres/` | `GenreRootFeedView` | Navigation (top-level genres) |
-| `/opds/v1/genres/<int:pk>/` | `GenreDetailFeedView` | Navigation (subgenres + alphabet tree) |
-| `/opds/v1/genres/<int:pk>/books/` | `GenreBooksFeedView` | Acquisition |
-| `/opds/v1/genres/<int:pk>/books/<letter>/` | `GenreBookListFeedView` | Acquisition |
-| `/opds/v1/series/` | `SeriesAlphabetFeedView` | Navigation (alphabet tree) |
-| `/opds/v1/series/<letter>/` | `SeriesListFeedView` | Navigation |
+| `/opds/v1/genres/<int:pk>/` | `GenreDetailFeedView` | Navigation (subgenres only; empty → 302) |
+| `/opds/v1/genres/<int:pk>/books/` | `GenreBookListFeedView` | Acquisition (flat — full set or `?filter=`/`?regex=` results) |
+| `/opds/v1/genres/<int:pk>/books/tree/` | `GenreBookTreeFeedView` | Navigation (genre book tree root) |
+| `/opds/v1/genres/<int:pk>/books/tree/<name>/` | `GenreBookTreeFeedView` | Navigation (genre book sub-tree) |
+| `/opds/v1/series/` | `SeriesListFeedView` | Navigation (flat series list — full set or results) |
+| `/opds/v1/series/tree/` | `SeriesTreeFeedView` | Navigation (alphabet tree root) |
+| `/opds/v1/series/tree/<name>/` | `SeriesTreeFeedView` | Navigation (alphabet sub-tree) |
 | `/opds/v1/series/<int:pk>/` | `SeriesDetailFeedView` | Navigation/Acquisition |
-| `/opds/v1/books/` | `BookAlphabetFeedView` | Navigation (alphabet tree) |
-| `/opds/v1/books/<letter>/` | `BookListFeedView` | Acquisition |
+| `/opds/v1/books/` | `BookListFeedView` | Acquisition (flat book list — full set or results) |
+| `/opds/v1/books/tree/` | `BookTreeFeedView` | Navigation (alphabet tree root) |
+| `/opds/v1/books/tree/<name>/` | `BookTreeFeedView` | Navigation (alphabet sub-tree) |
 | `/opds/v1/books/<int:pk>/` | `BookDetailFeedView` | Acquisition |
 | `/opds/v1/books/<int:pk>/download/` | `BookDownloadView` | Binary (file delivery) |
 | `/opds/v1/search/` | `SearchRootFeedView` | Navigation (≤ 3 section entries, unpaginated) |
@@ -108,24 +112,40 @@ Base prefix: `/opds/v1/`
 | `/opds/v1/search/books/` | `SearchBooksFeedView` | Acquisition (paginated) |
 | `/opds/v1/search/description.xml` | `OpenSearchDescriptionView` | OpenSearch XML |
 
-**Alphabet tree notes:**
-- `<letter>` is a URL-safe prefix string (e.g., `a`, `ab`, `0-9`, `other`). Special nodes (`0-9`, `other`, `aa*`) use the same filter/regex mechanism as the existing `get_alphabet_tree` service.
-- Authors, Books, and Series root feeds all render as alphabet trees.
-- Genres use a dedicated hierarchy: root lists top-level genres; each genre detail lists its subgenres followed by an alphabet tree of books in that genre (including descendant genres).
+**Navigation / results separation (Authors, Series, Books, per-genre Books):**
 
-**"All" node rule:**
-When a tree node is expanded (i.e., it has child nodes), a synthetic **"all `<prefix>`"** entry is prepended as the first child. This entry links to the list URL for that prefix *without* any further filter or regex — meaning it returns the full unfiltered set for that prefix level (e.g., `all a` → all authors starting with `a`, regardless of what comes after). Where a node is not expanded (it is already a leaf), no "all" entry is added.
+Each browsable entity exposes two distinct kinds of endpoint — navigation **trees** and flat **results** — so that one URL always has one responsibility:
 
-Example for Authors with `a` expanded into `aa`, `ab`, `ac`:
+- **Tree endpoints** (`…/tree/`, `…/tree/<name>/`) render the alphabet tree built by `get_alphabet_tree`. They are **always navigation** feeds and are **never paginated**.
+- **Results endpoint** (`…/` with optional `?filter=` / `?regex=`) is a **flat, paginated** list of items:
+  - no query params → the **full** set (a valid endpoint, but **not advertised** in any feed — kept for completeness/compatibility);
+  - `?filter=<prefix>` → `field__istartswith=<prefix>`;
+  - `?regex=<url-encoded regex>` → `field__iregex=<regex>` (**regex wins** if both are present).
+
+  This mirrors the canonical `BookListView.get_queryset` precedence exactly.
+
+- `<name>` is the tree node's `name` (URL-safe: `a`, `ab`, `aba`, `other`), resolved by the new **`find_alphabet_node_by_name(tree, name)`** service. Only **expandable** (non-leaf) nodes are reachable by name; leaf nodes are never addressed by a path segment.
+- **Tree leaf → results.** A leaf node entry links to the results endpoint carrying that node's selector: a prefix leaf → `…/?filter=<filter>`; a regex leaf (`0-9`, `* (all non-alpha)`, low-count `prefix*`) → `…/?regex=<url-encoded regex>`.
+- **Tree non-leaf → sub-tree.** An expandable node entry links to `…/tree/<name>/`.
+- The **root catalog** and every "browse" link point at the `…/tree/` roots, never at the bare results endpoint.
+
+**"all `<prefix>`" node rule:**
+When a tree node is expanded, a synthetic **"all `<prefix>`"** entry is prepended as its first child, linking to the **results endpoint** for that node's own selector — `…/?filter=<prefix>` (or `…/?regex=<regex>` for the `other` node) — i.e. the full unfiltered set at that prefix level. Leaf nodes (not expanded) get no "all" entry. This removes the old ambiguity where an "all" link and a sub-tree link could resolve to the same URL.
+
+Example for Authors (`a` and `other` expandable, the rest leaves):
 ```
-a  (150)
-  ├── all a  → /opds/v1/authors/a/         (no filter param — returns all 150)
-  ├── aa     → /opds/v1/authors/aa/        (50)
-  │     ├── all aa  → /opds/v1/authors/aa/ (50)
-  │     ├── aaa     → /opds/v1/authors/aaa/ (30)
-  │     └── aab     → /opds/v1/authors/aab/ (20)
-  ├── ab     → /opds/v1/authors/ab/        (60)   ← leaf, no "all ab"
-  └── ac     → /opds/v1/authors/ac/        (40)   ← leaf, no "all ac"
+/opds/v1/authors/tree/                       (root)
+  ├── A (137)    → /opds/v1/authors/tree/a/
+  ├── B (58)     → /opds/v1/authors/?filter=b          ← leaf
+  ├── …
+  ├── 0-9 (12)   → /opds/v1/authors/?regex=^[0-9]      ← regex leaf
+  └── Other (14) → /opds/v1/authors/tree/other/        ← expandable
+
+/opds/v1/authors/tree/a/                     (A expanded)
+  ├── all a (137) → /opds/v1/authors/?filter=a         ← synthetic, first child
+  ├── Ab (110)    → /opds/v1/authors/tree/ab/
+  ├── Ac (11)     → /opds/v1/authors/?filter=ac        ← leaf, no "all ac"
+  └── Ad (16)     → /opds/v1/authors/?filter=ad        ← leaf, no "all ad"
 ```
 
 ---
@@ -136,7 +156,9 @@ DRF `PageNumberPagination` with `page_size = 20` (configurable via `settings.OPD
 
 Pagination links are rendered as Atom `<link rel="next">`, `<link rel="previous">`, and `<link rel="first">` inside each feed.
 
-Pagination applies to: Author lists, Book lists, Genre lists, Series lists, each search section sub-feed (authors/series/books — paginated independently, see 6.7), Author detail sub-feeds (books/alpha, books/recent), Series detail book list. The search **root** feed (section index) is not paginated.
+Pagination applies to the flat **results** endpoints and detail lists: Author results (`/authors/`), Book results (`/books/`), per-genre Book results (`/genres/<pk>/books/`), Series results (`/series/`), each search section sub-feed (authors/series/books — paginated independently, see 6.7), Author detail sub-feeds (books, books/recent), Series detail book list.
+
+Pagination does **not** apply to navigation **tree** feeds (`…/tree/`, `…/tree/<name>/`) — a tree level has a small, bounded set of nodes — nor to the search **root** feed (section index).
 
 ---
 
@@ -158,7 +180,7 @@ Navigation feed. Fixed set of five entries:
   <entry>
     <title>Authors</title>
     <id>tag:bookshelf:authors</id>
-    <link rel="subsection" href="/opds/v1/authors/"
+    <link rel="subsection" href="/opds/v1/authors/tree/"
           type="application/atom+xml;...;kind=navigation"/>
     <content type="text">Browse by author</content>
   </entry>
@@ -184,19 +206,22 @@ Navigation feed. Fixed set of five entries:
 </feed>
 ```
 
+> The `Series`, `Books`, and `Search` entries follow the same shape: `Series` → `/opds/v1/series/tree/`, `Books` → `/opds/v1/books/tree/`, `Genres` → `/opds/v1/genres/`, `Search` → the OpenSearch links shown above. All four "browse" entries point at navigation roots, never at the flat results endpoints.
+
 ### 6.2 Alphabet Tree Feeds (Authors, Books, Series)
 
-Uses the existing `get_alphabet_tree` service from `library.services`. Each tree node becomes a navigation `<entry>`:
-- **Leaf node** → links directly to the list URL for that prefix (e.g., `/opds/v1/authors/ab/`).
-- **Non-leaf node** → links to the tree URL for that prefix, which re-renders the sub-tree. Additionally, a **"all `<prefix>`"** child entry is prepended before the sub-nodes, linking to the list URL without further filtering.
+Uses the existing `get_alphabet_tree` service from `library.services`. The tree is rendered by the **tree** endpoints (`…/tree/`, `…/tree/<name>/`) — navigation feeds, never paginated. Each tree node becomes a navigation `<entry>`:
 
-The URL encoding of `<letter>` uses the `filter` string (URL-safe lowercase prefix). Regex-based special nodes (`aa*`, `0-9`, `other`) use the `regex` query parameter: `/opds/v1/authors/?regex=<encoded_regex>`.
+- **Leaf node** → links to the flat **results** endpoint carrying the node's selector: a prefix leaf → `…/?filter=<filter>`; a regex leaf (`0-9`, `* (all non-alpha)`, low-count `prefix*`) → `…/?regex=<url-encoded regex>`.
+- **Non-leaf (expandable) node** → links to the sub-tree URL `…/tree/<name>/`, resolved server-side by `find_alphabet_node_by_name(tree, name)`. A synthetic **"all `<prefix>`"** child entry is prepended before the sub-nodes, linking to the **results** endpoint for the parent node's own selector (`…/?filter=<prefix>`, or `…/?regex=<regex>` for `other`) — the full set at that prefix.
 
-The `<content>` of each entry includes the item count. The "all `<prefix>`" entry carries the same count as its parent node (since it represents the full set).
+The flat **results** endpoint (`…/`) is shared by every leaf and "all" link. It applies `field__iregex` when `?regex=` is present, else `field__istartswith` when `?filter=` is present, else returns the full set; results are always paginated. The tree is rebuilt per request from the (entity-wide) queryset so `find_alphabet_node_by_name` can resolve any node.
+
+The `<content>` of each tree entry includes the item count. The "all `<prefix>`" entry carries the same count as its parent node (since it represents the full set).
 
 ### 6.2a Genre Hierarchy Feeds
 
-Genres use a three-level hierarchy instead of a flat alphabet tree:
+Genres separate **subgenre navigation** from **book browsing**. A genre detail is a pure subgenre browser; books for a genre are reached through that genre's own tree/results endpoints, which are an exact instance of the standard navigation/results shape (§6.2) with a genre-scoped base queryset.
 
 **`/opds/v1/genres/` — `GenreRootFeedView` (Navigation)**
 
@@ -204,19 +229,25 @@ Lists all top-level genres (those with `parent=None`). Each entry links to `/opd
 
 **`/opds/v1/genres/<pk>/` — `GenreDetailFeedView` (Navigation)**
 
-For the given genre, renders:
-1. One navigation entry per direct subgenre, each linking to `/opds/v1/genres/<subpk>/`.
-2. Alphabet tree entries for books in this genre (and its descendants), using `get_alphabet_tree` on the filtered `Book` queryset. The tree is built from *only* the books belonging to this genre (including descendants) — so if no books in this genre start with "A", the "A" node will not appear. Each leaf links to `/opds/v1/genres/<pk>/books/<letter>/`. Non-leaf nodes follow the same "all `<prefix>`" rule as the main alphabet trees.
+Renders **subgenres only** — one navigation entry per direct subgenre (`genre.subgenres.all()`), each linking to `/opds/v1/genres/<subpk>/`. It contains **no** book or alphabet-tree entries.
 
-Returns `HTTP 404` if the genre does not exist.
+- If the genre **has** subgenres → return the subgenre navigation feed.
+- If the genre has **no** subgenres (a leaf genre) → **HTTP 302 redirect** to `/opds/v1/genres/<pk>/books/tree/`. 302 (temporary) is used, not 301, because leaf-ness is data-dependent (subgenres may be added later). OPDS clients follow standard HTTP redirects.
+- Returns `HTTP 404` if the genre does not exist.
 
-**`/opds/v1/genres/<pk>/books/` — `GenreBooksFeedView` (Acquisition)**
+> **Consequence (intended):** a *non-leaf* genre's own aggregate book tree (`/opds/v1/genres/<pk>/books/tree/`) is not linked from any feed — you reach books by drilling down to a leaf subgenre, which redirects into its book tree. The aggregate endpoint still exists and is reachable by direct URL (consistent with the "define-but-don't-advertise" rule for bare results endpoints). Because directly-tagged books only live on leaf genres in this dataset, no books are hidden — only the *aggregate* parent-genre browse is unadvertised. The genre root feed still shows the aggregate descendant **count** per top-level genre.
 
-Acquisition feed of all books belonging to the genre or any of its descendants. Sorted by title. Paginated.
+**`/opds/v1/genres/<pk>/books/tree/` and `/opds/v1/genres/<pk>/books/tree/<name>/` — `GenreBookTreeFeedView` (Navigation)**
 
-**`/opds/v1/genres/<pk>/books/<letter>/` — `GenreBookListFeedView` (Acquisition)**
+The standard alphabet-tree feeds (§6.2), built with `get_alphabet_tree` on the genre-filtered `Book` queryset (genre **+ descendants**, via `get_descendants`). The tree contains *only* the letters this genre actually has — if no books in this genre start with "A", there is no "A" node. Node links follow the standard rule:
 
-Acquisition feed of books filtered by both genre (including descendants) and the given alphabet prefix. Sorted by title. Paginated.
+- expandable node → `/opds/v1/genres/<pk>/books/tree/<name>/` (resolved by `find_alphabet_node_by_name`);
+- leaf node → `/opds/v1/genres/<pk>/books/?filter=<filter>` or `…/books/?regex=<encoded>`;
+- synthetic "all `<prefix>`" first child → `/opds/v1/genres/<pk>/books/?filter=<prefix>` (or `?regex=` for `other`).
+
+**`/opds/v1/genres/<pk>/books/` — `GenreBookListFeedView` (Acquisition)**
+
+The flat **results** endpoint for the genre. Base queryset is the genre (+descendants) book set; it then applies `title__iregex=<regex>` when `?regex=` is present, else `title__istartswith=<filter>` when `?filter=` is present, else returns the full genre set. Always paginated, sorted by title. This matches the canonical `BookListView.get_queryset` precedence (`regex → title__iregex`, else `filter → title__istartswith`), so digit- and symbol-titled books are reachable within a genre. With no query params it is the genre's full book list — valid but not advertised (reached only via the tree's leaf/"all" links).
 
 ### 6.3 Author Detail Feed (`/opds/v1/authors/<pk>/`)
 
@@ -474,9 +505,9 @@ No database content required (structure-only). Uses plain `TestCase`.
 #### `OPDSAlphabetTreeTest` (parameterized)
 
 **Fixture:** canonical dataset via `create_test_dataset()`. Tests the three alphabet-tree root endpoints (genres use a separate hierarchy, tested below). Parameterized over:
-- `('authors', '/opds/v1/authors/')`
-- `('books', '/opds/v1/books/')`
-- `('series', '/opds/v1/series/')`
+- `('authors', '/opds/v1/authors/tree/')`
+- `('books', '/opds/v1/books/tree/')`
+- `('series', '/opds/v1/series/tree/')`
 
 The factory dataset guarantees deep expansion on multiple letters, so the "all" node and multi-level sub-trees are exercised without creating extra data.
 
@@ -498,40 +529,40 @@ The factory dataset guarantees deep expansion on multiple letters, so the "all" 
 
 Authors tree (from `test_template.md`):
 - Root: `A(137)`, `B(58)`, `C(19)`, `Ш(15)`, `0-9(12)`, `Other(14)` — no `D`, `E`, etc.
-- `/opds/v1/authors/a/`: entries `Ab(110)`, `Ac(11)`, `Ad(16)`, `all a(137)`
-- `/opds/v1/authors/ab/`: entries `Aba(60)`, `Abi(42)`, `Aby(8)`, `all ab(110)`
-- `/opds/v1/authors/aba/`: entries `Abak(21)`, `Aban(39)`, `all aba(60)` — leaf sub-tree
+- `/opds/v1/authors/tree/a/`: entries `Ab(110)`, `Ac(11)`, `Ad(16)`, `all a(137)`
+- `/opds/v1/authors/tree/ab/`: entries `Aba(60)`, `Abi(42)`, `Aby(8)`, `all ab(110)`
+- `/opds/v1/authors/tree/aba/`: entries `Abak(21)`, `Aban(39)`, `all aba(60)` — leaf sub-tree
 
 Books tree (from `test_template.md`):
 - Root: `A(222)`, `B(167)`, `M(43)`, `П(83)`, `0-9(14)`, `Other(31)` — no `C`, `D`, etc.
-- `/opds/v1/books/a/`: entries `Al(96)`, `An(83)`, `Ar(43)`, `all a(222)`
-- `/opds/v1/books/al/`: entries `Ali(57)`, `All(39)`, `all al(96)`
-- `/opds/v1/books/ali/`: entries `Alid(23)`, `Alit(34)`, `all ali(57)`
+- `/opds/v1/books/tree/a/`: entries `Al(96)`, `An(83)`, `Ar(43)`, `all a(222)`
+- `/opds/v1/books/tree/al/`: entries `Ali(57)`, `All(39)`, `all al(96)`
+- `/opds/v1/books/tree/ali/`: entries `Alid(23)`, `Alit(34)`, `all ali(57)`
 
 Series tree (from `test_template.md`):
 - Root: `C(54)`, `S(62)`, `T(11)`, `0-9(10)`, `Other(11)` — no `A`, `B`, etc.
-- `/opds/v1/series/c/`: entries `Ch(36)`, `Cr(18)`, `all c(54)`
-- `/opds/v1/series/s/`: entries `Sh(6)`, `St(54)`, `Sw(2)`, `all s(62)`
-- `/opds/v1/series/st/`: entries `Sta(28)`, `Ste(26)`, `all st(54)`
+- `/opds/v1/series/tree/c/`: entries `Ch(36)`, `Cr(18)`, `all c(54)`
+- `/opds/v1/series/tree/s/`: entries `Sh(6)`, `St(54)`, `Sw(2)`, `all s(62)`
+- `/opds/v1/series/tree/st/`: entries `Sta(28)`, `Ste(26)`, `all st(54)`
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_authors_root_entry_count` | `/opds/v1/authors/` contains exactly 6 top-level entries: A, B, C, Ш, `0-9`, Other |
+| 1 | `test_authors_root_entry_count` | `/opds/v1/authors/tree/` contains exactly 6 top-level entries: A, B, C, Ш, `0-9`, Other |
 | 2 | `test_authors_root_a_count_is_137` | `"A"` entry `<content>` contains `137` |
 | 3 | `test_authors_root_digits_count_is_12` | `"0-9"` entry `<content>` contains `12` |
-| 4 | `test_authors_a_sub_entries` | `/opds/v1/authors/a/` contains entries `Ab(110)`, `Ac(11)`, `Ad(16)`, `all a(137)` — no others |
-| 5 | `test_authors_ab_sub_entries` | `/opds/v1/authors/ab/` contains entries `Aba(60)`, `Abi(42)`, `Aby(8)`, `all ab(110)` — no others |
-| 6 | `test_authors_aba_sub_entries` | `/opds/v1/authors/aba/` contains entries `Abak(21)`, `Aban(39)`, `all aba(60)` — no others |
-| 7 | `test_books_root_entry_count` | `/opds/v1/books/` contains exactly 6 top-level entries: A, B, M, П, `0-9`, Other |
+| 4 | `test_authors_a_sub_entries` | `/opds/v1/authors/tree/a/` contains entries `Ab(110)`, `Ac(11)`, `Ad(16)`, `all a(137)` — no others |
+| 5 | `test_authors_ab_sub_entries` | `/opds/v1/authors/tree/ab/` contains entries `Aba(60)`, `Abi(42)`, `Aby(8)`, `all ab(110)` — no others |
+| 6 | `test_authors_aba_sub_entries` | `/opds/v1/authors/tree/aba/` contains entries `Abak(21)`, `Aban(39)`, `all aba(60)` — no others |
+| 7 | `test_books_root_entry_count` | `/opds/v1/books/tree/` contains exactly 6 top-level entries: A, B, M, П, `0-9`, Other |
 | 8 | `test_books_a_count_is_222` | `"A"` entry `<content>` contains `222` |
 | 9 | `test_books_root_digits_count_is_14` | `"0-9"` entry `<content>` contains `14` |
-| 10 | `test_books_a_sub_entries` | `/opds/v1/books/a/` contains entries `Al(96)`, `An(83)`, `Ar(43)`, `all a(222)` — no others |
-| 11 | `test_books_ali_sub_entries` | `/opds/v1/books/ali/` contains entries `Alid(23)`, `Alit(34)`, `all ali(57)` — no others |
-| 12 | `test_series_root_entry_count` | `/opds/v1/series/` contains exactly 5 top-level entries: C, S, T, `0-9`, Other |
+| 10 | `test_books_a_sub_entries` | `/opds/v1/books/tree/a/` contains entries `Al(96)`, `An(83)`, `Ar(43)`, `all a(222)` — no others |
+| 11 | `test_books_ali_sub_entries` | `/opds/v1/books/tree/ali/` contains entries `Alid(23)`, `Alit(34)`, `all ali(57)` — no others |
+| 12 | `test_series_root_entry_count` | `/opds/v1/series/tree/` contains exactly 5 top-level entries: C, S, T, `0-9`, Other |
 | 13 | `test_series_root_digits_count_is_10` | `"0-9"` entry `<content>` contains `10` |
 | 14 | `test_series_s_count_is_62` | `"S"` entry `<content>` contains `62` |
-| 15 | `test_series_s_sub_entries` | `/opds/v1/series/s/` contains entries `Sh(6)`, `St(54)`, `Sw(2)`, `all s(62)` — no others |
-| 16 | `test_series_st_sub_entries` | `/opds/v1/series/st/` contains entries `Sta(28)`, `Ste(26)`, `all st(54)` — no others |
+| 15 | `test_series_s_sub_entries` | `/opds/v1/series/tree/s/` contains entries `Sh(6)`, `St(54)`, `Sw(2)`, `all s(62)` — no others |
+| 16 | `test_series_st_sub_entries` | `/opds/v1/series/tree/st/` contains entries `Sta(28)`, `Ste(26)`, `all st(54)` — no others |
 
 *(Other node structure and counts are covered in depth by `OPDSOtherNodeTest`.)*
 
@@ -543,16 +574,16 @@ Series tree (from `test_template.md`):
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_expanded_node_has_all_child` | `/opds/v1/authors/a/` is expanded (has Ab/Ac/Ad children); feed contains entry titled `"all a"` |
-| 2 | `test_all_node_is_first_child` | `"all a"` entry is the first `<entry>` in the `/opds/v1/authors/a/` feed |
-| 3 | `test_all_node_link_has_no_filter_param` | `"all a"` entry `<link href>` is `/opds/v1/authors/a/` with no `filter` or `regex` query params |
+| 1 | `test_expanded_node_has_all_child` | `/opds/v1/authors/tree/a/` is expanded (has Ab/Ac/Ad children); feed contains entry titled `"all a"` |
+| 2 | `test_all_node_is_first_child` | `"all a"` entry is the first `<entry>` in the `/opds/v1/authors/tree/a/` feed |
+| 3 | `test_all_node_link_points_to_results_filter` | `"all a"` entry `<link href>` is the results endpoint `/opds/v1/authors/?filter=a` (no further sub-filter, no `regex`) |
 | 4 | `test_all_node_count_equals_parent_count` | `"all a"` entry `<content>` count is `137` (same as parent `A` node) |
-| 5 | `test_leaf_node_has_no_all_child` | `/opds/v1/authors/ac/` is a leaf (Ac=11, not expanded) → feed contains no entry titled `"all ac"` |
-| 6 | `test_all_node_present_at_second_level` | `/opds/v1/authors/ab/` is expanded (has Aba/Abi/Aby children); `"all ab"` is first `<entry>`, count=110 |
-| 7 | `test_all_node_present_at_third_level` | `/opds/v1/authors/aba/` is expanded (has Abak/Aban children); `"all aba"` is first `<entry>`, count=60 |
-| 8 | `test_books_expanded_node_has_all_child` | `/opds/v1/books/a/` has `"all a"` as first entry, count=222 |
-| 9 | `test_series_expanded_node_has_all_child` | `/opds/v1/series/s/` has `"all s"` as first entry, count=62 |
-| 10 | `test_digits_node_is_leaf_no_all_entry` | `"0-9"` node (authors, books, series) is always a leaf (no sub-entries) → following its `?regex=` link returns a flat list with no `"all 0-9"` entry |
+| 5 | `test_leaf_node_links_to_results` | `Ac` (Ac=11, leaf) entry in `/opds/v1/authors/tree/a/` links to `/opds/v1/authors/?filter=ac`; there is no `"all ac"` entry anywhere |
+| 6 | `test_all_node_present_at_second_level` | `/opds/v1/authors/tree/ab/` is expanded (has Aba/Abi/Aby children); `"all ab"` is first `<entry>`, count=110, links to `/opds/v1/authors/?filter=ab` |
+| 7 | `test_all_node_present_at_third_level` | `/opds/v1/authors/tree/aba/` is expanded (has Abak/Aban children); `"all aba"` is first `<entry>`, count=60, links to `/opds/v1/authors/?filter=aba` |
+| 8 | `test_books_expanded_node_has_all_child` | `/opds/v1/books/tree/a/` has `"all a"` as first entry, count=222, links to `/opds/v1/books/?filter=a` |
+| 9 | `test_series_expanded_node_has_all_child` | `/opds/v1/series/tree/s/` has `"all s"` as first entry, count=62, links to `/opds/v1/series/?filter=s` |
+| 10 | `test_digits_node_is_leaf_no_all_entry` | `"0-9"` node (authors, books, series) is always a leaf → its tree entry links to `/opds/v1/authors/?regex=^[0-9]`; following that results link yields a flat list with no `"all 0-9"` entry |
 
 ---
 
@@ -564,8 +595,8 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 
 - First-level alpha prefixes with count **below** `min_first_level_quantity` (default 10) are demoted into the `Other` node instead of appearing at the root. They become child entries of `Other`.
 - Non-alpha (non-digit) items produce a `* (all non-alpha)` child entry inside `Other` with `regex=r'^[^[:alpha:][:digit:]]'`.
-- The `Other` node itself carries a composite `regex` that covers both non-alpha items and all demoted alpha prefixes. This regex is URL-encoded and passed as `?regex=` to fetch the Other node's sub-tree.
-- The "all Other" entry (first child of the expanded Other node, per the "all `<prefix>`" rule) links back to the Other node URL (`?regex=<other_regex>`) with no further filter — returning the full 14/31/11 items.
+- `Other` is an **expandable** node, so its tree entry (in the root feed) links to the sub-tree path `/opds/v1/<entity>/tree/other/`, resolved by `find_alphabet_node_by_name(tree, 'other')`. The node still carries a composite `regex` covering both non-alpha items and all demoted alpha prefixes — used only for the "all Other" results link below, not for navigation.
+- The "all Other" entry (first child of the expanded Other sub-tree, per the "all `<prefix>`" rule) links to the **results** endpoint `/opds/v1/<entity>/?regex=<url-encoded other_regex>` — returning the full 14/31/11 items. (The `other` node has an empty `filter`, so its "all" link uses `?regex=`, not `?filter=`.)
 
 **Authors Other (14):** `* (all non-alpha)` = 3 (`!_1`, `(_2`, `+_3`) · `Z` = 8 · `Ї` = 2 · `Э` = 1
 — `other_node.regex = r'^([^[:alpha:][:digit:]]|z|ї|э)'`
@@ -578,27 +609,27 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_authors_root_has_other_entry` | `/opds/v1/authors/` root feed contains an entry named `"Other"` with count 14 |
-| 2 | `test_books_root_has_other_entry` | `/opds/v1/books/` root feed contains an entry named `"Other"` with count 31 |
-| 3 | `test_series_root_has_other_entry` | `/opds/v1/series/` root feed contains an entry named `"Other"` with count 11 |
-| 4 | `test_other_entry_link_uses_regex_param` | `"Other"` entry `<link href>` contains `?regex=` query parameter (not a plain path segment) |
-| 5 | `test_other_node_feed_has_non_alpha_child` | GET `?regex=<other_regex>` for authors → feed contains `"* (all non-alpha)"` child entry with count 3 |
-| 6 | `test_other_node_feed_has_z_child` | Authors Other feed contains child entry `"Z"` with count 8 |
-| 7 | `test_other_node_feed_has_all_other_first` | Authors Other feed first `<entry>` is `"all Other"` (count 14) |
-| 8 | `test_all_other_link_matches_other_node_url` | `"all Other"` entry `<link href>` is identical to the `"Other"` entry link from the root feed (same `?regex=` value, no additional params) |
+| 1 | `test_authors_root_has_other_entry` | `/opds/v1/authors/tree/` root feed contains an entry named `"Other"` with count 14 |
+| 2 | `test_books_root_has_other_entry` | `/opds/v1/books/tree/` root feed contains an entry named `"Other"` with count 31 |
+| 3 | `test_series_root_has_other_entry` | `/opds/v1/series/tree/` root feed contains an entry named `"Other"` with count 11 |
+| 4 | `test_other_entry_link_is_tree_path` | `"Other"` entry `<link href>` is the sub-tree path `/opds/v1/authors/tree/other/` (expandable node — not a `?regex=` results link) |
+| 5 | `test_other_node_feed_has_non_alpha_child` | GET `/opds/v1/authors/tree/other/` → feed contains `"* (all non-alpha)"` child entry with count 3 |
+| 6 | `test_other_node_feed_has_z_child` | `/opds/v1/authors/tree/other/` feed contains child entry `"Z"` with count 8 |
+| 7 | `test_other_node_feed_has_all_other_first` | `/opds/v1/authors/tree/other/` feed first `<entry>` is `"all Other"` (count 14) |
+| 8 | `test_all_other_link_points_to_results_regex` | `"all Other"` entry `<link href>` is the results endpoint `/opds/v1/authors/?regex=<other_regex>` (the `other` node's composite regex, URL-encoded) — distinct from the `"Other"` root entry which links to `tree/other/` |
 | 9 | `test_all_other_count_equals_other_total` | `"all Other"` entry `<content>` count equals 14 (authors), 31 (books), or 11 (series) matching the Other node total — parameterized |
-| 10 | `test_non_alpha_child_link_uses_regex_param` | `"* (all non-alpha)"` entry `<link href>` contains `?regex=%5E%5B%5E%5B%3A%5B%3Aalpha%3A%5D%5B%3Adigit%3A%5D%5D` (URL-encoded `^[^[:alpha:][:digit:]]`) or equivalent |
-| 11 | `test_non_alpha_list_returns_only_non_alpha_items` | GET `?regex=^[^[:alpha:][:digit:]]` for authors → feed contains exactly 3 entries (the `!_1`, `(_2`, `+_3` authors); no `Z`, `Ї`, `Э` authors |
-| 12 | `test_non_alpha_books_list_count` | GET `?regex=^[^[:alpha:][:digit:]]` for books → feed page 1 has 14 entries total (across pages), all with non-alpha titles (`!*`, `(*`, `-*`) |
-| 13 | `test_non_alpha_series_list_count` | GET `?regex=^[^[:alpha:][:digit:]]` for series → feed has 4 entries (`(1`, `(2`, `_1`, `_2`) |
-| 14 | `test_all_other_list_returns_complete_other_set` | GET `?regex=<other_regex>` for authors → feed contains entries for all 14 Other authors (Z×8, Ї×2, Э×1, non-alpha×3 across pages) |
-| 15 | `test_z_child_is_leaf_no_all_z_entry` | Authors Other feed: `"Z"` child entry is a leaf (count=8 < `min_quantity`) → following its link returns a flat list with no `"all z"` entry |
-| 16 | `test_demoted_alpha_child_link_uses_filter_param` | `"Z"` (and `"Ї"`, `"Э"`) child entries in Authors Other use `filter=z` path segment (not `?regex=`), since they are regular alpha-leaf nodes |
-| 17 | `test_books_other_q_child_count` | Books Other feed contains `"Q"` entry with count 7 |
-| 18 | `test_books_other_x_child_count` | Books Other feed contains `"X"` entry with count 8 |
-| 19 | `test_series_other_n_child_count` | Series Other feed contains `"N"` entry with count 4 |
-| 20 | `test_series_other_cyrillic_в_child_count` | Series Other feed contains `"В"` entry with count 3 |
-| 21 | `test_digits_node_is_separate_from_other` | Root feed for authors, books, and series: the `"0-9"` entry exists as a **sibling** of `"Other"`, not as a child inside it; the `Other` feed does NOT contain a `"0-9"` child entry |
+| 10 | `test_non_alpha_child_link_uses_regex_param` | `"* (all non-alpha)"` entry (in `tree/other/`) `<link href>` is `/opds/v1/authors/?regex=%5E%5B%5E%5B%3A%5B%3Aalpha%3A%5D%5B%3Adigit%3A%5D%5D` (results endpoint, URL-encoded `^[^[:alpha:][:digit:]]`) or equivalent |
+| 11 | `test_non_alpha_list_returns_only_non_alpha_items` | GET `/opds/v1/authors/?regex=^[^[:alpha:][:digit:]]` → feed contains exactly 3 entries (the `!_1`, `(_2`, `+_3` authors); no `Z`, `Ї`, `Э` authors |
+| 12 | `test_non_alpha_books_list_count` | GET `/opds/v1/books/?regex=^[^[:alpha:][:digit:]]` → 14 entries total (across pages), all with non-alpha titles (`!*`, `(*`, `-*`) |
+| 13 | `test_non_alpha_series_list_count` | GET `/opds/v1/series/?regex=^[^[:alpha:][:digit:]]` → feed has 4 entries (`(1`, `(2`, `_1`, `_2`) |
+| 14 | `test_all_other_list_returns_complete_other_set` | GET `/opds/v1/authors/?regex=<other_regex>` → feed contains entries for all 14 Other authors (Z×8, Ї×2, Э×1, non-alpha×3 across pages) |
+| 15 | `test_z_child_is_leaf_links_to_results` | In `/opds/v1/authors/tree/other/`, the `"Z"` child entry is a leaf (count=8 < `min_quantity`) → links to `/opds/v1/authors/?filter=z`; there is no `"all z"` entry |
+| 16 | `test_demoted_alpha_child_link_uses_filter_param` | `"Z"` (and `"Ї"`, `"Э"`) child entries in `tree/other/` link to `/opds/v1/authors/?filter=z` (results endpoint, not `?regex=`), since they are regular alpha-leaf nodes |
+| 17 | `test_books_other_q_child_count` | `/opds/v1/books/tree/other/` feed contains `"Q"` entry with count 7 |
+| 18 | `test_books_other_x_child_count` | `/opds/v1/books/tree/other/` feed contains `"X"` entry with count 8 |
+| 19 | `test_series_other_n_child_count` | `/opds/v1/series/tree/other/` feed contains `"N"` entry with count 4 |
+| 20 | `test_series_other_cyrillic_в_child_count` | `/opds/v1/series/tree/other/` feed contains `"В"` entry with count 3 |
+| 21 | `test_digits_node_is_separate_from_other` | Root tree feed for authors, books, and series: the `"0-9"` entry exists as a **sibling** of `"Other"`, not as a child inside it; the `tree/other/` feed does NOT contain a `"0-9"` child entry |
 
 ---
 
@@ -608,23 +639,25 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_author_alphabet_root_has_a_entry` | GET `/opds/v1/authors/` → feed contains entry for `"a"` with count 137 |
-| 2 | `test_author_alphabet_root_has_b_entry` | Root feed contains entry for `"b"` with count 58 |
-| 3 | `test_author_alphabet_root_no_entry_for_missing_letter` | Root feed does NOT contain a `"z"` entry |
-| 4 | `test_author_list_by_letter_status_200` | GET `/opds/v1/authors/b/` → 200 (B is a leaf — 58 authors, not expanded) |
-| 5 | `test_author_list_by_letter_has_correct_count` | GET `/opds/v1/authors/b/` → feed contains exactly 20 entries (page 1 of 58; pagination applies) |
-| 6 | `test_author_list_entry_links_to_author_detail` | Each entry `<link href>` points to `/opds/v1/authors/<pk>/` |
-| 7 | `test_author_list_letter_not_found_returns_empty_feed` | GET `/opds/v1/authors/y/` → 200 with 0 `<entry>` elements (no author starts with Y in factory dataset) |
-| 8 | `test_author_list_sorted_alphabetically` | Entries on `/opds/v1/authors/b/` are ordered by author last name ascending (Ba* before Be*) |
+| 1 | `test_author_alphabet_root_has_a_entry` | GET `/opds/v1/authors/tree/` → feed contains entry for `"a"` with count 137 |
+| 2 | `test_author_alphabet_root_has_b_entry` | Root tree feed contains entry for `"b"` with count 58 |
+| 3 | `test_author_alphabet_root_no_entry_for_missing_letter` | Root tree feed does NOT contain a `"z"` entry |
+| 4 | `test_author_results_by_filter_status_200` | GET `/opds/v1/authors/?filter=b` → 200 (B is a leaf — 58 authors) |
+| 5 | `test_author_results_by_filter_has_correct_count` | GET `/opds/v1/authors/?filter=b` → feed contains exactly 20 entries (page 1 of 58; pagination applies) |
+| 6 | `test_author_results_entry_links_to_author_detail` | Each entry `<link href>` points to `/opds/v1/authors/<pk>/` |
+| 7 | `test_author_results_filter_not_found_returns_empty_feed` | GET `/opds/v1/authors/?filter=y` → 200 with 0 `<entry>` elements (no author starts with Y in factory dataset) |
+| 8 | `test_author_results_sorted_alphabetically` | Entries on `/opds/v1/authors/?filter=b` are ordered by author last name ascending (Ba* before Be*) |
 | 9 | `test_author_digits_node_list` | GET `/opds/v1/authors/?regex=^[0-9]` → 200 with exactly 12 entries (all digit-prefix authors) |
 
 ---
 
 #### `OPDSGenreFeedTest`
 
-**Fixture:** canonical dataset via `create_test_dataset()`. Uses genres from the factory: `sf_fantasy` (parent, 3 leaf children), `dystopia` (leaf, child of sf_fantasy), `mysteries_thrillers` (parent, no books directly). The canonical dataset has no top-level genre with zero books — to test `count=0`, one leaf genre with 0 books is created inline in `setUpTestData` as `genre_empty` (`parent=None`).
+**Fixture:** canonical dataset via `create_test_dataset()`. Uses genres from the factory: `sf_fantasy` (parent, 3 leaf children), `dystopia` (leaf, child of sf_fantasy), `mysteries_thrillers` (parent, no books directly). The canonical dataset has no top-level genre with zero books — to test `count=0`, one leaf genre with 0 books is created inline in `setUpTestData` as `genre_empty` (`parent=None`, no children).
 
-Objects referenced by name in the table below are obtained via `.get(code=...)` or `.first()` after `create_test_dataset()`.
+Objects referenced by name in the table below are obtained via `.get(code=...)` or `.first()` after `create_test_dataset()`. Redirect assertions use `self.client.get(url)` (default `follow=False`) and check `response.status_code == 302` and `response['Location']`.
+
+Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf genre 302-redirects to its book tree. Genre book browsing lives at the standard tree/results endpoints `/genres/<pk>/books/tree/[...]` and `/genres/<pk>/books/?filter=|?regex=`.
 
 | # | Test | Assertion |
 |---|------|-----------|
@@ -634,19 +667,24 @@ Objects referenced by name in the table below are obtained via `.get(code=...)` 
 | 4 | `test_genre_root_entry_links_to_genre_detail` | Each entry has `<link rel="subsection" href="/opds/v1/genres/<pk>/">` |
 | 5 | `test_genre_root_entry_content_has_book_count` | `sf_fantasy` entry `<content>` contains `279` (116+82+81 books across its 3 leaf children) |
 | 6 | `test_genre_root_genre_with_no_books_still_listed` | `genre_empty` (no books) still appears in root feed with count `0` |
-| 7 | `test_genre_detail_status_200` | GET `/opds/v1/genres/<sf_fantasy.pk>/` → 200 |
+| 7 | `test_genre_detail_with_subgenres_status_200` | GET `/opds/v1/genres/<sf_fantasy.pk>/` → 200 (has subgenres) |
 | 8 | `test_genre_detail_404` | GET `/opds/v1/genres/99999/` → 404 |
-| 9 | `test_genre_detail_lists_subgenres` | `sf_fantasy` feed contains entries for `dystopia`, `science_fiction`, `fantasy` as navigation links |
-| 10 | `test_genre_detail_has_alphabet_tree_entries` | `sf_fantasy` feed contains alphabet tree entries for books in its descendants; entry for `"alid"` is present (23 dystopia books start with Alid) |
-| 11 | `test_genre_detail_alphabet_tree_excludes_other_genre_letters` | `genre_empty` (no books) → GET `/opds/v1/genres/<genre_empty.pk>/` returns feed with no alphabet tree entries |
-| 12 | `test_genre_detail_alphabet_tree_only_contains_own_books` | `dystopia` detail: alphabet tree contains `"alid"` (23 dystopia books); does NOT contain `"пе"` (Пе books belong to all genres equally, but dystopia has 6 Пе books, so this assertion should check a letter that is zero for dystopia — e.g., verify no `"ю"` for dystopia: dystopia has 1 Ю book, so use a letter with count=0 for dystopia, e.g. verify entry counts match template) |
-| 13 | `test_genre_detail_alphabet_leaf_links_to_booklist` | Leaf alphabet entry `<link href>` points to `/opds/v1/genres/<pk>/books/<letter>/` |
-| 14 | `test_genre_books_status_200` | GET `/opds/v1/genres/<dystopia.pk>/books/` → 200 |
-| 15 | `test_genre_books_includes_descendant_genre_books` | `sf_fantasy` books feed contains books from all 3 child genres (dystopia + sci_fi + fantasy) |
-| 16 | `test_genre_books_excludes_other_genre_books` | `dystopia` books feed does NOT contain books whose only genre is `mystery` |
-| 17 | `test_genre_books_by_letter_status_200` | GET `/opds/v1/genres/<dystopia.pk>/books/alid/` → 200 |
-| 18 | `test_genre_books_by_letter_filters_correctly` | Feed contains 23 entries (Alid dystopia books); does NOT contain entries with titles starting with `"Alit"` |
-| 19 | `test_genre_books_by_letter_empty_letter_returns_empty_feed` | GET `/opds/v1/genres/<dystopia.pk>/books/z/` → 200 with 0 entries |
+| 9 | `test_genre_detail_lists_subgenres_only` | `sf_fantasy` feed contains exactly 3 navigation entries — `dystopia`, `science_fiction`, `fantasy` — each linking to `/opds/v1/genres/<subpk>/` |
+| 10 | `test_genre_detail_has_no_book_or_alphabet_entries` | `sf_fantasy` feed contains no acquisition (book) entries and no alphabet-tree entries (e.g. no `"alid"` entry) — subgenres only |
+| 11 | `test_genre_detail_leaf_genre_redirects_to_book_tree` | GET `/opds/v1/genres/<dystopia.pk>/` (leaf, no subgenres) → 302; `Location` ends in `/opds/v1/genres/<dystopia.pk>/books/tree/` |
+| 12 | `test_genre_detail_empty_genre_redirects_to_book_tree` | GET `/opds/v1/genres/<genre_empty.pk>/` (no subgenres, no books) → 302 to `/opds/v1/genres/<genre_empty.pk>/books/tree/` |
+| 13 | `test_genre_book_tree_status_200_navigation` | GET `/opds/v1/genres/<sf_fantasy.pk>/books/tree/` → 200, `Content-Type` contains `kind=navigation` |
+| 14 | `test_genre_book_tree_has_alphabet_entries` | `/opds/v1/genres/<sf_fantasy.pk>/books/tree/` contains alphabet entries for books in its descendants (e.g. an `"al"`/`"ali"` branch leading to dystopia's Alid books) |
+| 15 | `test_genre_book_tree_only_contains_own_books` | `/opds/v1/genres/<dystopia.pk>/books/tree/`: tree contains only letters present in dystopia books; counts match the `test_template.md` values for dystopia |
+| 16 | `test_genre_book_tree_empty_genre_returns_empty_tree` | GET `/opds/v1/genres/<genre_empty.pk>/books/tree/` → 200 with 0 alphabet entries (0 books) |
+| 17 | `test_genre_book_tree_leaf_links_to_results` | A leaf alphabet entry in `/opds/v1/genres/<pk>/books/tree/[...]` `<link href>` points to `/opds/v1/genres/<pk>/books/?filter=<letter>` |
+| 18 | `test_genre_book_tree_non_leaf_links_to_subtree` | For `sf_fantasy`, an expandable letter node → `<link href>` is `/opds/v1/genres/<sf_fantasy.pk>/books/tree/<name>/`; that sub-tree feed includes the synthetic `"all <letter>"` first entry |
+| 19 | `test_genre_book_tree_regex_node_link_carries_regex_param` | A regex leaf (`0-9`) in `/opds/v1/genres/<pk>/books/tree/` has `<link href>` = `/opds/v1/genres/<pk>/books/?regex=^[0-9]`; the `other` node links to `…/books/tree/other/` |
+| 20 | `test_genre_books_results_by_filter_status_200` | GET `/opds/v1/genres/<dystopia.pk>/books/?filter=alid` → 200 |
+| 21 | `test_genre_books_results_by_filter_filters_correctly` | `/opds/v1/genres/<dystopia.pk>/books/?filter=alid` → all entry titles start with `"Alid"`; no `"Alit"` title; no book whose only genre is `mystery` (descendant-genre filter holds) |
+| 22 | `test_genre_books_results_empty_filter_returns_empty_feed` | GET `/opds/v1/genres/<dystopia.pk>/books/?filter=z` → 200 with 0 entries |
+| 23 | `test_genre_books_results_by_regex_filters_by_regex` | For a genre whose tree has a `0-9` node: GET `/opds/v1/genres/<pk>/books/?regex=^[0-9]` → 200; feed total (across pages) equals that genre's `0-9` tree-entry count; every entry title starts with a digit |
+| 24 | `test_genre_books_results_regex_beats_filter` | GET `/opds/v1/genres/<pk>/books/?filter=0-9` (no `?regex=`) → uses `istartswith='0-9'` and yields 0 entries — confirms `?regex=` is what drives non-letter nodes |
 
 ---
 
@@ -659,11 +697,11 @@ Objects referenced by name in the table below are obtained via `.get(code=...)` 
 | 1 | `test_genre_root_sf_fantasy_count` | `Science Fiction & Fantasy` entry `<content>` contains `279` (116+82+81) |
 | 2 | `test_genre_root_mysteries_count` | `Mysteries & Thrillers` entry `<content>` contains `208` (130+78) |
 | 3 | `test_genre_root_action_adv_count` | `Action & Adventure` entry `<content>` contains `185` (111+74) |
-| 4 | `test_dystopia_detail_alphabet_has_alid_entry` | `Dystopia` genre detail: alphabet tree contains `"alid"` entry (5 dystopia books in Alid group) |
-| 5 | `test_fantasy_detail_alphabet_no_yu_entry` | `Fantasy` genre detail: alphabet tree does NOT contain `"ю"` entry (fantasy has 0 books starting with Ю) |
-| 6 | `test_nature_animals_detail_has_correct_total` | `Nature & Animals` genre book list total is 74 |
-| 7 | `test_genre_books_by_letter_alid_dystopia` | GET `/opds/v1/genres/<dystopia.pk>/books/alid/` → feed has exactly 5 entries |
-| 8 | `test_genre_books_by_letter_count_matches_table` | GET `/opds/v1/genres/<dystopia.pk>/books/alit/` → feed total count = 7 |
+| 4 | `test_dystopia_book_tree_has_alid_entry` | `/opds/v1/genres/<dystopia.pk>/books/tree/` (reached via the leaf-genre redirect): alphabet tree contains the `"alid"` branch (5 dystopia books in Alid group) |
+| 5 | `test_fantasy_book_tree_no_yu_entry` | `/opds/v1/genres/<fantasy.pk>/books/tree/`: alphabet tree does NOT contain a `"ю"` entry (fantasy has 0 books starting with Ю) |
+| 6 | `test_nature_animals_book_tree_total_is_74` | `/opds/v1/genres/<nature_animals.pk>/books/tree/`: sum of the top-level alphabet-tree entry counts (per-letter `<content>` counts, excluding any `"all …"` synthetic entries) = 74 |
+| 7 | `test_genre_books_results_alid_dystopia` | GET `/opds/v1/genres/<dystopia.pk>/books/?filter=alid` → feed has exactly 5 entries |
+| 8 | `test_genre_books_results_count_matches_table` | GET `/opds/v1/genres/<dystopia.pk>/books/?filter=alit` → feed total count = 7 |
 
 ---
 
@@ -673,15 +711,15 @@ Objects referenced by name in the table below are obtained via `.get(code=...)` 
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_series_alphabet_root_status_200` | GET `/opds/v1/series/` → 200 |
+| 1 | `test_series_alphabet_root_status_200` | GET `/opds/v1/series/tree/` → 200 |
 | 2 | `test_series_alphabet_root_is_navigation` | `Content-Type` contains `kind=navigation` |
-| 3 | `test_series_alphabet_root_has_s_entry` | Root feed contains an entry for `"s"` with count 62 |
-| 4 | `test_series_alphabet_root_no_entry_for_missing_letter` | Root feed does NOT contain an entry for `"z"` |
-| 5 | `test_series_list_by_letter_status_200` | GET `/opds/v1/series/t/` → 200 (T=11, leaf) |
-| 6 | `test_series_list_has_correct_count` | GET `/opds/v1/series/t/` → feed contains exactly 11 entries |
-| 7 | `test_series_list_entry_links_to_series_detail` | Each entry has `<link href="/opds/v1/series/<pk>/">` |
-| 8 | `test_series_list_empty_letter_returns_empty_feed` | GET `/opds/v1/series/z/` → 200 with 0 entries |
-| 9 | `test_series_s_is_expanded_not_flat_list` | GET `/opds/v1/series/s/` → feed contains navigation sub-entries (`Sh`, `St`, `Sw`, `all s`), NOT a flat list of 62 series |
+| 3 | `test_series_alphabet_root_has_s_entry` | Root tree feed contains an entry for `"s"` with count 62 |
+| 4 | `test_series_alphabet_root_no_entry_for_missing_letter` | Root tree feed does NOT contain an entry for `"z"` |
+| 5 | `test_series_results_by_filter_status_200` | GET `/opds/v1/series/?filter=t` → 200 (T=11, leaf) |
+| 6 | `test_series_results_has_correct_count` | GET `/opds/v1/series/?filter=t` → feed contains exactly 11 entries |
+| 7 | `test_series_results_entry_links_to_series_detail` | Each entry has `<link href="/opds/v1/series/<pk>/">` |
+| 8 | `test_series_results_empty_filter_returns_empty_feed` | GET `/opds/v1/series/?filter=z` → 200 with 0 entries |
+| 9 | `test_series_s_is_expanded_subtree` | GET `/opds/v1/series/tree/s/` → feed contains navigation sub-entries (`Sh`, `St`, `Sw`, `all s`), NOT a flat list of 62 series |
 | 10 | `test_series_digits_node_list` | GET `/opds/v1/series/?regex=^[0-9]` → 200 with exactly 10 entries (all digit-prefix series) |
 
 ---
@@ -692,36 +730,36 @@ Objects referenced by name in the table below are obtained via `.get(code=...)` 
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_book_alphabet_root_has_a_entry` | GET `/opds/v1/books/` → feed contains `"a"` entry with count 222 |
-| 2 | `test_book_alphabet_root_no_entry_for_missing_letter` | Root feed does NOT contain a `"z"` entry |
-| 3 | `test_book_list_by_letter_status_200` | GET `/opds/v1/books/m/` → 200 (M=43, leaf) |
-| 4 | `test_book_list_has_correct_count` | GET `/opds/v1/books/m/` → feed has 20 entries (page 1 of 43) |
-| 5 | `test_book_list_excludes_other_letter` | GET `/opds/v1/books/m/` → feed does NOT contain any book whose title starts with `"B"` |
-| 6 | `test_book_list_entry_is_acquisition_with_perm` | Privileged user, GET `/opds/v1/books/m/`: entries have `<link rel="http://opds-spec.org/acquisition">` |
-| 7 | `test_book_list_no_acquisition_link_anon` | Anon request: no acquisition link in entries |
-| 8 | `test_book_list_empty_letter_returns_empty_feed` | GET `/opds/v1/books/z/` → 200 with 0 entries |
-| 9 | `test_book_a_is_expanded_not_flat_list` | GET `/opds/v1/books/a/` → returns navigation sub-entries (`Al`, `An`, `Ar`, `all a`), NOT a flat list of 222 books |
-| 10 | `test_book_list_cyrillic_letter` | GET `/opds/v1/books/п/` → 200 with entries for П=83 books (Ukrainian) |
+| 1 | `test_book_alphabet_root_has_a_entry` | GET `/opds/v1/books/tree/` → feed contains `"a"` entry with count 222 |
+| 2 | `test_book_alphabet_root_no_entry_for_missing_letter` | Root tree feed does NOT contain a `"z"` entry |
+| 3 | `test_book_results_by_filter_status_200` | GET `/opds/v1/books/?filter=m` → 200 (M=43, leaf) |
+| 4 | `test_book_results_has_correct_count` | GET `/opds/v1/books/?filter=m` → feed has 20 entries (page 1 of 43) |
+| 5 | `test_book_results_excludes_other_letter` | GET `/opds/v1/books/?filter=m` → feed does NOT contain any book whose title starts with `"B"` |
+| 6 | `test_book_results_is_acquisition_with_perm` | Privileged user, GET `/opds/v1/books/?filter=m`: entries have `<link rel="http://opds-spec.org/acquisition">` |
+| 7 | `test_book_results_no_acquisition_link_anon` | Anon request: no acquisition link in entries |
+| 8 | `test_book_results_empty_filter_returns_empty_feed` | GET `/opds/v1/books/?filter=z` → 200 with 0 entries |
+| 9 | `test_book_a_is_expanded_subtree` | GET `/opds/v1/books/tree/a/` → returns navigation sub-entries (`Al`, `An`, `Ar`, `all a`), NOT a flat list of 222 books |
+| 10 | `test_book_results_cyrillic_filter` | GET `/opds/v1/books/?filter=п` → 200 with entries for П=83 books (Ukrainian) |
 | 11 | `test_book_digits_node_list` | GET `/opds/v1/books/?regex=^[0-9]` → 200 with exactly 14 entries (all digit-prefix books) |
 
 ---
 
 #### `OPDSPaginationTest`
 
-**Fixture:** canonical dataset via `create_test_dataset()`. Uses `/opds/v1/authors/b/` (B=58 authors — leaf node) and `/opds/v1/books/m/` (M=43 books — leaf node); no extra data creation needed.
+**Fixture:** canonical dataset via `create_test_dataset()`. Uses the results endpoints `/opds/v1/authors/?filter=b` (B=58 authors — leaf node) and `/opds/v1/books/?filter=m` (M=43 books — leaf node); no extra data creation needed.
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_author_list_page_1_has_20_entries` | GET `/opds/v1/authors/b/` → exactly 20 entries |
+| 1 | `test_author_list_page_1_has_20_entries` | GET `/opds/v1/authors/?filter=b` → exactly 20 entries |
 | 2 | `test_author_list_page_1_has_next_link` | Response has `<link rel="next">` |
 | 3 | `test_author_list_page_1_no_prev_link` | Response has no `<link rel="previous">` |
-| 4 | `test_author_list_page_2_has_20_entries` | GET `/opds/v1/authors/b/?page=2` → exactly 20 entries |
-| 5 | `test_author_list_page_3_has_18_entries` | GET `/opds/v1/authors/b/?page=3` → exactly 18 entries (58 total: 20+20+18) |
+| 4 | `test_author_list_page_2_has_20_entries` | GET `/opds/v1/authors/?filter=b&page=2` → exactly 20 entries |
+| 5 | `test_author_list_page_3_has_18_entries` | GET `/opds/v1/authors/?filter=b&page=3` → exactly 18 entries (58 total: 20+20+18) |
 | 6 | `test_author_list_page_3_has_prev_link` | Page 3 response has `<link rel="previous">` |
 | 7 | `test_author_list_page_3_no_next_link` | Page 3 response has no `<link rel="next">` |
-| 8 | `test_book_list_page_1_has_20_entries` | GET `/opds/v1/books/m/` → exactly 20 entries |
-| 9 | `test_book_list_page_3_has_3_entries` | GET `/opds/v1/books/m/?page=3` → exactly 3 entries (43 total: 20+20+3) |
-| 10 | `test_pagination_links_preserve_query_params` | `<link rel="next">` URL preserves the `page` and any other query params |
+| 8 | `test_book_list_page_1_has_20_entries` | GET `/opds/v1/books/?filter=m` → exactly 20 entries |
+| 9 | `test_book_list_page_3_has_3_entries` | GET `/opds/v1/books/?filter=m&page=3` → exactly 3 entries (43 total: 20+20+3) |
+| 10 | `test_pagination_links_preserve_query_params` | `<link rel="next">` URL preserves `filter=b` and `page`, and any other query params |
 
 ---
 
@@ -854,7 +892,12 @@ Objects referenced by name in the table below are obtained via `.get(code=...)` 
 
 ### Alphabet tree URL encoding
 
-The `filter` value from `AlphabetTree.filter` is used directly as the `<letter>` path segment. Non-alpha leaf nodes (`regex`-based: `aa*`, `0-9`, `other`) are not reachable via path segment — they use `?regex=<encoded>` query params instead. Views must handle both forms.
+Navigation and results are addressed differently:
+
+- **Tree path segments** (`…/tree/<name>/`) use the node's `name`, resolved by `find_alphabet_node_by_name(tree, name)`. Only **expandable** nodes are ever placed in a path segment, and their names are URL-safe (`a`, `ab`, `aba`, `other`). Leaf nodes are never path segments.
+- **Results selectors** are always query params on the flat endpoint: a prefix leaf/"all" link uses `?filter=<filter>` (the `AlphabetTree.filter` value); a regex leaf (`aa*`, `0-9`, `* (all non-alpha)`, `other`'s "all") uses `?regex=<url-encoded regex>`. The results view applies `iregex` if `regex` is present, else `istartswith` if `filter` is present, else returns the full set.
+
+`find_alphabet_node_by_name` is a small recursive helper added to `library.services` alongside `find_alphabet_node`; it walks the tree and returns the first node whose `.name == name` (or `None`).
 
 ### `<updated>` in feeds
 
@@ -884,12 +927,12 @@ Throttle uses the `default` cache. In tests, `BaseTestCase` sets `default` to `D
 
 ## 12. Design Decisions (Resolved)
 
-1. **Genres feed type:** Genres use the model hierarchy directly: root feed lists top-level genres; each genre detail lists subgenres then an alphabet tree of books in that genre (including descendants). The `get_alphabet_tree` service is reused for the book alphabet within each genre detail. Series root feed renders as an alphabet tree (same as Authors and Books), not a flat first-letter list.
+1. **Navigation / results separation:** Authors, Series, Books, and per-genre Books each expose navigation **tree** endpoints (`…/tree/`, `…/tree/<name>/`) separate from a flat, paginated **results** endpoint (`…/` with `?filter=`/`?regex=`). Tree leaves and "all" entries link to the results endpoint; the bare results endpoint (no params) is the full set and is not advertised. A new `find_alphabet_node_by_name` service resolves tree path segments by node name. This eliminates the earlier ambiguity where one URL served both a sub-tree and a flat list.
 
-2. **`AuthorSeriesFeedView` standalone books:** When an author has books not linked to any series, a synthetic **"Standalone Books"** entry is appended at the end of the Author Series feed, linking to the author's All Books feed. The entry is omitted entirely when no standalone books exist.
+1a. **Genres feed type:** Genres use the model hierarchy directly: root feed lists top-level genres; each genre detail lists **subgenres only** and, when it has no subgenres (leaf genre), **302-redirects** to `/opds/v1/genres/<pk>/books/tree/`. A genre's books are browsed through its own `…/books/tree/` and `…/books/` endpoints — the standard tree/results shape scoped to the genre (+descendants). Series root feed renders as an alphabet tree (same as Authors and Books), not a flat first-letter list.
 
-3. **Search feed structure:** Results are split into three named sections within a single feed (Authors, Series, Books). Each section is preceded by a header entry carrying the count (`"Authors (N found)"`). A section is omitted entirely when its result set is empty. Book entries carry acquisition links; author and series entries carry navigation links.
+2. **Search feed structure:** Results are split into three named sections within a single feed (Authors, Series, Books). Each section is preceded by a header entry carrying the count (`"Authors (N found)"`). A section is omitted entirely when its result set is empty. Book entries carry acquisition links; author and series entries carry navigation links.
 
-4. **OpenSearch Description Document:** Implemented at `/opds/v1/search/description.xml`. Required for Calibre and KOreader auto-discovery. The descriptor's `<Url template>` is built as an absolute URL using `request.build_absolute_uri`.
+3. **OpenSearch Description Document:** Implemented at `/opds/v1/search/description.xml`. Required for Calibre and KOreader auto-discovery. The descriptor's `<Url template>` is built as an absolute URL using `request.build_absolute_uri`.
 
-5. **"All" node in alphabet trees:** When an alphabet tree node is expanded (has children), a synthetic `"all <prefix>"` entry is prepended as the first child. It links to the list URL for that prefix with no further filter parameter, returning the complete unfiltered set for that prefix. Leaf nodes (not expanded) do not get an "all" entry. This applies uniformly to Authors, Books, Series, and the genre-scoped book alphabet trees.
+4. **"All" node in alphabet trees:** When an alphabet tree node is expanded (has children), a synthetic `"all <prefix>"` entry is prepended as the first child. It links to the flat **results** endpoint for that prefix (`…/?filter=<prefix>`, or `…/?regex=<regex>` for the `other` node), returning the complete set for that prefix. Leaf nodes (not expanded) do not get an "all" entry. This applies uniformly to Authors, Books, Series, and the genre-scoped book alphabet trees.
