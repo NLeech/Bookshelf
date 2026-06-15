@@ -1,3 +1,26 @@
+# Canonical Dataset — Relationships
+
+## Book → Author
+- Every book has exactly 1 primary author (round-robin over all 255 authors).
+- Every 8th book (book index % 8 == 7) has a 2nd author → **~70 multi-author books**.
+- Author assignment uses insertion order of both books and authors (deterministic).
+
+## Book → Series (via BookSeriesLink)
+- Every 5th book (index % 5 == 0) is linked to a series → **112 books with at least 1 series**.
+- Every 4th of those (index % 20 == 0) is also linked to a second series → **~28 books in 2 series**.
+- Sequence numbers are 1-based and incremented per series.
+
+## Book → Genre (multi-genre)
+- Every book starts with exactly 1 primary genre (see genre table below).
+- Every 5th book (index % 5 == 4) gets a **second genre from a different parent group**:
+  - Primary in sf_fantasy → extra genre = Mystery
+  - Primary in mysteries_thrillers → extra genre = Adventure
+  - Primary in action_adventure → extra genre = Dystopia
+- This keeps distinct-per-parent counts in the genre table unchanged (no book gets a second genre from the same parent).
+- **~112 books have 2 genres**.
+
+---
+
 # Authors
 
 * **A (137)**
@@ -79,36 +102,40 @@ English: (473)
 Українська: (87)
 
 # Genres
-* **Science Fiction & Fantasy (249)**
-    * Dystopia (86)
+
+Counts below are **distinct books per genre** (a book in 2 genres is counted in each genre row).
+~112 books have 2 genres (every 5th book, assigned a second genre from a different parent group —
+see [Relationships section](#canonical-dataset--relationships) above).
+
+* **Science Fiction & Fantasy (279)**
+    * Dystopia (116)
     * Science Fiction (82)
     * Fantasy (81)
-* **Mysteries & Thrillers (159)**
-    * Mystery (81)
+* **Mysteries & Thrillers (208)**
+    * Mystery (130)
     * Thriller (78)
-* **Action & Adventure (152)**
-    * Adventure (78)
+* **Action & Adventure (185)**
+    * Adventure (111)
     * Nature & Animals (74)
 
-Book genres
-    
+Book genres (distinct books per genre × title prefix)
+
 | Genre | 0 | Alid | Alit | All | Ana | And | Ar | Bar | Bat | Bl | Bo | M | Пе | Пр | \* | Q | X | Ю | Sum |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Dystopia | 2 | 4 | 5 | 6 | 6 | 6 | 7 | 6 | 7 | 6 | 6 | 7 | 6 | 6 | 2 | 1 | 2 | 1 | 86 |
+| Dystopia | 2 | 5 | 7 | 8 | 8 | 8 | 10 | 8 | 10 | 8 | 8 | 10 | 8 | 8 | 3 | 2 | 2 | 1 | 116 |
 | Science Fiction | 2 | 3 | 5 | 6 | 6 | 6 | 6 | 6 | 7 | 6 | 6 | 6 | 6 | 6 | 2 | 1 | 1 | 1 | 82 |
 | Fantasy | 2 | 3 | 5 | 6 | 6 | 6 | 6 | 6 | 7 | 6 | 6 | 6 | 6 | 6 | 2 | 1 | 1 | 0 | 81 |
-| Mystery | 2 | 4 | 5 | 6 | 6 | 6 | 6 | 5 | 7 | 6 | 6 | 6 | 6 | 6 | 2 | 1 | 1 | 0 | 81 |
+| Mystery | 3 | 6 | 8 | 9 | 9 | 9 | 10 | 8 | 12 | 9 | 10 | 10 | 9 | 10 | 4 | 2 | 1 | 1 | 130 |
 | Thriller | 2 | 3 | 5 | 5 | 6 | 6 | 6 | 5 | 6 | 6 | 6 | 6 | 6 | 6 | 2 | 1 | 1 | 0 | 78 |
-| Adventure | 2 | 3 | 5 | 5 | 6 | 6 | 6 | 5 | 6 | 6 | 6 | 6 | 6 | 6 | 2 | 1 | 1 | 0 | 78 |
+| Adventure | 3 | 5 | 7 | 8 | 9 | 9 | 8 | 7 | 8 | 9 | 8 | 8 | 9 | 8 | 2 | 1 | 2 | 0 | 111 |
 | Nature & Animals | 2 | 3 | 4 | 5 | 5 | 6 | 6 | 5 | 6 | 6 | 5 | 6 | 6 | 5 | 2 | 1 | 1 | 0 | 74 |
-| **Итого** | **14** | **23** | **34** | **39** | **41** | **42** | **43** | **38** | **46** | **42** | **41** | **43** | **42** | **41** | **14** | **7** | **8** | **2** | **560** |
 
 # Series
 
-* **C (14)**
-  * Ch (6)
-  * Cr (8)
-  * All 'C' (14)
+* **C (54)**
+  * Ch (36)
+  * Cr (18)
+  * All 'C' (54)
 
 * **S (62)**
   * Sh (6)

@@ -31,13 +31,22 @@ The OPDS module lives inside the existing `library` app as a self-contained sub-
 ### 2.2 Framework
 
 Implemented with **Django REST Framework (DRF)**. DRF is used for:
-- Custom `XMLRenderer` producing Atom/OPDS XML.
+- Custom renderers producing Atom/OPDS XML.
 - Throttling via DRF's `AnonRateThrottle` base.
-- URL routing via DRF `SimpleRouter` for list/detail patterns.
 
 Views are **DRF APIView subclasses** (not ViewSets), because OPDS feeds don't map cleanly to CRUD semantics.
 
-### 2.3 Response format
+### 2.3 Data flow
+
+```
+View  →  Serializer  →  dict  →  OPDSRenderer  →  ET.Element  →  XML bytes
+```
+
+- **Serializers** (`serializers.py`) — convert model objects into neutral Python dicts. No XML or Atom knowledge.
+- **Renderer** (`renderers.py`) — receives the dict from `Response(data)` and builds the full `ET.Element` tree, applying all Atom/OPDS XML conventions. All namespace logic lives here.
+- This separation means a future renderer (e.g. for OPDS v2.0 JSON format) only needs to implement `render(data, ...)` against the same dict contract — no changes to views or serializers.
+
+### 2.4 Response format
 
 All responses are `application/atom+xml` (OPDS catalog entries) or `application/atom+xml;profile=opds-catalog;kind=navigation` / `...;kind=acquisition` as specified by OPDS 1.2.
 
@@ -283,6 +292,8 @@ The `template` URL is built using `request.build_absolute_uri` so it works in an
 
 ## 7. XML Renderer
 
+`OPDSRenderer` receives a **plain Python dict** (the feed dict produced by serializers) and converts it to Atom XML bytes. It has full responsibility for all XML construction — views and serializers are XML-free.
+
 ```python
 # library/opds/renderers.py
 
@@ -292,12 +303,16 @@ class OPDSRenderer(BaseRenderer):
     charset = 'utf-8'
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        # Accepts a pre-built ElementTree or dict from the view
-        # Returns pretty-printed UTF-8 XML bytes
-        ...
+        # data is a dict matching the feed dict contract (see BOOK-45.md Phase 3)
+        feed = self._build_feed(data)
+        ET.indent(feed, space='  ')
+        xml_bytes = ET.tostring(feed, encoding='unicode').encode('utf-8')
+        return b'<?xml version="1.0" encoding="utf-8"?>\n' + xml_bytes
 ```
 
-Views build the feed as an `xml.etree.ElementTree` structure and pass it to the renderer. The renderer handles indentation via `ET.indent()` (Python 3.9+).
+The renderer handles indentation via `ET.indent()` (Python 3.9+). XML namespaces are registered at module import time via `ET.register_namespace()`.
+
+`OpenSearchRenderer` follows the same pattern but receives a simpler dict for the OpenSearch description document.
 
 ---
 
@@ -360,7 +375,7 @@ All XML assertions parse the response body with `xml.etree.ElementTree` and quer
 
 Two complementary fixture sets are used depending on what is being tested:
 
-**A. Canonical dataset (factory)** — used by structural/alphabetic tests that need realistic tree depth and counts. Call `create_test_dataset()` from `library.tests.test_data_factory` in `setUpTestData`. Provides:
+**A. Canonical dataset (factory)** — used by structural/alphabetic tests that need realistic tree depth and counts, plus author/series/genre relationship tests. Call `create_test_dataset()` from `library.tests.test_data_factory` in `setUpTestData`. Provides:
 
 ```
 Authors : 255  (A=137, B=58, C=19, Ш=15, 0-9=12, Other=14)
@@ -375,16 +390,29 @@ Books   : 560  (English=473, Ukrainian=87)
                    An(83) / Ar(43) / All 'A'(222)
            B(167) / M(43) / П(83) / 0-9(14) / Other(31)
 
-Series  : 108  (C=14, S=62, T=11, 0-9=10, Other=11)
-  C tree: C(14) → Ch(6)/Cr(8)/All 'C'(14)
+Series  : 148  (C=54, S=62, T=11, 0-9=10, Other=11)
+  C tree: C(54) → Ch(36)/Cr(18)/All 'C'(54)
   S tree: S(62) → Sh(6) / St(54) → Sta(28)/Ste(26)/All 'St'(54)
                             Sw(2) / All 'S'(62)
            T(11) / 0-9(10) / Other(11)
 
-Genres  : 3 top-level → 7 leaf genres (see test_template.md for book counts per leaf/letter)
+Genres  : 3 top-level → 7 leaf genres (distinct books per genre, see test_template.md)
+  sf_fantasy(279): Dystopia(116) / Science Fiction(82) / Fantasy(81)
+  mysteries_thrillers(208): Mystery(130) / Thriller(78)
+  action_adventure(185): Adventure(111) / Nature & Animals(74)
+  ~112 books have 2 genres (every 5th book gets a cross-parent second genre)
+
+Relationships:
+  Book→Author : every book has 1 primary author (round-robin); every 8th book has a 2nd author
+                → ~70 multi-author books
+  Book→Series : every 5th book is in 1 series (112 books total); every 4th of those is in 2 series
+                → ~28 two-series books; sequence numbers are 1-based per series
+  Book→Genre  : every book has 1 primary genre; every 5th book has a 2nd genre from a
+                *different* parent group → ~112 two-genre books
+                (sf books get an extra myst genre; myst → act; act → sf)
 ```
 
-**B. Small detail fixture** — used by detail/download/permission tests that need specific objects with known PKs, files, and relationships. Defined inline in each test class's `setUpTestData`:
+**B. Small detail fixture** — used only by `OPDSBookDetailTest` and `OPDSBookDownloadTest`, which need a real EPUB file and cover image (requires `BaseTestCase`). Defined inline in those test classes' `setUpTestData`:
 
 ```
 - lang_en: Language(code='en', name='English')
@@ -408,6 +436,8 @@ Genres  : 3 top-level → 7 leaf genres (see test_template.md for book counts pe
 - user_no_perm: User (authenticated, no groups)
 - user_with_perm: User (authenticated, member of 'Book access' group)
 ```
+
+All other detail-level test classes (`OPDSAuthorDetailTest`, `OPDSSeriesDetailTest`, `OPDSSearchTest`, `OPDSGenreFeedTest`) use the **canonical dataset** and find specific objects via `.filter()` rather than fixed attributes.
 
 ### 10.2 Test Classes
 
@@ -468,8 +498,8 @@ Books tree (from `test_template.md`):
 - `/opds/v1/books/ali/`: entries `Alid(23)`, `Alit(34)`, `all ali(57)`
 
 Series tree (from `test_template.md`):
-- Root: `C(14)`, `S(62)`, `T(11)`, `0-9(10)`, `Other(11)` — no `A`, `B`, etc.
-- `/opds/v1/series/c/`: entries `Ch(6)`, `Cr(8)`, `all c(14)`
+- Root: `C(54)`, `S(62)`, `T(11)`, `0-9(10)`, `Other(11)` — no `A`, `B`, etc.
+- `/opds/v1/series/c/`: entries `Ch(36)`, `Cr(18)`, `all c(54)`
 - `/opds/v1/series/s/`: entries `Sh(6)`, `St(54)`, `Sw(2)`, `all s(62)`
 - `/opds/v1/series/st/`: entries `Sta(28)`, `Ste(26)`, `all st(54)`
 
@@ -581,54 +611,54 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 
 #### `OPDSGenreFeedTest`
 
-**Fixture:** small detail fixture + additional objects:
-- `genre_3: Genre(name='Standalone Fiction', code='standalone', parent=None)` — top-level, no books.
-- `book_4: Book(title='Classic Dreams', language=lang_en)` with `genres=[genre_2]` (child of `genre_1`). Title starts with `C`, not `F` — used to verify the genre alphabet tree is filtered.
+**Fixture:** canonical dataset via `create_test_dataset()`. Uses genres from the factory: `sf_fantasy` (parent, 3 leaf children), `dystopia` (leaf, child of sf_fantasy), `mysteries_thrillers` (parent, no books directly). The canonical dataset has no top-level genre with zero books — to test `count=0`, one leaf genre with 0 books is created inline in `setUpTestData` as `genre_empty` (`parent=None`).
+
+Objects referenced by name in the table below are obtained via `.get(code=...)` or `.first()` after `create_test_dataset()`.
 
 | # | Test | Assertion |
 |---|------|-----------|
 | 1 | `test_genre_root_status_200` | GET `/opds/v1/genres/` → 200 |
 | 2 | `test_genre_root_is_navigation` | `Content-Type` contains `kind=navigation` |
-| 3 | `test_genre_root_lists_top_level_genres_only` | Feed entries include `genre_1` (SF) and `genre_3` (Standalone); does NOT include `genre_2` (Classic SF, child of SF) |
+| 3 | `test_genre_root_lists_top_level_genres_only` | Feed entries include `sf_fantasy`, `mysteries_thrillers`, `action_adventure`, and `genre_empty`; does NOT include leaf genres (`dystopia`, `science_fiction`, etc.) |
 | 4 | `test_genre_root_entry_links_to_genre_detail` | Each entry has `<link rel="subsection" href="/opds/v1/genres/<pk>/">` |
-| 5 | `test_genre_root_entry_content_has_book_count` | `genre_1` entry `<content>` contains `2` (book_1 in genre_1 + book_4 in genre_2 descendant) |
-| 6 | `test_genre_root_genre_with_no_books_still_listed` | `genre_3` (no books) still appears in root feed with count `0` |
-| 7 | `test_genre_detail_status_200` | GET `/opds/v1/genres/<genre_1.pk>/` → 200 |
+| 5 | `test_genre_root_entry_content_has_book_count` | `sf_fantasy` entry `<content>` contains `279` (116+82+81 books across its 3 leaf children) |
+| 6 | `test_genre_root_genre_with_no_books_still_listed` | `genre_empty` (no books) still appears in root feed with count `0` |
+| 7 | `test_genre_detail_status_200` | GET `/opds/v1/genres/<sf_fantasy.pk>/` → 200 |
 | 8 | `test_genre_detail_404` | GET `/opds/v1/genres/99999/` → 404 |
-| 9 | `test_genre_detail_lists_subgenres` | Feed contains entry for `genre_2` (Classic SF) as navigation link |
-| 10 | `test_genre_detail_has_alphabet_tree_entries` | Feed contains alphabet tree entries for books in `genre_1` (and descendants); entries for `"f"` (Foundation) and `"c"` (Classic Dreams) are present |
-| 11 | `test_genre_detail_alphabet_tree_excludes_other_genre_letters` | `genre_3` (no books) → GET `/opds/v1/genres/<genre_3.pk>/` returns feed with no alphabet entries |
-| 12 | `test_genre_detail_alphabet_tree_only_contains_own_books` | `genre_2` detail: alphabet tree contains `"c"` (Classic Dreams belongs to `genre_2`) but NOT `"f"` (Foundation belongs only to `genre_1`) |
+| 9 | `test_genre_detail_lists_subgenres` | `sf_fantasy` feed contains entries for `dystopia`, `science_fiction`, `fantasy` as navigation links |
+| 10 | `test_genre_detail_has_alphabet_tree_entries` | `sf_fantasy` feed contains alphabet tree entries for books in its descendants; entry for `"alid"` is present (23 dystopia books start with Alid) |
+| 11 | `test_genre_detail_alphabet_tree_excludes_other_genre_letters` | `genre_empty` (no books) → GET `/opds/v1/genres/<genre_empty.pk>/` returns feed with no alphabet tree entries |
+| 12 | `test_genre_detail_alphabet_tree_only_contains_own_books` | `dystopia` detail: alphabet tree contains `"alid"` (23 dystopia books); does NOT contain `"пе"` (Пе books belong to all genres equally, but dystopia has 6 Пе books, so this assertion should check a letter that is zero for dystopia — e.g., verify no `"ю"` for dystopia: dystopia has 1 Ю book, so use a letter with count=0 for dystopia, e.g. verify entry counts match template) |
 | 13 | `test_genre_detail_alphabet_leaf_links_to_booklist` | Leaf alphabet entry `<link href>` points to `/opds/v1/genres/<pk>/books/<letter>/` |
-| 14 | `test_genre_books_status_200` | GET `/opds/v1/genres/<genre_1.pk>/books/` → 200 |
-| 15 | `test_genre_books_includes_descendant_genre_books` | Feed contains both `book_1` (directly in `genre_1`) and `book_4` (in `genre_2`, descendant) |
-| 16 | `test_genre_books_excludes_other_genre_books` | `book_3` (Fahrenheit, no genre_1) is NOT in `genre_1` books feed |
-| 17 | `test_genre_books_by_letter_status_200` | GET `/opds/v1/genres/<genre_1.pk>/books/f/` → 200 |
-| 18 | `test_genre_books_by_letter_filters_correctly` | Feed contains `book_1` (Foundation, starts with F); does NOT contain `book_4` (Classic Dreams, starts with C) |
-| 19 | `test_genre_books_by_letter_empty_letter_returns_empty_feed` | GET `/opds/v1/genres/<genre_1.pk>/books/z/` → 200 with 0 entries |
+| 14 | `test_genre_books_status_200` | GET `/opds/v1/genres/<dystopia.pk>/books/` → 200 |
+| 15 | `test_genre_books_includes_descendant_genre_books` | `sf_fantasy` books feed contains books from all 3 child genres (dystopia + sci_fi + fantasy) |
+| 16 | `test_genre_books_excludes_other_genre_books` | `dystopia` books feed does NOT contain books whose only genre is `mystery` |
+| 17 | `test_genre_books_by_letter_status_200` | GET `/opds/v1/genres/<dystopia.pk>/books/alid/` → 200 |
+| 18 | `test_genre_books_by_letter_filters_correctly` | Feed contains 23 entries (Alid dystopia books); does NOT contain entries with titles starting with `"Alit"` |
+| 19 | `test_genre_books_by_letter_empty_letter_returns_empty_feed` | GET `/opds/v1/genres/<dystopia.pk>/books/z/` → 200 with 0 entries |
 
 ---
 
 #### `OPDSGenreFeedCountsTest`
 
-**Fixture:** canonical dataset via `create_test_dataset()`. Verifies genre book counts against the table in `test_template.md`.
+**Fixture:** canonical dataset via `create_test_dataset()`. Verifies genre book counts against the table in `test_template.md`. All counts are **distinct books per genre** (multi-genre books are counted in each genre they belong to).
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_genre_root_sf_fantasy_count` | `Science Fiction & Fantasy` entry `<content>` contains `249` (86+82+81) |
-| 2 | `test_genre_root_mysteries_count` | `Mysteries & Thrillers` entry `<content>` contains `159` (81+78) |
-| 3 | `test_genre_root_action_adv_count` | `Action & Adventure` entry `<content>` contains `152` (78+74) |
-| 4 | `test_dystopia_detail_alphabet_has_alid_entry` | `Dystopia` genre detail: alphabet tree contains `"alid"` or `"ali"` (23 dystopia books in Alid group) |
-| 5 | `test_fantasy_detail_alphabet_no_yu_entry` | `Fantasy` genre detail: alphabet tree does NOT contain `"ю"` entry (fantasy has 0 books starting with Ю per template) |
-| 6 | `test_nature_animals_detail_has_correct_total` | `Nature & Animals` genre book list count is 72 |
-| 7 | `test_genre_books_by_letter_alid_dystopia` | GET `/opds/v1/genres/<dystopia.pk>/books/alid/` → feed has exactly 23 entries |
-| 8 | `test_genre_books_by_letter_count_matches_table` | GET `/opds/v1/genres/<dystopia.pk>/books/alit/` → feed (page 1) and total count = 5 |
+| 1 | `test_genre_root_sf_fantasy_count` | `Science Fiction & Fantasy` entry `<content>` contains `279` (116+82+81) |
+| 2 | `test_genre_root_mysteries_count` | `Mysteries & Thrillers` entry `<content>` contains `208` (130+78) |
+| 3 | `test_genre_root_action_adv_count` | `Action & Adventure` entry `<content>` contains `185` (111+74) |
+| 4 | `test_dystopia_detail_alphabet_has_alid_entry` | `Dystopia` genre detail: alphabet tree contains `"alid"` entry (5 dystopia books in Alid group) |
+| 5 | `test_fantasy_detail_alphabet_no_yu_entry` | `Fantasy` genre detail: alphabet tree does NOT contain `"ю"` entry (fantasy has 0 books starting with Ю) |
+| 6 | `test_nature_animals_detail_has_correct_total` | `Nature & Animals` genre book list total is 74 |
+| 7 | `test_genre_books_by_letter_alid_dystopia` | GET `/opds/v1/genres/<dystopia.pk>/books/alid/` → feed has exactly 5 entries |
+| 8 | `test_genre_books_by_letter_count_matches_table` | GET `/opds/v1/genres/<dystopia.pk>/books/alit/` → feed total count = 7 |
 
 ---
 
 #### `OPDSSeriesListFeedTest`
 
-**Fixture:** canonical dataset via `create_test_dataset()`. Series: C=14, S=62, T=11, 0-9=10, Other=11; no series starts with Z.
+**Fixture:** canonical dataset via `create_test_dataset()`. Series: C=54, S=62, T=11, 0-9=10, Other=11; no series starts with Z.
 
 | # | Test | Assertion |
 |---|------|-----------|
@@ -686,43 +716,43 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 
 #### `OPDSAuthorDetailTest`
 
-**Fixture:** small detail fixture (author_a/author_b/series_1/series_2/book_1/book_2/book_3/user_no_perm/user_with_perm).
+**Fixture:** canonical dataset via `create_test_dataset()`. Two users are created inline in `setUpTestData`: `user_no_perm` (no groups) and `user_with_perm` (member of `Book access` group). Two authors are identified from the dataset for testing: `author_with_series` — any author whose books include at least one series link and at least one standalone book (obtainable via query); `author_standalone_only` — any author whose books are all standalone. The canonical dataset guarantees both patterns exist because `_link_books_to_series` links only every 5th book, leaving ~80% of books standalone per author.
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_author_detail_status_200` | GET `/opds/v1/authors/<author_a.pk>/` → 200 |
+| 1 | `test_author_detail_status_200` | GET `/opds/v1/authors/<any_author.pk>/` → 200 |
 | 2 | `test_author_detail_404` | GET `/opds/v1/authors/99999/` → 404 |
 | 3 | `test_author_detail_has_three_sub_feeds` | Feed has exactly 3 entries: All Books (A–Z), Recently Added, Books by Series |
-| 4 | `test_author_detail_sub_feed_books_alpha_status_200` | GET `/opds/v1/authors/<author_a.pk>/books/` → 200 |
-| 5 | `test_author_detail_sub_feed_books_alpha_contains_books` | Feed contains `book_1` (Foundation) and `book_2` (I, Robot) |
-| 6 | `test_author_detail_sub_feed_books_alpha_excludes_other_author` | Feed does NOT contain `book_3` (Bradbury's book) |
-| 7 | `test_author_detail_sub_feed_books_alpha_sorted` | Entries are sorted alphabetically by title (Foundation before I, Robot) |
-| 8 | `test_author_detail_sub_feed_books_recent_status_200` | GET `/opds/v1/authors/<author_a.pk>/books/recent/` → 200 |
-| 9 | `test_author_detail_sub_feed_books_recent_sorted_by_date` | Entries are sorted by `created_at` descending |
-| 10 | `test_author_detail_sub_feed_series_status_200` | GET `/opds/v1/authors/<author_a.pk>/series/` → 200 |
-| 11 | `test_author_detail_sub_feed_series_has_series` | Feed contains entry for `series_1` (Foundation) linking to `/opds/v1/series/<series_1.pk>/` |
-| 12 | `test_author_detail_sub_feed_series_entry_has_book_count` | Series entry `<content>` contains `2` (book_1 and book_2 both in series_1 by author_a) |
-| 13 | `test_author_detail_sub_feed_series_no_standalone_entry_when_none` | `author_a` has only series books → feed does NOT contain a "Standalone Books" entry |
-| 14 | `test_author_detail_sub_feed_series_has_standalone_entry` | `author_b` has `book_3` (no series) → feed includes "Standalone Books" entry linking to `/opds/v1/authors/<author_b.pk>/books/` |
-| 15 | `test_author_detail_sub_feed_series_standalone_entry_has_count` | Standalone entry `<content>` reads `"1 standalone book(s)"` |
-| 16 | `test_author_books_no_acquisition_link_anon` | Anon request to `/opds/v1/authors/<author_a.pk>/books/` → no acquisition link in entries |
+| 4 | `test_author_detail_sub_feed_books_alpha_status_200` | GET `/opds/v1/authors/<any_author.pk>/books/` → 200 |
+| 5 | `test_author_detail_sub_feed_books_alpha_contains_author_books` | Feed contains only books by the chosen author (verified by checking entry count matches `author.books.count()`) |
+| 6 | `test_author_detail_sub_feed_books_alpha_excludes_other_author` | Feed does NOT contain a book known to belong only to a different author |
+| 7 | `test_author_detail_sub_feed_books_alpha_sorted` | Entries are sorted alphabetically by title |
+| 8 | `test_author_detail_sub_feed_books_recent_status_200` | GET `/opds/v1/authors/<any_author.pk>/books/recent/` → 200 |
+| 9 | `test_author_detail_sub_feed_books_recent_sorted_by_date` | First entry has `created_at` ≥ second entry's `created_at` |
+| 10 | `test_author_detail_sub_feed_series_status_200` | GET `/opds/v1/authors/<any_author.pk>/series/` → 200 |
+| 11 | `test_author_detail_sub_feed_series_has_series` | For `author_with_series`: feed contains at least one series entry linking to `/opds/v1/series/<pk>/` |
+| 12 | `test_author_detail_sub_feed_series_entry_has_book_count` | Series entry `<content>` contains a positive integer (book count for that author in that series) |
+| 13 | `test_author_detail_sub_feed_series_no_standalone_entry_when_none` | For an author whose every book is in a series → feed does NOT contain a "Standalone Books" entry |
+| 14 | `test_author_detail_sub_feed_series_has_standalone_entry` | For `author_with_series` who also has standalone books → feed includes a "Standalone Books" entry |
+| 15 | `test_author_detail_sub_feed_series_standalone_entry_has_count` | Standalone entry `<content>` contains the correct standalone count text |
+| 16 | `test_author_books_no_acquisition_link_anon` | Anon request to author books feed → no `<link rel="http://opds-spec.org/acquisition">` in entries |
 | 17 | `test_author_books_acquisition_link_with_perm` | `user_with_perm` request → entries have `<link rel="http://opds-spec.org/acquisition">` |
 
 ---
 
 #### `OPDSSeriesDetailTest`
 
-**Fixture:** small detail fixture (series_1/series_2/book_1/book_2).
+**Fixture:** canonical dataset via `create_test_dataset()`. Two users are created inline: `user_no_perm` and `user_with_perm`. A parent series with at least one subseries is identified from the dataset: the factory creates `BookSeries` with no parent, but `_link_books_to_series` assigns sequence numbers — for subseries testing, `setUpTestData` creates one additional subseries inline: `subseries = BookSeries.objects.create(name='SubTest', parent=series_with_books)` where `series_with_books` is any series from the dataset that has books. This gives a series with both books and a child series.
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_series_detail_status_200` | GET `/opds/v1/series/<series_1.pk>/` → 200 |
+| 1 | `test_series_detail_status_200` | GET `/opds/v1/series/<series_with_books.pk>/` → 200 |
 | 2 | `test_series_detail_404` | GET `/opds/v1/series/99999/` → 404 |
-| 3 | `test_series_detail_has_subseries` | Feed contains entry for `series_2` (Robot Series, child of series_1) as navigation link |
-| 4 | `test_series_detail_has_books` | Feed contains `book_1` (Foundation) and `book_2` (I, Robot) |
-| 5 | `test_series_detail_books_sorted_by_sequence_number` | `book_1` (seq=1) appears before `book_2` (seq=2) |
-| 6 | `test_series_detail_book_title_prefixed_with_seq` | Book entry `<title>` is `"#1 · Foundation"` |
-| 7 | `test_series_detail_no_acquisition_anon` | Anon request → no acquisition link on book entries |
+| 3 | `test_series_detail_has_subseries` | Feed contains entry for `subseries` as a navigation link |
+| 4 | `test_series_detail_has_books` | Feed contains at least 1 book entry (series has books via `_link_books_to_series`) |
+| 5 | `test_series_detail_books_sorted_by_sequence_number` | Book entries appear in ascending `sequence_number` order |
+| 6 | `test_series_detail_book_title_prefixed_with_seq` | Each book entry `<title>` starts with `"#<seq> · "` |
+| 7 | `test_series_detail_no_acquisition_anon` | Anon request → no `<link rel="http://opds-spec.org/acquisition">` on book entries |
 | 8 | `test_series_detail_acquisition_with_perm` | `user_with_perm` request → book entries have `<link rel="http://opds-spec.org/acquisition">` |
 
 ---
@@ -764,23 +794,23 @@ Background on how `get_alphabet_tree` builds the `Other` node:
 
 #### `OPDSSearchTest`
 
-**Fixture:** small detail fixture (author_a=Asimov, series_1=Foundation, book_1=Foundation, book_2=I Robot, user_no_perm, user_with_perm).
+**Fixture:** canonical dataset via `create_test_dataset()`. Two users are created inline: `user_no_perm` and `user_with_perm`. Search queries use prefixes guaranteed to exist in the canonical dataset (e.g. `?q=Abak` matches authors, `?q=Ch` matches series, `?q=Alid` matches books). A dedicated unique prefix `Zap` (not in the dataset) is used for pagination testing by creating 25 extra books in `setUp` (not `setUpTestData`, since these books must be fresh per test to avoid interference).
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_search_returns_200` | GET `/opds/v1/search/?q=Foundation` → 200 |
-| 2 | `test_search_has_books_section_header` | Feed contains section header entry with title `"Books (2 found)"` (book_1 "Foundation" + book_2 "I Robot" — wait, only Foundation matches; assert `"Books (1 found)"` for exact fixture) |
-| 3 | `test_search_has_series_section_header` | `?q=Foundation` → feed contains `"Series (1 found)"` header (series_1 matches) |
-| 4 | `test_search_has_authors_section_header` | GET `?q=Asimov` → feed contains `"Authors (1 found)"` header (author_a matches) |
-| 5 | `test_search_section_omitted_when_empty` | GET `?q=Asimov` → no `"Books"` section header (no book title matches "Asimov"); no `"Series"` section header |
-| 6 | `test_search_book_entries_follow_section_header` | `?q=Foundation`: `book_1` entry immediately follows the Books section header |
-| 7 | `test_search_author_entries_link_to_author_feed` | Author result entry `<link href>` points to `/opds/v1/authors/<author_a.pk>/` |
-| 8 | `test_search_series_entries_link_to_series_feed` | Series result entry `<link href>` points to `/opds/v1/series/<series_1.pk>/` |
+| 1 | `test_search_returns_200` | GET `/opds/v1/search/?q=Abak` → 200 |
+| 2 | `test_search_has_books_section_header` | `?q=Alid` → feed contains `"Books (N found)"` header where N ≥ 1 |
+| 3 | `test_search_has_series_section_header` | `?q=Ch` → feed contains `"Series (N found)"` header (Ch-prefix series match) |
+| 4 | `test_search_has_authors_section_header` | `?q=Abak` → feed contains `"Authors (N found)"` header (Abak-prefix authors match) |
+| 5 | `test_search_section_omitted_when_empty` | `?q=Abak` → no `"Books"` section header (no book title starts with Abak); no `"Series"` section header |
+| 6 | `test_search_book_entries_follow_section_header` | `?q=Alid1`: book entry immediately follows the Books section header |
+| 7 | `test_search_author_entries_link_to_author_feed` | Author result entry `<link href>` points to `/opds/v1/authors/<pk>/` |
+| 8 | `test_search_series_entries_link_to_series_feed` | Series result entry `<link href>` points to `/opds/v1/series/<pk>/` |
 | 9 | `test_search_empty_query_returns_empty_feed` | GET `/opds/v1/search/` (no `q`) → 200 with 0 `<entry>` elements |
 | 10 | `test_search_no_results_returns_empty_feed` | GET `?q=xyzzyunmatchable` → 200 with 0 `<entry>` elements |
-| 11 | `test_search_pagination_books` | Create 25 books matching `?q=Zap`; page 1 has 20 book entries + Books section header; `<link rel="next">` present |
-| 12 | `test_search_book_acquisition_link_with_perm` | `user_with_perm`, `?q=Foundation` → book result entries have `<link rel="http://opds-spec.org/acquisition">` |
-| 13 | `test_search_no_acquisition_link_anon` | Anon, `?q=Foundation` → no acquisition link on book result entries |
+| 11 | `test_search_pagination_books` | Create 25 books with title `Zap*`; `?q=Zap` page 1 has 20 book entries + Books section header; `<link rel="next">` present |
+| 12 | `test_search_book_acquisition_link_with_perm` | `user_with_perm`, `?q=Alid1` → book result entries have `<link rel="http://opds-spec.org/acquisition">` |
+| 13 | `test_search_no_acquisition_link_anon` | Anon, `?q=Alid1` → no acquisition link on book result entries |
 | 14 | `test_search_section_headers_have_no_href_link` | Section header entries (Authors N found / Series N found / Books N found) do NOT contain a `<link>` element |
 
 #### `OPDSOpenSearchDescriptionTest`
