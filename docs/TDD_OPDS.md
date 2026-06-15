@@ -102,7 +102,10 @@ Base prefix: `/opds/v1/`
 | `/opds/v1/books/<letter>/` | `BookListFeedView` | Acquisition |
 | `/opds/v1/books/<int:pk>/` | `BookDetailFeedView` | Acquisition |
 | `/opds/v1/books/<int:pk>/download/` | `BookDownloadView` | Binary (file delivery) |
-| `/opds/v1/search/` | `SearchFeedView` | Navigation (sections) + Acquisition (books) |
+| `/opds/v1/search/` | `SearchRootFeedView` | Navigation (≤ 3 section entries, unpaginated) |
+| `/opds/v1/search/authors/` | `SearchAuthorsFeedView` | Navigation (paginated) |
+| `/opds/v1/search/series/` | `SearchSeriesFeedView` | Navigation (paginated) |
+| `/opds/v1/search/books/` | `SearchBooksFeedView` | Acquisition (paginated) |
 | `/opds/v1/search/description.xml` | `OpenSearchDescriptionView` | OpenSearch XML |
 
 **Alphabet tree notes:**
@@ -133,7 +136,7 @@ DRF `PageNumberPagination` with `page_size = 20` (configurable via `settings.OPD
 
 Pagination links are rendered as Atom `<link rel="next">`, `<link rel="previous">`, and `<link rel="first">` inside each feed.
 
-Pagination applies to: Author lists, Book lists, Genre lists, Series lists, Search results, Author detail sub-feeds (books/alpha, books/recent), Series detail book list.
+Pagination applies to: Author lists, Book lists, Genre lists, Series lists, each search section sub-feed (authors/series/books — paginated independently, see 6.7), Author detail sub-feeds (books/alpha, books/recent), Series detail book list. The search **root** feed (section index) is not paginated.
 
 ---
 
@@ -229,7 +232,9 @@ Navigation feed with sub-feeds mirroring the author detail page tabs:
 
 Lists each series the author has books in, linking to `/opds/v1/series/<pk>/`. The entry `<content>` includes the book count for that author in that series.
 
-If the author has books not linked to any series, appends a final entry titled **"Standalone Books"** linking to `/opds/v1/authors/<pk>/books/` with content text `"N standalone book(s)"`. This entry is only rendered when standalone books exist.
+If the author has books not linked to any series, **prepends a first entry** (at the top of the list, above all series) titled **"Standalone Books"** linking to `/opds/v1/authors/<pk>/books/?series=none` with content text `"N standalone book(s)"`. This entry is only rendered when standalone books exist.
+
+`AuthorBooksFeedView` honours an optional `?series=none` query param: when present it filters the author's books to those with no series link (`bookserieslink__isnull=True`), reusing the same paginated acquisition feed. No separate sub-feed endpoint is added — Author Detail still exposes exactly **3** sub-feeds.
 
 ### 6.4 Series Detail Feed (`/opds/v1/series/<pk>/`)
 
@@ -259,15 +264,21 @@ Not an Atom feed — streams the raw file content.
 
 ### 6.7 Search Feed (`/opds/v1/search/?q=<query>`)
 
-Searches Authors, Books, and Series using `library.services.search_entities`. Results are presented as **three separate navigation sections** inside a single feed, each only rendered when its result set is non-empty:
+Searches Authors, Books, and Series using `library.services.search_entities`. The search root is a **navigation feed** containing up to three section entries — one per non-empty result set — each linking to its **own independently paginated sub-feed**. The three sections are **never** combined into a single flattened feed.
 
-1. **Authors section** — navigation entry per matching author, linking to `/opds/v1/authors/<pk>/`. The section header entry title is `"Authors (N found)"`.
-2. **Series section** — navigation entry per matching series, linking to `/opds/v1/series/<pk>/`. Header title: `"Series (N found)"`.
-3. **Books section** — acquisition entry per matching book. Header title: `"Books (N found)"`. Book entries include the acquisition link only if the request user has `library.view_book`.
+| Section entry | Link href | Sub-feed view |
+|---|---|---|
+| `Authors (N found)` | `/opds/v1/search/authors/?q=<query>` | `SearchAuthorsFeedView` (navigation) |
+| `Series (N found)` | `/opds/v1/search/series/?q=<query>` | `SearchSeriesFeedView` (navigation) |
+| `Books (N found)` | `/opds/v1/search/books/?q=<query>` | `SearchBooksFeedView` (acquisition) |
 
-Each section header is a navigation `<entry>` with no link (`<link>` omitted) — it serves as a visual separator carrying the count. Actual result entries follow immediately after their section header within the same feed.
+`N` is the total match count for that section. A section entry is omitted entirely when its result set is empty. The search root feed itself is **not** paginated (at most three entries). Returns an empty feed (not an error) for no results or missing `q`.
 
-Returns an empty feed (not an error) for no results or missing `q`.
+Each section sub-feed is paginated **independently** with `OPDSPageNumberPagination` (`page_size = 20`); its `next` / `previous` / `first` links preserve the `q` query param:
+
+- **`/opds/v1/search/authors/` — `SearchAuthorsFeedView` (Navigation):** one entry per matching author, linking to `/opds/v1/authors/<pk>/`.
+- **`/opds/v1/search/series/` — `SearchSeriesFeedView` (Navigation):** one entry per matching series, linking to `/opds/v1/series/<pk>/`.
+- **`/opds/v1/search/books/` — `SearchBooksFeedView` (Acquisition):** one entry per matching book; each entry includes the acquisition link only if the request user has `library.view_book`.
 
 **`/opds/v1/search/description.xml` — `OpenSearchDescriptionView`**
 
@@ -733,8 +744,9 @@ Objects referenced by name in the table below are obtained via `.get(code=...)` 
 | 11 | `test_author_detail_sub_feed_series_has_series` | For `author_with_series`: feed contains at least one series entry linking to `/opds/v1/series/<pk>/` |
 | 12 | `test_author_detail_sub_feed_series_entry_has_book_count` | Series entry `<content>` contains a positive integer (book count for that author in that series) |
 | 13 | `test_author_detail_sub_feed_series_no_standalone_entry_when_none` | For an author whose every book is in a series → feed does NOT contain a "Standalone Books" entry |
-| 14 | `test_author_detail_sub_feed_series_has_standalone_entry` | For `author_with_series` who also has standalone books → feed includes a "Standalone Books" entry |
+| 14 | `test_author_detail_sub_feed_series_has_standalone_entry_first` | For `author_with_series` who also has standalone books → the **first** entry is "Standalone Books", with `<link href>` ending in `/opds/v1/authors/<pk>/books/?series=none` |
 | 15 | `test_author_detail_sub_feed_series_standalone_entry_has_count` | Standalone entry `<content>` contains the correct standalone count text |
+| 15b | `test_author_books_series_none_filter_only_standalone` | GET `/opds/v1/authors/<pk>/books/?series=none` → total entry count (across pages) equals `author.books.filter(bookserieslink__isnull=True).count()`; contains no book that belongs to a series |
 | 16 | `test_author_books_no_acquisition_link_anon` | Anon request to author books feed → no `<link rel="http://opds-spec.org/acquisition">` in entries |
 | 17 | `test_author_books_acquisition_link_with_perm` | `user_with_perm` request → entries have `<link rel="http://opds-spec.org/acquisition">` |
 
@@ -798,20 +810,20 @@ Objects referenced by name in the table below are obtained via `.get(code=...)` 
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_search_returns_200` | GET `/opds/v1/search/?q=Abak` → 200 |
-| 2 | `test_search_has_books_section_header` | `?q=Alid` → feed contains `"Books (N found)"` header where N ≥ 1 |
-| 3 | `test_search_has_series_section_header` | `?q=Ch` → feed contains `"Series (N found)"` header (Ch-prefix series match) |
-| 4 | `test_search_has_authors_section_header` | `?q=Abak` → feed contains `"Authors (N found)"` header (Abak-prefix authors match) |
-| 5 | `test_search_section_omitted_when_empty` | `?q=Abak` → no `"Books"` section header (no book title starts with Abak); no `"Series"` section header |
-| 6 | `test_search_book_entries_follow_section_header` | `?q=Alid1`: book entry immediately follows the Books section header |
-| 7 | `test_search_author_entries_link_to_author_feed` | Author result entry `<link href>` points to `/opds/v1/authors/<pk>/` |
-| 8 | `test_search_series_entries_link_to_series_feed` | Series result entry `<link href>` points to `/opds/v1/series/<pk>/` |
-| 9 | `test_search_empty_query_returns_empty_feed` | GET `/opds/v1/search/` (no `q`) → 200 with 0 `<entry>` elements |
-| 10 | `test_search_no_results_returns_empty_feed` | GET `?q=xyzzyunmatchable` → 200 with 0 `<entry>` elements |
-| 11 | `test_search_pagination_books` | Create 25 books with title `Zap*`; `?q=Zap` page 1 has 20 book entries + Books section header; `<link rel="next">` present |
-| 12 | `test_search_book_acquisition_link_with_perm` | `user_with_perm`, `?q=Alid1` → book result entries have `<link rel="http://opds-spec.org/acquisition">` |
-| 13 | `test_search_no_acquisition_link_anon` | Anon, `?q=Alid1` → no acquisition link on book result entries |
-| 14 | `test_search_section_headers_have_no_href_link` | Section header entries (Authors N found / Series N found / Books N found) do NOT contain a `<link>` element |
+| 1 | `test_search_root_returns_200` | GET `/opds/v1/search/?q=Abak` → 200 |
+| 2 | `test_search_root_has_books_section_entry` | `?q=Alid` → root feed has a `"Books (N found)"` entry (N ≥ 1) whose `<link href>` ends in `/opds/v1/search/books/?q=Alid` |
+| 3 | `test_search_root_has_series_section_entry` | `?q=Ch` → root feed has a `"Series (N found)"` entry linking to `/opds/v1/search/series/?q=Ch` |
+| 4 | `test_search_root_has_authors_section_entry` | `?q=Abak` → root feed has an `"Authors (N found)"` entry linking to `/opds/v1/search/authors/?q=Abak` |
+| 5 | `test_search_root_section_omitted_when_empty` | `?q=Abak` → root feed has no `"Books"` and no `"Series"` section entry |
+| 6 | `test_search_root_empty_query_returns_empty_feed` | GET `/opds/v1/search/` (no `q`) → 200 with 0 `<entry>` elements |
+| 7 | `test_search_root_no_results_returns_empty_feed` | GET `?q=xyzzyunmatchable` → 200 with 0 `<entry>` elements |
+| 8 | `test_search_authors_subfeed_entries_link_to_author` | GET `/opds/v1/search/authors/?q=Abak` → each entry `<link href>` points to `/opds/v1/authors/<pk>/` |
+| 9 | `test_search_series_subfeed_entries_link_to_series` | GET `/opds/v1/search/series/?q=Ch` → each entry `<link href>` points to `/opds/v1/series/<pk>/` |
+| 10 | `test_search_books_subfeed_acquisition_link_with_perm` | `user_with_perm`, GET `/opds/v1/search/books/?q=Alid1` → book entries have `<link rel="http://opds-spec.org/acquisition">` |
+| 11 | `test_search_books_subfeed_no_acquisition_link_anon` | Anon, GET `/opds/v1/search/books/?q=Alid1` → no acquisition link on book entries |
+| 12 | `test_search_books_subfeed_pagination` | Create 25 books with title `Zap*`; GET `/opds/v1/search/books/?q=Zap` page 1 has exactly 20 entries; `<link rel="next">` present |
+| 13 | `test_search_books_subfeed_pagination_preserves_q` | `/opds/v1/search/books/?q=Zap` `<link rel="next">` URL contains both `q=Zap` and `page=2` |
+| 14 | `test_search_subfeed_empty_query_returns_empty_feed` | GET `/opds/v1/search/books/` (no `q`) → 200 with 0 `<entry>` elements |
 
 #### `OPDSOpenSearchDescriptionTest`
 
