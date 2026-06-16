@@ -245,3 +245,51 @@ No database content required; the feed is purely structural (uses plain TestCase
 6. **test_book_download_authenticated_with_group**: Verify that authenticated users with 'book_access' can download books.
 7. **test_book_item_labels**: Verify "Preview" vs "Read" labels in book_item.html based on user permissions.
 8. **test_book_item_download_visibility**: Verify download link visibility in book_item.html based on user permissions.
+
+## OPDS Author List and Tree Feeds (tests_opds.py — OPDSAuthorListFeedTest)
+
+Canonical dataset (255 authors: A=137, B=58, C=19, Ш=15, 0-9=12, Other=14).
+
+1. **test_author_alphabet_root_has_a_entry**: GET `/opds/v1/authors/tree/` returns an entry for 'A' with count 137 in the content.
+2. **test_author_alphabet_root_has_b_entry**: GET `/opds/v1/authors/tree/` returns an entry for 'B' with count 58 in the content.
+3. **test_author_alphabet_root_no_entry_for_missing_letter**: GET `/opds/v1/authors/tree/` does NOT contain a 'Z' or 'z' entry (demoted to Other).
+4. **test_author_results_by_filter_status_200**: GET `/opds/v1/authors/?filter=b` returns HTTP 200.
+5. **test_author_results_by_filter_has_correct_count**: GET `/opds/v1/authors/?filter=b` returns exactly 20 entries on page 1 of 58 total.
+6. **test_author_results_entry_links_to_author_detail**: Each entry in the flat author list links to `/opds/v1/authors/<pk>/`.
+7. **test_author_results_filter_not_found_returns_empty_feed**: GET `/opds/v1/authors/?filter=y` returns HTTP 200 with zero entries.
+8. **test_author_results_sorted_alphabetically**: Entries in the flat list are in ascending last_name order.
+9. **test_author_digits_node_list**: GET `/opds/v1/authors/?regex=^[0-9]` returns exactly 12 entries.
+10. **test_author_list_is_navigation_feed**: Flat author list response Content-Type contains `kind=navigation`.
+11. **test_author_tree_is_navigation_feed**: Tree root response Content-Type contains `kind=navigation`.
+12. **test_author_tree_node_status_200**: GET `/opds/v1/authors/tree/a/` returns HTTP 200 (expandable node).
+13. **test_author_tree_leaf_node_returns_404**: GET `/opds/v1/authors/tree/c/` returns HTTP 404 (C=19 is a leaf with no children).
+14. **test_author_tree_nonexistent_node_returns_404**: GET `/opds/v1/authors/tree/z/` returns HTTP 404 (no Z node at root).
+15. **test_author_tree_sub_node_has_all_entry_first**: GET `/opds/v1/authors/tree/a/` first entry title is 'all a'.
+16. **test_author_tree_sub_node_all_entry_links_to_filter**: The 'all a' entry in `/opds/v1/authors/tree/a/` links to `?filter=a`.
+17. **test_author_full_set_no_filter_returns_paginated_results**: GET `/opds/v1/authors/` (no params) returns 200 with 20 entries on the first page.
+
+## OPDS Author Detail and Sub-Feed Endpoints (tests_opds.py — OPDSAuthorDetailTest)
+
+Canonical dataset.
+
+1. **test_author_detail_status_200**: GET `/opds/v1/authors/<pk>/` returns HTTP 200.
+2. **test_author_detail_404**: GET `/opds/v1/authors/99999/` returns HTTP 404.
+3. **test_author_detail_has_three_sub_feeds**: Author detail feed has exactly 3 entries titled 'All Books (A–Z)', 'Recently Added', 'Books by Series'.
+4. **test_author_detail_is_navigation_feed**: Author detail response Content-Type contains `kind=navigation`.
+5. **test_author_detail_sub_feed_books_alpha_status_200**: GET `/opds/v1/authors/<pk>/books/` returns HTTP 200.
+6. **test_author_detail_sub_feed_books_alpha_is_acquisition**: Author books feed Content-Type contains `kind=acquisition`.
+7. **test_author_detail_sub_feed_books_alpha_contains_author_books**: Total entry count across all pages equals `author.books.count()`.
+8. **test_author_detail_sub_feed_books_alpha_excludes_other_author**: Author books feed does not contain a book belonging only to a different author.
+9. **test_author_detail_sub_feed_books_alpha_sorted**: First page entries are sorted by title ascending.
+10. **test_author_detail_sub_feed_books_recent_status_200**: GET `/opds/v1/authors/<pk>/books/recent/` returns HTTP 200.
+11. **test_author_detail_sub_feed_books_recent_sorted_by_date**: First entry `<updated>` >= second entry `<updated>` (descending date order).
+12. **test_author_detail_sub_feed_series_status_200**: GET `/opds/v1/authors/<pk>/series/` returns HTTP 200.
+13. **test_author_detail_sub_feed_series_is_navigation**: Author series feed Content-Type contains `kind=navigation`.
+14. **test_author_detail_sub_feed_series_has_series**: For `author_with_series`, the series feed has at least one entry linking to `/opds/v1/series/<pk>/`.
+15. **test_author_detail_sub_feed_series_entry_has_book_count**: Each series entry `<content>` contains a positive integer (book count).
+16. **test_author_detail_sub_feed_series_no_standalone_entry_when_none**: An author with no standalone books has no 'Standalone Books' entry.
+17. **test_author_detail_sub_feed_series_has_standalone_entry_first**: For `author_with_series`, the first series feed entry is 'Standalone Books'.
+18. **test_author_detail_sub_feed_series_standalone_entry_links_to_series_none**: 'Standalone Books' entry links to `/opds/v1/authors/<pk>/books/?series=none`.
+19. **test_author_detail_sub_feed_series_standalone_entry_has_count**: 'Standalone Books' entry `<content>` contains the correct standalone book count.
+20. **test_author_books_series_none_filter_only_standalone**: GET with `?series=none` returns only standalone books (count verified across all pages).
+21. **test_author_books_acquisition_link_always_rendered**: GET `/opds/v1/authors/<pk>/books/` returns entries each containing exactly one acquisition link pointing to a `/download/` URL, regardless of authentication.
