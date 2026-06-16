@@ -42,6 +42,19 @@
 ## Find Alphabet Node (FindAlphabetNodeTest)
 1. **test_find_alphabet_node**: Verifies find_alphabet_node behavior for various inputs (filter, regex, caps, not found, empty search) using `parameterized.expand`.
 
+## Find Alphabet Node By Name (FindAlphabetNodeByNameTest)
+1. **test_find_alphabet_node_by_name[find_root_level_a]**: Finds 'a' node at root level.
+2. **test_find_alphabet_node_by_name[find_root_level_b]**: Finds 'b' node at root level.
+3. **test_find_alphabet_node_by_name[find_other_node]**: Finds 'other' node at root level.
+4. **test_find_alphabet_node_by_name[find_digits_node]**: Finds '0-9' node at root level.
+5. **test_find_alphabet_node_by_name[find_deep_aa]**: Finds 'aa' node at level 2 (requires DFS descent).
+6. **test_find_alphabet_node_by_name[find_deep_ab]**: Finds 'ab' node at level 2.
+7. **test_find_alphabet_node_by_name[find_star_node]**: Finds 'a*' star node at level 2.
+8. **test_find_alphabet_node_by_name[not_found_nonexistent]**: Returns None for a name not in the tree.
+9. **test_find_alphabet_node_by_name[case_sensitive_uppercase_returns_none]**: Returns None for 'A' when only 'a' exists (match is case-sensitive).
+10. **test_find_root_matches_empty_name**: Returns root when searching for '' (root.name is '').
+11. **test_returns_first_match_depth_first**: When two nodes share the same name, the depth-first first match is returned.
+
 ## EPUB Book File (test_epub_book_file.py)
 ### TestEpubBookFileLoad
 1. **test_load_from_stream**: Tests loading an EPUB from an in-memory stream and verifies title, authors and description. (one_author, two_authors, cyrillic)

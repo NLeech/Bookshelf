@@ -239,6 +239,27 @@ def get_alphabet_tree(
     return root
 
 
+def find_alphabet_node_by_name(root: AlphabetTree, name: str) -> AlphabetTree | None:
+    """Depth-first search for the tree node whose .name == name; None if absent.
+
+    Used by tree views to resolve ``…/tree/<name>/`` path segments.
+
+    Args:
+        root: The tree node to start the search from.
+        name: Exact node name to look for (case-sensitive).
+
+    Returns:
+        The first matching AlphabetTree node, or None if not found.
+    """
+    if root.name == name:
+        return root
+    for child in root.entries:
+        found = find_alphabet_node_by_name(child, name)
+        if found is not None:
+            return found
+    return None
+
+
 def find_alphabet_node(node: AlphabetTree, filter_val: str, regex_val: str) -> AlphabetTree | None:
     """Recursively find a node in the alphabet tree that matches the given filter or regex.
 

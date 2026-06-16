@@ -1,5 +1,5 @@
 from library.models import Author, Book, Language
-from library.services import get_alphabet_tree, find_alphabet_node, AlphabetTree
+from library.services import AlphabetTree, find_alphabet_node, find_alphabet_node_by_name, get_alphabet_tree
 from parameterized import parameterized
 from bookshelf.tests.base_test import BaseTestCase
 
@@ -276,3 +276,66 @@ class FindAlphabetNodeTest(BaseTestCase):
         expected_node = getattr(self, expected_node_attr) if expected_node_attr else None
         result = find_alphabet_node(self.root, filter_val, regex_val)
         self.assertEqual(result, expected_node)
+
+
+class FindAlphabetNodeByNameTest(BaseTestCase):
+    """Tests for the find_alphabet_node_by_name function."""
+
+    @classmethod
+    def setUpTestData(cls):
+        """Build a small multi-level tree for testing."""
+        cls.root = AlphabetTree(name='')
+
+        # Level 1
+        cls.node_a = AlphabetTree(name='a', filter='a')
+        cls.node_b = AlphabetTree(name='b', filter='b')
+        cls.node_digits = AlphabetTree(name='0-9', filter='', regex=r'^[0-9]')
+        cls.node_other = AlphabetTree(name='other', filter='', regex=r'^([^[:alpha:][:digit:]]|z)')
+
+        cls.root.entries = [cls.node_a, cls.node_b, cls.node_digits, cls.node_other]
+
+        # Level 2 under 'a'
+        cls.node_aa = AlphabetTree(name='aa', filter='aa')
+        cls.node_ab = AlphabetTree(name='ab', filter='ab')
+        cls.node_a_star = AlphabetTree(name='a*', filter='', regex=r'^a([^[:alpha:]].*)?$')
+
+        cls.node_a.entries = [cls.node_aa, cls.node_ab, cls.node_a_star]
+
+    @parameterized.expand([
+        ('find_root_level_a', 'a', 'node_a'),
+        ('find_root_level_b', 'b', 'node_b'),
+        ('find_other_node', 'other', 'node_other'),
+        ('find_digits_node', '0-9', 'node_digits'),
+        ('find_deep_aa', 'aa', 'node_aa'),
+        ('find_deep_ab', 'ab', 'node_ab'),
+        ('find_star_node', 'a*', 'node_a_star'),
+        ('not_found_nonexistent', 'nonexistent', None),
+        ('case_sensitive_uppercase_returns_none', 'A', None),
+    ])
+    def test_find_alphabet_node_by_name(self, name, search_name, expected_node_attr):
+        """Verifies find_alphabet_node_by_name behavior for various inputs."""
+        expected_node = getattr(self, expected_node_attr) if expected_node_attr else None
+        result = find_alphabet_node_by_name(self.root, search_name)
+        self.assertEqual(result, expected_node)
+
+    def test_find_root_matches_empty_name(self):
+        """Root node has name '' — searching for '' returns the root itself."""
+        result = find_alphabet_node_by_name(self.root, '')
+        self.assertIs(result, self.root)
+
+    def test_returns_first_match_depth_first(self):
+        """When two nodes share the same name, the depth-first first match is returned.
+
+        This is a guard against ordering ambiguity. We insert a second 'aa' node
+        as a sibling of 'b' at root level and verify the deeper (node_aa) one found
+        first by DFS takes precedence over a shallower duplicate.
+        """
+        duplicate = AlphabetTree(name='aa', filter='aa')
+        # Place the duplicate *after* node_a in root entries so DFS hits node_aa first.
+        self.root.entries.append(duplicate)
+        try:
+            result = find_alphabet_node_by_name(self.root, 'aa')
+            # DFS descends into node_a before reaching duplicate at root level.
+            self.assertIs(result, self.node_aa)
+        finally:
+            self.root.entries.remove(duplicate)
