@@ -223,6 +223,19 @@
 12. **test_alphabet_tree_respects_genre**: Verify alphabet tree counts and nodes respect active genre filter.
 13. **test_alphabet_tree_no_oob_on_tree_click**: Verify HTMX request from Alphabet Tree does NOT return itself.
 
+## OPDS Root Feed (tests_opds.py — OPDSRootFeedTest)
+
+No database content required; the feed is purely structural (uses plain TestCase).
+
+1. **test_root_feed_status_200**: GET `/opds/v1/` returns HTTP 200.
+2. **test_root_feed_content_type**: Response `Content-Type` starts with `application/atom+xml`.
+3. **test_root_feed_has_five_catalog_entries**: Feed XML contains exactly 5 `<entry>` elements.
+4. **test_root_feed_entry_titles**: The 5 entry titles are exactly `{Authors, Genres, Series, Books, Search}`.
+5. **test_root_feed_self_link**: Feed contains `<link rel="self">` whose `href` ends with `/opds/v1/`.
+6. **test_root_feed_start_link**: Feed contains `<link rel="start">` whose `href` ends with `/opds/v1/`.
+7. **test_root_feed_search_entry_has_opensearch_link**: The Search entry has exactly one `<link type="application/opensearchdescription+xml">`.
+8. **test_root_feed_is_pretty_printed**: Raw response body contains `\n` (newlines) and `  <` (indentation).
+
 ## Access Control (test_access_control.py)
 1. **test_book_detail_unauthenticated**: Verify that unauthenticated users are redirected to login.
 2. **test_book_detail_authenticated_no_group**: Verify that authenticated users without 'book_access' see truncated content.
