@@ -12,6 +12,7 @@ from library.services import (
     flatten_chapters,
     sanitize_filename,
     get_book_file_content,
+    get_content_type,
     get_languages,
     get_genres_tree,
     search_entities,
@@ -225,6 +226,30 @@ class BookServicesTest(BaseTestCase):
 
         if book.file:
             book.file.close()
+
+    @parameterized.expand([
+        ("filename_epub", "book.epub", "application/epub+zip"),
+        ("filename_fb2", "book.fb2", "application/x-fictionbook+xml"),
+        ("ext_with_dot_epub", ".epub", "application/epub+zip"),
+        ("ext_with_dot_fb2", ".fb2", "application/x-fictionbook+xml"),
+        ("bare_format_epub", "epub", "application/epub+zip"),
+        ("bare_format_fb2", "fb2", "application/x-fictionbook+xml"),
+        ("uppercase_format", "FB2", "application/x-fictionbook+xml"),
+        ("path_fb2", "books/inner.fb2", "application/x-fictionbook+xml"),
+        ("unknown_format", "zzqq", "application/octet-stream"),
+        ("empty_string", "", "application/octet-stream"),
+    ])
+    def test_get_content_type(self, name, value, expected):
+        """get_content_type maps filenames, extensions, and format tags to MIME types."""
+        self.assertEqual(get_content_type(value), expected)
+
+    def test_get_content_type_registers_custom_types(self):
+        """get_content_type registers .epub/.fb2 when absent from the mime database."""
+        with mock.patch('mimetypes.types_map', {}):
+            with mock.patch('mimetypes.add_type') as mock_add:
+                get_content_type('fb2')
+                mock_add.assert_any_call('application/epub+zip', '.epub')
+                mock_add.assert_any_call('application/x-fictionbook+xml', '.fb2')
 
     def test_get_book_file_content_missing_file(self):
         """Test get_book_file_content with book.file = None."""

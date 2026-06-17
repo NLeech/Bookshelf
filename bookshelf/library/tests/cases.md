@@ -118,16 +118,18 @@
 9. **test_get_book_file_content_parameterized**: Verifies that `get_book_file_content` returns a standardized and sanitized filename (`Author_-_Title.ext`), correct bytes, and content type for both direct and zipped EPUB/FB2 files.
 10. **test_get_book_file_content_mimetype_registration**: Verifies that custom mimetypes for EPUB and FB2 are registered if not already present.
 11. **test_get_book_file_content_missing_file**: Verifies that `get_book_file_content` returns `None` values if the book has no file.
-12. **test_get_book_file_content_zip_empty_list**: Verifies that `get_book_file_content` returns `None` if the ZIP file is empty.
-13. **test_get_book_file_content_zip_exception**: Verifies that ZIP extraction errors are caught and logged, returning `None`.
-14. **test_get_book_file_content_read_exception**: Verifies that file read errors are caught and logged, returning `None`.
-15. **test_get_languages_with_filtered_queryset**: Verify get_languages() returns correct book counts when provided with a filtered queryset.
-16. **test_get_genres_tree_with_filtered_queryset**: Verify get_genres_tree() returns correct hierarchy and counts when provided with a filtered queryset.
-17. **test_search_entities_authors**: Test searching authors by various fields and sorting.
-18. **test_search_entities_books**: Test searching books by title.
-19. **test_search_entities_series**: Test searching series by name.
-20. **test_search_entities_empty_query**: Test search with empty query.
-21. **test_search_entities_no_results**: Test search with no matches.
+12. **test_get_content_type**: Parameterized test verifying `get_content_type` maps filenames, extensions (`.fb2`), bare format tags (`fb2`, `FB2`), and paths to the correct MIME type, falling back to `application/octet-stream` for unknown/empty input.
+13. **test_get_content_type_registers_custom_types**: Verifies `get_content_type` registers the custom EPUB/FB2 mimetypes when absent from the mime database.
+14. **test_get_book_file_content_zip_empty_list**: Verifies that `get_book_file_content` returns `None` if the ZIP file is empty.
+15. **test_get_book_file_content_zip_exception**: Verifies that ZIP extraction errors are caught and logged, returning `None`.
+16. **test_get_book_file_content_read_exception**: Verifies that file read errors are caught and logged, returning `None`.
+17. **test_get_languages_with_filtered_queryset**: Verify get_languages() returns correct book counts when provided with a filtered queryset.
+18. **test_get_genres_tree_with_filtered_queryset**: Verify get_genres_tree() returns correct hierarchy and counts when provided with a filtered queryset.
+19. **test_search_entities_authors**: Test searching authors by various fields and sorting.
+20. **test_search_entities_books**: Test searching books by title.
+21. **test_search_entities_series**: Test searching series by name.
+22. **test_search_entities_empty_query**: Test search with empty query.
+23. **test_search_entities_no_results**: Test search with no matches.
 
 ## Genre Services (GenreServicesTest)
 1. **test_get_descendants_logic**: Parameterized test verifying leaf-node identification for various inputs.
@@ -293,3 +295,5 @@ Canonical dataset.
 19. **test_author_detail_sub_feed_series_standalone_entry_has_count**: 'Standalone Books' entry `<content>` contains the correct standalone book count.
 20. **test_author_books_series_none_filter_only_standalone**: GET with `?series=none` returns only standalone books (count verified across all pages).
 21. **test_author_books_acquisition_link_always_rendered**: GET `/opds/v1/authors/<pk>/books/` returns entries each containing exactly one acquisition link pointing to a `/download/` URL, regardless of authentication.
+22. **test_author_books_acquisition_type_matches_file_type**: Each entry's acquisition link `type` reflects the book's `file_type` (`epub` → `application/epub+zip`, `fb2` → `application/x-fictionbook+xml`).
+23. **test_author_books_acquisition_type_defaults_for_unknown_format**: Blank/unknown `file_type` falls back to `application/octet-stream` on the acquisition link.

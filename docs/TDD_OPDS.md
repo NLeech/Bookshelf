@@ -4,7 +4,7 @@
 
 This document describes the design of the OPDS v1.2 catalog interface for the Bookshelf project.
 
-**Scope:** Initial implementation (Phase 1). No authentication — download links are conditionally rendered based on the `library.view_book` permission. Basic Authentication will be added as a separate task.
+**Scope:** Initial implementation (Phase 1). No authentication on feed views — the catalog is fully public (`AllowAny`) and acquisition links are always rendered, so every feed is browsable by anyone. Authorization is enforced solely at the download endpoint (`/opds/v1/books/<pk>/download/`), which returns `HTTP 403` without the `library.view_book` permission. Authentication (Basic Auth at the download endpoint) will be added as a separate task.
 
 **Reference specifications:**
 - [OPDS 1.2](https://specs.opds.io/opds-1.2)

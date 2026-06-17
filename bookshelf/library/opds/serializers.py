@@ -9,6 +9,8 @@ from urllib.parse import quote
 from django.urls import reverse
 from django.utils.timezone import now
 
+from library.services import get_content_type
+
 
 # MIME type constants shared with renderers and views.
 NAV_TYPE = 'application/atom+xml;profile=opds-catalog;kind=navigation'
@@ -501,7 +503,7 @@ def build_author_books_feed(
         links = [{
             'rel': 'http://opds-spec.org/acquisition',
             'href': opds_base + f'books/{book.pk}/download/',
-            'type': 'application/octet-stream',
+            'type': get_content_type(book.file_type),
             'title': None,
         }]
 

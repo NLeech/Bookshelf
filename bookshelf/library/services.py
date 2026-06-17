@@ -19,6 +19,60 @@ from .models import Author, Genre, Language, Book, BookSeries
 from .book_utils.book_file import BookFile
 
 
+# Custom MIME types for book formats not present in the system mime database.
+# Keyed by the canonical extension (leading dot, lowercase).
+CUSTOM_MIME_TYPES = {
+    '.epub': 'application/epub+zip',
+    '.fb2': 'application/x-fictionbook+xml',
+}
+
+DEFAULT_CONTENT_TYPE = 'application/octet-stream'
+
+
+def _register_custom_mimetypes() -> None:
+    """Register book-specific MIME types with the ``mimetypes`` module.
+
+    ``.epub`` and ``.fb2`` are not reliably present in the host mime database,
+    so they are added explicitly (idempotently) before any lookup.
+    """
+    for ext, content_type in CUSTOM_MIME_TYPES.items():
+        if not mimetypes.types_map.get(ext):
+            mimetypes.add_type(content_type, ext)
+
+
+def get_content_type(name_or_format: str) -> str:
+    """Return the MIME content type for a filename, extension, or format tag.
+
+    Accepts a full filename (``'book.fb2'``), an extension (``'.fb2'`` or
+    ``'fb2'``), or a bare format tag (``'fb2'``).  Ensures the book-specific
+    types (EPUB, FB2) are registered before delegating to
+    ``mimetypes.guess_type``.  Falls back to ``application/octet-stream`` when
+    the type cannot be determined.
+
+    Args:
+        name_or_format: A filename, extension, or format tag.
+
+    Returns:
+        The MIME type string, or ``application/octet-stream`` if unknown.
+    """
+    _register_custom_mimetypes()
+
+    name = (name_or_format or '').lower().strip()
+    if not name:
+        return DEFAULT_CONTENT_TYPE
+
+    # Normalise a bare extension ('.fb2') or format tag ('fb2') into a
+    # synthetic filename so ``guess_type`` resolves it.  ``guess_type('.fb2')``
+    # treats the value as a dotfile name and returns nothing, so we always
+    # build a name with a real stem when no path separator is present.
+    if '/' not in name and '\\' not in name:
+        ext = name if name.startswith('.') else f'.{name.rsplit(".", 1)[-1]}'
+        name = f'x{ext}'
+
+    content_type, _ = mimetypes.guess_type(name)
+    return content_type or DEFAULT_CONTENT_TYPE
+
+
 @dataclass(order=True)
 class AlphabetTree:
     """
@@ -527,10 +581,7 @@ def get_book_file_content(book: 'Book') -> tuple[str | None, bytes | None, str |
     file_name = book.file.name.lower()
 
     # Register custom mimetypes if not present
-    if not mimetypes.types_map.get('.epub'):
-        mimetypes.add_type('application/epub+zip', '.epub')
-    if not mimetypes.types_map.get('.fb2'):
-        mimetypes.add_type('application/x-fictionbook+xml', '.fb2')
+    _register_custom_mimetypes()
 
     # Generate standardized filename base: str(Author) - str(title)
     # Following FirstAuthor_et_al_-_Title for multiple authors
@@ -563,25 +614,25 @@ def get_book_file_content(book: 'Book') -> tuple[str | None, bytes | None, str |
                 # Assume the first file is the book content
                 inner_filename = namelist[0]
                 content = zf.read(inner_filename)
-                content_type, _ = mimetypes.guess_type(inner_filename)
+                content_type = get_content_type(inner_filename)
 
                 # Use extension from inner file, lowercase it
                 ext = Path(inner_filename).suffix
                 sanitized_filename = sanitize_filename(filename_base) + ext.lower()
 
-                return sanitized_filename, content, content_type or 'application/octet-stream'
+                return sanitized_filename, content, content_type
         except Exception as e:
             logging.getLogger(__name__).error(f'Failed to extract book from ZIP {book.file.name}: {e}')
             return None, None, None
     else:
         # Not a zip, just return the file data
-        content_type, _ = mimetypes.guess_type(file_name)
+        content_type = get_content_type(file_name)
 
         # Use extension from original file, lowercase it
         ext = Path(file_name).suffix
         sanitized_filename = sanitize_filename(filename_base) + ext.lower()
 
-        return sanitized_filename, file_data, content_type or 'application/octet-stream'
+        return sanitized_filename, file_data, content_type
 
 
 def search_entities(query: str) -> dict[str, Any]:

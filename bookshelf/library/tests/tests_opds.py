@@ -3,11 +3,27 @@ OPDS v1.2 catalog tests.
 """
 import xml.etree.ElementTree as ET
 
+from django.core.cache import cache
 from django.db.models import Exists, OuterRef
 from django.test import TestCase
 
 from library.models import Author, Book, BookSeries, BookSeriesLink, Language
 from library.tests.test_data_factory import create_test_dataset
+
+
+class OPDSThrottleResetMixin:
+    """Clear the throttle cache before each test.
+
+    OPDS endpoints use DRF anonymous-rate throttles whose state lives in the
+    shared cache and persists across tests within a run.  Clearing it in
+    ``setUp`` keeps each test isolated and prevents spurious ``429`` responses
+    once the cumulative request count crosses the per-minute limit.
+    """
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+
 
 NS = {
     'atom': 'http://www.w3.org/2005/Atom',
@@ -21,7 +37,7 @@ def _parse(response):
     return ET.fromstring(response.content)
 
 
-class OPDSRootFeedTest(TestCase):
+class OPDSRootFeedTest(OPDSThrottleResetMixin, TestCase):
     """Tests for GET /opds/v1/ — the root navigation catalog feed.
 
     No database content is required; the feed is purely structural.
@@ -180,7 +196,7 @@ def _count_all_pages(client, url):
 # OPDSAuthorListFeedTest
 # ---------------------------------------------------------------------------
 
-class OPDSAuthorListFeedTest(TestCase):
+class OPDSAuthorListFeedTest(OPDSThrottleResetMixin, TestCase):
     """Tests for the author alphabet-tree root and flat results endpoints.
 
     Fixture: canonical dataset (255 authors: A=137, B=58, C=19, etc.).
@@ -334,7 +350,7 @@ class OPDSAuthorListFeedTest(TestCase):
 # OPDSAuthorDetailTest
 # ---------------------------------------------------------------------------
 
-class OPDSAuthorDetailTest(TestCase):
+class OPDSAuthorDetailTest(OPDSThrottleResetMixin, TestCase):
     """Tests for the author detail and per-author sub-feed endpoints.
 
     Fixture: canonical dataset.
@@ -675,3 +691,47 @@ class OPDSAuthorDetailTest(TestCase):
             ]
             self.assertEqual(len(acq_links), 1, 'Every entry should expose an acquisition link')
             self.assertTrue(acq_links[0].get('href', '').endswith('/download/'))
+
+    def test_author_books_acquisition_type_matches_file_type(self):
+        """Acquisition link ``type`` reflects each book's ``file_type``.
+
+        Desktop OPDS readers filter out entries whose acquisition link
+        advertises a generic type, so the per-format MIME type
+        (e.g. ``application/epub+zip``) must be exposed.
+        """
+        books = list(self.any_author.books.order_by('pk'))
+        expected = {}
+        for i, book in enumerate(books):
+            file_type = 'epub' if i % 2 == 0 else 'fb2'
+            book.file_type = file_type
+            book.save(update_fields=['file_type'])
+            expected_type = (
+                'application/epub+zip' if file_type == 'epub'
+                else 'application/x-fictionbook+xml'
+            )
+            expected[f'tag:bookshelf:book:{book.pk}'] = expected_type
+
+        response = self.client.get(f'/opds/v1/authors/{self.any_author.pk}/books/')
+        root = _parse(response)
+        entries = root.findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            entry_id = entry.findtext('atom:id', namespaces=NS)
+            acq_link = next(
+                lnk for lnk in entry.findall('atom:link', NS)
+                if lnk.get('rel') == 'http://opds-spec.org/acquisition'
+            )
+            self.assertEqual(acq_link.get('type'), expected[entry_id])
+
+    def test_author_books_acquisition_type_defaults_for_unknown_format(self):
+        """Unknown/blank ``file_type`` falls back to ``application/octet-stream``."""
+        response = self.client.get(f'/opds/v1/authors/{self.any_author.pk}/books/')
+        root = _parse(response)
+        entries = root.findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            acq_link = next(
+                lnk for lnk in entry.findall('atom:link', NS)
+                if lnk.get('rel') == 'http://opds-spec.org/acquisition'
+            )
+            self.assertEqual(acq_link.get('type'), 'application/octet-stream')
