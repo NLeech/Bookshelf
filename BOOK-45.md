@@ -75,14 +75,23 @@ Every OPDS view returns `Response(feed_dict)`. `feed_dict` is a plain Python dic
             'id':      str,
             'title':   str,
             'updated': datetime | None,
-            'content': str | None,      # plain-text description or item count
-            'summary': str | None,      # for book entries (truncated description)
-            'authors': [                # for book entries only
-                {'name': str, 'uri': str}
+            'content': str | None,      # navigation entries: plain-text item count.
+                                        # complete book entries: sanitized-XHTML
+                                        # description (rendered as <content
+                                        # type="xhtml">). Absent on thin book
+                                        # entries and when a book has no description.
+            'kind':    str | None,      # book entries: 'thin' | 'thick' — drives
+                                        # the renderer's partial/complete shape
+            'series':  [                # complete book entries only (structured
+                                        # <calibre:series>/<calibre:series_index>)
+                {'name': str, 'index': int | str}
             ],
             'links': [
                 {
-                    'rel':   str,
+                    'rel':   str,       # incl. 'related' (one per author → /authors/<pk>/
+                                        #   and one per series → /series/<pk>/),
+                                        #   'alternate' (thin → complete entry),
+                                        #   'http://opds-spec.org/image[/thumbnail]'
                     'href':  str,
                     'type':  str,
                     'title': str | None,
@@ -91,6 +100,11 @@ Every OPDS view returns `Response(feed_dict)`. `feed_dict` is a plain Python dic
         }
     ]
 }
+```
+
+**Authors are not a top-level entry field.** Per §6.5 a book entry emits **no `<author>` Atom element**; each author is a `rel="related"` link (`href` → `/opds/v1/authors/<pk>/`, `title` = author `full_name`) inside `'links'`. Series likewise appear both as structured `'series'` entries (rendered `<calibre:*>`) and as `rel="related"` links (`href` → `/opds/v1/series/<pk>/`, `title` = series name only).
+
+```
 ```
 
 The renderer (`OPDSRenderer`) owns all XML construction. Views and serializers are XML-free.
@@ -107,6 +121,8 @@ All four namespaces must be registered at **module import time** in `renderers.p
 | `opds` | `http://opds-spec.org/2010/catalog` |
 | `dc` | `http://purl.org/dc/terms/` |
 | `opensearch` | `http://a9.com/-/spec/opensearch/1.1/` |
+| `xhtml` | `http://www.w3.org/1999/xhtml` (book entry `<content type="xhtml">`) |
+| `calibre` | `http://calibre.kovidgoyal.net/2009/metadata` (`<calibre:series>` / `<calibre:series_index>`) |
 
 ---
 
@@ -200,6 +216,39 @@ elif letter:                    # ordinary letter-prefix nodes
 
 ---
 
+### Book entry shape: thin default, `?detail=thick` complete
+
+Book-listing acquisition feeds — `/books/`, `/authors/<pk>/books/`, `…/books/recent/`, `/genres/<pk>/books/`, `/series/<pk>/`, `/search/books/` — emit **thin (partial)** catalog entries by default:
+
+- `<title>`, `<id>` (`tag:bookshelf:book:<pk>`),
+- permission-gated `<link rel="http://opds-spec.org/acquisition">`,
+- **mandatory** `<link rel="alternate" type="application/atom+xml;type=entry;profile=opds-catalog">` → the complete entry at `/opds/v1/books/<pk>/`,
+- cover **thumbnail** only.
+
+No `<content>`, no full-size `http://opds-spec.org/image`, no `<calibre:*>`, no author/series `rel="related"` links in thin entries.
+
+`?detail=thick` switches the **same** endpoints to **complete** inline entries (identical to the §"Book detail entry" complete shape). `detail=thick` MUST be preserved on the feed's `first`/`next`/`previous` pagination links. The standalone `/opds/v1/books/<pk>/` complete-entry endpoint (the `alternate` target) is unaffected by the param.
+
+### Book detail entry (complete shape)
+
+A complete book entry — the standalone `/opds/v1/books/<pk>/` feed and every thick listing entry — emits, in document order:
+
+- `<title>`.
+- `<content type="xhtml">` — the **description only**, sanitized to an allowlist (`p, br, strong, b, em, i, u, ul, ol, li`; all attributes stripped) and emitted as a real un-escaped XHTML `<div>` of live nodes. Omitted when the book has no description.
+- `<calibre:series>` / `<calibre:series_index>` — one pair per series (Calibre metadata namespace); series name `.strip()`-ed, index = sequence number. Omitted when standalone.
+- `<link rel="http://opds-spec.org/image">` + `<link rel="http://opds-spec.org/image/thumbnail">` — cover and thumbnail. **Always present:** when `book.cover` is set, use `book.cover.url` / `book.cover_preview.url`; when it is not, fall back to the static placeholders `/static/png/no_cover 600x900.jpeg` (full) and `/static/png/no_cover 40x60.jpeg` (thumbnail). The image links are never omitted.
+- `<link rel="related">` **per author** → `/opds/v1/authors/<pk>/`, `type="…;kind=navigation"`, `title` = author `full_name`. This is the **only** author representation — **no `<author>` Atom element is emitted.**
+- `<link rel="related">` **per series** → `/opds/v1/series/<pk>/`, `title` = series **name only** (no `#<seq>`).
+- `<link rel="http://opds-spec.org/acquisition">` — only when the user has `library.view_book`.
+
+### Default entry image (logo for non-book entries)
+
+Every entry that does **not** carry an acquisition link — root, author, series, genre, alphabet-tree, and search-section entries — MUST carry the application logo as its thumbnail: `<link rel="http://opds-spec.org/image/thumbnail" type="image/png" href="<abs>/static/png/Logo 64x64x8.png">` (absolute URL via `request.build_absolute_uri`). Book (acquisition) entries are excluded; they use their own cover/thumbnail.
+
+### Navigation entry counts (mandatory)
+
+Every navigation entry representing a collection MUST expose its child-item count in `<content type="text">` (e.g. `"42 books"`): author entries (book count), series entries (per-author count in the author-series feed, total elsewhere), genre entries (descendant-inclusive count via `get_descendants`), alphabet-tree nodes, and root browse entries. A count of `0` is still rendered.
+
 ### Permission model
 
 | Action | Requirement |
@@ -268,8 +317,8 @@ if content_bytes is None:
 
 | Entry | Link href | Type |
 |-------|-----------|------|
-| All Books (A–Z) | `/opds/v1/authors/<pk>/books/` | acquisition |
-| Recently Added | `/opds/v1/authors/<pk>/books/recent/` | acquisition |
+| Books by Title | `/opds/v1/authors/<pk>/books/` | acquisition |
+| New Arrivals | `/opds/v1/authors/<pk>/books/recent/` | acquisition |
 | Books by Series | `/opds/v1/authors/<pk>/series/` | navigation |
 
 Books not linked to any series are surfaced through a **"Standalone Books" category at the top** of the **Books by Series** sub-feed: when the author has standalone books, the series feed **prepends** a first entry titled "Standalone Books" (content `"N standalone book(s)"`) linking to `/opds/v1/authors/<pk>/books/?series=none`.
@@ -290,16 +339,21 @@ Two classes: `OPDSMinuteRateThrottle(AnonRateThrottle)` with `scope = 'opds_anon
 
 ### CREATE `bookshelf/library/opds/renderers.py`
 
-- Register all 4 namespaces at module level.
+- Register all 6 namespaces at module level (the 4 core + `xhtml` + `calibre`).
 - `OPDSRenderer(BaseRenderer)`:
   - `media_type = 'application/atom+xml'`
   - `format = 'atom'`
   - `charset = 'utf-8'`
   - `render(data, accepted_media_type, renderer_context)` → calls `_build_feed(data)` → `ET.indent` → returns bytes with leading XML declaration
   - `_build_feed(data)` → constructs `<feed>` element with id, title, updated, self/start links, pagination links, and all entry elements
-  - `_build_entry(entry_dict)` → constructs a single `<entry>` element; navigation entries get no `<summary>` or `<author>`; acquisition (book) entries get `<summary>`, `<author>`, cover `<link>` elements
+  - `_build_entry(entry_dict)` → constructs a single `<entry>`. Branches on entry shape:
+    - **Navigation entry** → no `<content type="xhtml">`, no `<calibre:*>`, no author/series `rel="related"`. Carries the **logo thumbnail** (see below) and a plain-text `<content type="text">` count.
+    - **Thin book entry** (`kind == 'thin'`, the listing default) → `<title>`, `<id>`, acquisition `<link>` (permission-gated), **mandatory** `<link rel="alternate" type="application/atom+xml;type=entry;profile=opds-catalog">` → `/opds/v1/books/<pk>/`, and the cover **thumbnail** only. No `<content>`, no full-size image, no `<calibre:*>`, no `rel="related"`.
+    - **Complete (thick / detail) book entry** (`kind == 'thick'` or the standalone book-detail feed) → `<content type="xhtml">` (sanitized-XHTML description; real un-escaped `<div>` of live XHTML nodes, not an escaped string), one `<calibre:series>`/`<calibre:series_index>` pair per series, full-size + thumbnail cover `<link>`s, one author `rel="related"` per author, one series `rel="related"` per series, permission-gated acquisition link. **No `<author>` Atom element.**
+  - `_sanitize_html(text)` → allowlist sanitizer used for the XHTML `<content>`; only `p, br, strong, b, em, i, u, ul, ol, li` survive and all attributes are stripped.
   - Cover full image: `rel="http://opds-spec.org/image"`, type `image/jpeg`
   - Cover thumbnail: `rel="http://opds-spec.org/image/thumbnail"`, type `image/jpeg` — uses `cover_preview.url` (the 100×150 `ImageSpecField`), NOT `cover.url`
+  - **Logo thumbnail (non-book entries):** every entry that does **not** carry an acquisition link (root, author, series, genre, alphabet-tree, search-section entries) MUST carry `<link rel="http://opds-spec.org/image/thumbnail" type="image/png" href="<abs>/static/png/Logo 64x64x8.png">`, built with `request.build_absolute_uri`. Book (acquisition) entries are excluded — they use their own cover/thumbnail.
   - Navigation kind Content-Type: `application/atom+xml;profile=opds-catalog;kind=navigation`
   - Acquisition kind Content-Type: `application/atom+xml;profile=opds-catalog;kind=acquisition`
   - The renderer reads `data['kind']` to set the Content-Type via `renderer_context['response']['Content-Type']`
@@ -312,29 +366,33 @@ Two classes: `OPDSMinuteRateThrottle(AnonRateThrottle)` with `scope = 'opds_anon
 
 Pure Python functions. No DRF serializer classes. No XML. All accept `request` for absolute URI construction and permission checking.
 
+**Cross-cutting rules every builder honours:**
+- **Navigation entry counts (mandatory).** Every navigation entry that represents a collection (author, series, genre, alphabet-tree node, root browse entries, author-results, series-results) carries its item count in `content` (e.g. `"42 books"`). A count of `0` is still rendered — a navigation entry without a count is incomplete.
+- **Logo thumbnail (mandatory on non-book entries).** Every non-acquisition entry carries a `links` item `{'rel': 'http://opds-spec.org/image/thumbnail', 'type': 'image/png', 'href': request.build_absolute_uri('/static/png/Logo 64x64x8.png')}`. Book (acquisition) entries never carry the logo. (The renderer enforces the same rule; builders supply the absolute href.)
+
 Functions:
 
 - `build_root_feed(request) → dict` — 5 navigation entries fixed
 - `build_author_entry(author, request) → dict` — single entry for a navigation author results list
 - `build_author_tree_feed(node, request) → dict` — **navigation** sub-tree feed: synthetic "all `<prefix>`" first entry (when `node` has children), then one entry per child. Child links: expandable → `authors/tree/<child.name>/`; leaf → `authors/?filter=<child.filter>` or `authors/?regex=<child.regex>`
 - `build_author_results_feed(authors_page, request) → dict` — **flat, paginated navigation** list of authors (leaf/"all"/filter/regex results); entries link to `authors/<pk>/`
-- `build_author_detail_feed(author, request) → dict` — exactly 3 navigation entries (All Books A–Z, Recently Added, Books by Series)
+- `build_author_detail_feed(author, request) → dict` — exactly 3 navigation entries (`Books by Title`, `New Arrivals`, `Books by Series`)
 - `build_author_series_feed(author, request, series_with_counts, standalone_count=0) → dict` — when `standalone_count > 0`, **prepends** a "Standalone Books" entry (linking to `authors/<pk>/books/?series=none`) as the first entry; then one navigation entry per series
-- `build_author_books_feed(books_page, author, request, has_perm=False) → dict` — acquisition feed
+- `build_author_books_feed(books_page, author, request, has_perm=False, thick=False) → dict` — acquisition feed of thin entries (thick when `thick=True`); serves both `/authors/<pk>/books/` and `/authors/<pk>/books/recent/`; `detail=thick` preserved on pagination links
 - `build_series_entry(series, request) → dict`
 - `build_series_tree_feed(node, request) → dict` — navigation sub-tree (same shape as authors, `series/tree/<name>/` and `series/?filter=|?regex=` links)
 - `build_series_results_feed(series_page, request) → dict` — flat paginated list; entries link to `series/<pk>/`
-- `build_series_detail_feed(series, subseries_qs, books_with_seq, request, has_perm=False, page_obj=None) → dict` — subseries navigation entries first, then book acquisition entries; book title format: `f"#{seq} · {title}"`
-- `build_book_entry(book, request, has_perm=False) → dict` — includes cover links (only when `book.cover`), series related links, author elements, summary truncated to 1000 chars, conditional acquisition link
+- `build_series_detail_feed(series, subseries_qs, books_with_seq, request, has_perm=False, page_obj=None, thick=False) → dict` — subseries navigation entries first, then book acquisition entries (thin by default, thick when `thick=True`); book title format: `f"#{seq} · {title}"`. Subseries nav entries carry the logo thumbnail.
+- `build_book_entry(book, request, has_perm=False, thick=False) → dict` — produces a **thin** entry by default (`kind='thin'`: title, id, permission-gated acquisition link, **mandatory** `rel="alternate"` → `/opds/v1/books/<pk>/`, cover thumbnail only) and a **complete** entry when `thick=True` (`kind='thick'`: sanitized-XHTML description in `content`, structured `series` list for `<calibre:*>`, full cover + thumbnail (real cover when `book.cover` is set, else the `no_cover` placeholders — links never omitted), one author `rel="related"` per author, one series `rel="related"` per series, permission-gated acquisition link). **Never emits an `<author>` element** — authors are `rel="related"` links only. Description is sanitized, not truncated.
 - `build_book_tree_feed(node, request, base_url='books') → dict` — navigation sub-tree; child links to `<base_url>/tree/<name>/` or `<base_url>/?filter=|?regex=`. `base_url` is `'books'` for the main tree and `'genres/<pk>/books'` for the genre-scoped tree, so the same builder serves both
-- `build_book_results_feed(books_page, request, has_perm=False) → dict` — flat paginated **acquisition** list; conditional acquisition link per `has_perm`. Serves `/books/` and `/genres/<pk>/books/` results
-- `build_book_detail_feed(book, request, has_perm=False) → dict`
+- `build_book_results_feed(books_page, request, has_perm=False, thick=False) → dict` — flat paginated **acquisition** list of thin entries (thick when `thick=True`); conditional acquisition link per `has_perm`. Serves `/books/` and `/genres/<pk>/books/` results. When `thick`, the `detail=thick` param is preserved on all pagination links.
+- `build_book_detail_feed(book, request, has_perm=False) → dict` — single **complete** book entry (always thick shape; this is the `rel="alternate"` target)
 - `build_genre_root_feed(genres_with_counts, request) → dict` — list of `(genre, count)` tuples; entries link to `genres/<pk>/`
 - `build_genre_detail_feed(genre, subgenres, request) → dict` — **subgenres only**: one navigation entry per direct subgenre linking to `genres/<subpk>/`. No book/alphabet entries. (The view 302-redirects instead of calling this when `subgenres` is empty.)
 - `build_search_root_feed(query, counts, request) → dict` — navigation feed with up to 3 section entries (`"Authors (N found)"`, `"Series (N found)"`, `"Books (N found)"`), each linking to its own `search/<section>/?q=<query>` sub-feed; entry omitted when its count is 0. Not paginated.
 - `build_search_authors_feed(authors_page, query, request) → dict` — paginated navigation feed; entries link to `authors/<pk>/`
 - `build_search_series_feed(series_page, query, request) → dict` — paginated navigation feed; entries link to `series/<pk>/`
-- `build_search_books_feed(books_page, query, request, has_perm=False) → dict` — paginated acquisition feed; conditional download link
+- `build_search_books_feed(books_page, query, request, has_perm=False, thick=False) → dict` — paginated acquisition feed of thin entries (thick when `thick=True`); conditional download link; `q` (and `detail=thick` when set) preserved on pagination links
 - `build_opensearch_description(request) → dict`
 
 ### MODIFY `bookshelf/library/services.py`
@@ -390,7 +448,7 @@ View classes (all have a single `get(self, request, ...)` method):
 | `SeriesListFeedView` | `series/` | Flat results; field `'name'`; `BookSeries` queryset |
 | `SeriesTreeFeedView` | `series/tree/` and `series/tree/<str:name>/` | Same logic as `AuthorTreeFeedView`; field `'name'` |
 | `SeriesDetailFeedView` | `series/<int:pk>/` | `get_object_or_404`; `series.subseries.all()` navigation; `BookSeriesLink.objects.filter(series=series).select_related('book').order_by('sequence_number')` for book entries |
-| `BookListFeedView` | `books/` | Flat results; field `'title'`; conditional acquisition link per `has_perm` |
+| `BookListFeedView` | `books/` | Flat results; field `'title'`; conditional acquisition link per `has_perm`; thin entries by default, `?detail=thick` → complete entries (param preserved across pages) |
 | `BookTreeFeedView` | `books/tree/` and `books/tree/<str:name>/` | Same logic as `AuthorTreeFeedView`; field `'title'` |
 | `BookDetailFeedView` | `books/<int:pk>/` | `get_object_or_404`; `select_related`/`prefetch_related` authors, series, cover |
 | `BookDownloadView` | `books/<int:pk>/download/` | Extends `APIView` directly (NOT `OPDSBaseView`); `renderer_classes = []`; `permission_classes = [AllowAny]`; `throttle_classes = [OPDSMinuteRateThrottle, OPDSDayRateThrottle]`; unpack `(filename, content_bytes, content_type) = get_book_file_content(book)`; check `has_perm` first; check `content_bytes is None`; return `HttpResponse` with Content-Disposition |
@@ -480,7 +538,7 @@ The `('library.opds.urls', 'library')` 2-tuple sets the app namespace to `'libra
 4. **Throttles** — Create `bookshelf/library/opds/throttles.py` with `OPDSMinuteRateThrottle` and `OPDSDayRateThrottle`.
 
 5. **Renderer** — Create `bookshelf/library/opds/renderers.py`:
-   - Register all 4 namespaces at module level.
+   - Register all 6 namespaces at module level (core 4 + `xhtml` + `calibre`).
    - Implement `_build_entry()` first (leaf builder), then `_build_feed()`.
    - Confirm `ET.tostring(root, encoding='unicode').encode('utf-8')` — never `encoding='utf-8'`.
    - Implement `OpenSearchRenderer`.
@@ -490,11 +548,14 @@ The `('library.opds.urls', 'library')` 2-tuple sets the app namespace to `'libra
    - Then implement feed-level builders.
    - Thumbnail: `book.cover_preview.url` — not `book.cover.url`.
    - Cover links: `request.build_absolute_uri(book.cover.url)`.
-   - Guard: `if book.cover:` before accessing cover or preview.
-   - Summary: `book.description[:1000]`.
+   - Cover/thumbnail links are **always emitted**: use `book.cover.url` / `book.cover_preview.url` when `book.cover` is set, else fall back to the static `no_cover 600x900.jpeg` / `no_cover 40x60.jpeg` placeholders (build absolute via `request.build_absolute_uri('/static/png/...')`). Never omit the image link for a cover-less book.
+   - Book entries are **thin by default**; `build_book_entry(..., thick=True)` emits the complete shape. Listing views pass `thick = request.query_params.get('detail') == 'thick'` and preserve `detail=thick` on pagination links.
+   - Complete book entry: sanitized-XHTML description in `content` (via `_sanitize_html`, **not** truncated), structured `series` list for `<calibre:*>`, author + series `rel="related"` links, **no `<author>` element**.
+   - Thin book entry: mandatory `rel="alternate"` link → `/opds/v1/books/<pk>/`, cover thumbnail only.
+   - Non-book entries: attach the logo thumbnail and a mandatory count in `content`.
    - Series book title: `f"#{seq} · {title}"` (U+00B7 middle dot).
    - Standalone Books entry: **prepend as the first entry** only when `author.books.filter(bookserieslink__isnull=True).exists()`; link it to `authors/<pk>/books/?series=none`.
-   - Author Detail feed: emit exactly 3 sub-feed entries (All Books A–Z, Recently Added, Books by Series).
+   - Author Detail feed: emit exactly 3 sub-feed entries (`Books by Title`, `New Arrivals`, `Books by Series`).
    - Search root feed: ≤ 3 section entries linking to `search/authors|series|books/?q=…`; never flatten sections into one feed.
    - "all `<prefix>`" synthetic entry: prepend as first entry when the rendered tree node has children; link it to the **results** endpoint (`…/?filter=<prefix>`, or `…/?regex=<regex>` for `other`), never to a `…/tree/` URL.
    - Tree child links: expandable → `…/tree/<child.name>/`; leaf → `…/?filter=<child.filter>` or `…/?regex=<child.regex>`.
@@ -513,7 +574,7 @@ The `('library.opds.urls', 'library')` 2-tuple sets the app namespace to `'libra
 
 9. **Import sanity check** — `uv run python bookshelf/manage.py check`
 
-10. **Write tests** — Create `bookshelf/library/tests/tests_opds.py`.
+10. **Write tests** — Create `bookshelf/library/tests/tests_opds.py`. Include the cross-cutting classes `OPDSBookVerbosityTest` (thin/thick §6.5a) and `OPDSEntryImageTest` (logo thumbnail §8), and the complete-book-entry assertions in `OPDSBookDetailTest` (`rel="related"` authors/series, `<content type="xhtml">`, `<calibre:*>`, no `<author>` element).
 
 11. **Run tests** — `uv run python bookshelf/manage.py test library.tests.tests_opds`
 
@@ -685,6 +746,7 @@ No DB content needed.
 | 7 | `test_author_results_filter_not_found_returns_empty_feed` | GET `/opds/v1/authors/?filter=y` → 200, 0 entries |
 | 8 | `test_author_results_sorted_alphabetically` | Entries in `/opds/v1/authors/?filter=b` are in ascending last_name order |
 | 9 | `test_author_digits_node_list` | GET `/opds/v1/authors/?regex=^[0-9]` → 200, exactly 12 entries |
+| 10 | `test_author_results_entry_content_has_book_count` | Each entry on `/opds/v1/authors/?filter=b` has `<content type="text">` containing that author's book count (e.g. `"<n> books"`); an author with 0 books shows `0` |
 
 ---
 
@@ -756,6 +818,8 @@ Genre detail (`/genres/<pk>/`) is **subgenres-only** and 302-redirects to the ge
 | 8 | `test_series_results_empty_filter_returns_empty_feed` | GET `/opds/v1/series/?filter=z` → 200, 0 entries |
 | 9 | `test_series_s_is_expanded_subtree` | GET `/opds/v1/series/tree/s/` → navigation sub-entries (`Sh`, `St`, `Sw`, `all s`); not 62 flat series entries |
 | 10 | `test_series_digits_node_list` | GET `/opds/v1/series/?regex=^[0-9]` → 200, exactly 10 entries |
+| 11 | `test_series_results_entry_content_has_book_count` | Each entry on `/opds/v1/series/?filter=t` has `<content type="text">` containing that series' total book count (per §8) |
+| 12 | `test_series_results_zero_book_series_shows_count_0` | A series with no books (created locally in this test) → its results entry `<content>` count is `0` (count mandatory even when zero) |
 
 ---
 
@@ -776,6 +840,33 @@ Genre detail (`/genres/<pk>/`) is **subgenres-only** and 302-redirects to the ge
 | 9 | `test_book_a_is_expanded_subtree` | GET `/opds/v1/books/tree/a/` → navigation sub-entries (`Al`, `An`, `Ar`, `all a`); not 222 book entries |
 | 10 | `test_book_results_cyrillic_filter` | GET `/opds/v1/books/?filter=п` → 200, entries for П=83 books (across pages) |
 | 11 | `test_book_digits_node_list` | GET `/opds/v1/books/?regex=^[0-9]` → 200, exactly 14 entries |
+
+---
+
+### `OPDSBookVerbosityTest(TestCase)`
+
+**Fixture:** `create_test_dataset()` in `setUpTestData`. Create `user_with_perm` (member of `Book access`) inline so acquisition links render. Cross-cutting test of the §6.5a thin-default / `?detail=thick` rule across all book-listing acquisition feeds. `THICK = {'detail': 'thick'}` passed where thick mode is exercised.
+
+| # | Method | Assert |
+|---|---|---|
+| 1 | `test_books_listing_entries_are_thin_by_default` | GET `/opds/v1/books/?filter=m` (no `detail`): each book entry has `<title>`, `<id>` `tag:bookshelf:book:<pk>`, `<link rel="alternate">`; **no** `<content>`, **no** `<calibre:series>`, **no** `<link rel="related">` |
+| 2 | `test_thin_entry_has_mandatory_alternate_link` | Every thin entry has exactly one `<link rel="alternate" type="application/atom+xml;type=entry;profile=opds-catalog">` whose `href` ends in `/opds/v1/books/<pk>/` |
+| 3 | `test_thin_entry_has_thumbnail_no_full_image` | Thin entry has `<link rel="…/image/thumbnail">` but **no** `<link rel="http://opds-spec.org/image">` |
+| 4 | `test_thin_entry_has_acquisition_link_with_perm` | `user_with_perm`: thin entries carry `<link rel="http://opds-spec.org/acquisition">` |
+| 5 | `test_thin_entry_no_acquisition_link_anon` | Anon: thin entries carry no acquisition link |
+| 6 | `test_thick_entries_are_complete` | GET `/opds/v1/books/?filter=m&detail=thick`: each entry matches §6.5 — `<content type="xhtml">` (when described), `<calibre:series>`/`<calibre:series_index>` (when in series), full `<link rel="…/image">`, author `<link rel="related">` |
+| 7 | `test_thick_entry_still_has_alternate_link` | Thick entry still carries `<link rel="alternate">` → `/opds/v1/books/<pk>/` |
+| 8 | `test_thick_param_propagates_to_pagination_links` | `/opds/v1/books/?filter=m&detail=thick` (paginated): `next`/`previous`/`first` URLs all preserve `detail=thick` |
+| 9 | `test_thin_pagination_links_have_no_detail_param` | Default thin: pagination links carry no `detail` param |
+| 10 | `test_author_books_feed_thin_by_default` | `/opds/v1/authors/<pk>/books/`: entries thin (have `rel="alternate"`, no `<content>`) |
+| 11 | `test_author_books_feed_thick_param` | `/opds/v1/authors/<pk>/books/?detail=thick`: entries complete |
+| 12 | `test_author_books_recent_feed_thin_by_default` | `/opds/v1/authors/<pk>/books/recent/`: entries thin |
+| 13 | `test_genre_books_feed_thin_by_default` | `/opds/v1/genres/<pk>/books/?filter=<x>`: entries thin |
+| 14 | `test_genre_books_feed_thick_param` | `/opds/v1/genres/<pk>/books/?filter=<x>&detail=thick`: entries complete |
+| 15 | `test_series_detail_book_entries_thin_by_default` | `/opds/v1/series/<pk>/`: book entries thin (subseries nav entries unaffected) |
+| 16 | `test_series_detail_book_entries_thick_param` | `/opds/v1/series/<pk>/?detail=thick`: book entries complete |
+| 17 | `test_search_books_feed_thin_by_default` | `/opds/v1/search/books/?q=<term>`: book entries thin |
+| 18 | `test_search_books_feed_thick_param` | `/opds/v1/search/books/?q=<term>&detail=thick`: book entries complete |
 
 ---
 
@@ -806,7 +897,8 @@ Genre detail (`/genres/<pk>/`) is **subgenres-only** and 302-redirects to the ge
 |---|---|---|
 | 1 | `test_author_detail_status_200` | GET `/opds/v1/authors/<pk>/` → 200 |
 | 2 | `test_author_detail_404` | GET `/opds/v1/authors/99999/` → 404 |
-| 3 | `test_author_detail_has_three_sub_feeds` | Feed has exactly 3 entries: `All Books (A–Z)`, `Recently Added`, `Books by Series` |
+| 3 | `test_author_detail_has_three_sub_feeds` | Feed has exactly 3 entries: `Books by Title`, `New Arrivals`, `Books by Series` |
+| 3a | `test_author_detail_sub_feed_titles_match` | The 3 sub-feed `<title>`s are exactly `Books by Title`, `New Arrivals`, `Books by Series` (in order); legacy labels `All Books (A–Z)`/`Recently Added` are absent |
 | 4 | `test_author_detail_sub_feed_books_alpha_status_200` | GET `/opds/v1/authors/<pk>/books/` → 200 |
 | 5 | `test_author_detail_sub_feed_books_alpha_contains_author_books` | Total entry count (across pages) equals `author.books.count()` |
 | 6 | `test_author_detail_sub_feed_books_alpha_excludes_other_author` | Feed has no book known to belong only to a different author |
@@ -856,15 +948,44 @@ Genre detail (`/genres/<pk>/`) is **subgenres-only** and 302-redirects to the ge
 | 1 | `test_book_detail_status_200` | GET `/opds/v1/books/<book_1.pk>/` → 200 |
 | 2 | `test_book_detail_404` | GET `/opds/v1/books/99999/` → 404 |
 | 3 | `test_book_detail_has_title` | Entry `<title>` == `Foundation` |
-| 4 | `test_book_detail_has_author_with_uri` | `<author>` has `<name>Asimov, Isaac</name>` and `<uri>` ending in `/opds/v1/authors/<author_a.pk>/` |
-| 5 | `test_book_detail_has_description` | `<summary>` contains `book_1.description` text |
+| 4 | `test_book_detail_has_author_related_link` | `<link rel="related">` with `href` → `/opds/v1/authors/<author_a.pk>/`, `type` contains `kind=navigation`, `title` == author `full_name` |
+| 4a | `test_book_detail_one_related_link_per_author` | Two-author book → exactly 2 author `rel="related"` links, one per `/opds/v1/authors/<pk>/` |
+| 4b | `test_book_detail_author_related_link_mandatory` | Every complete entry has ≥ 1 author `rel="related"` link |
+| 4c | `test_book_detail_has_no_atom_author_element` | Entry contains **no** `<author>` Atom element |
+| 5 | `test_book_detail_content_is_xhtml_type` | Entry has `<content type="xhtml">` containing an XHTML `<div>`; **no** `<summary>` element |
+| 5a | `test_book_detail_content_has_description` | The `<content>` `<div>` text contains `book_1.description` |
+| 5b | `test_book_detail_content_has_no_series_text` | `<content>` has no series text (no `Foundation #1`, no `Belongs to series`) |
+| 5c | `test_book_detail_content_sanitizes_disallowed_html` | Description with `<script>` → tag stripped; allowlisted `<p>`/`<strong>` survive |
+| 5d | `test_book_detail_no_content_when_no_description` | Empty description → no `<content>` element |
+| 5e | `test_book_detail_has_calibre_series` | `<calibre:series>` text == `Foundation`, `<calibre:series_index>` == `1` |
+| 5f | `test_book_detail_calibre_series_name_stripped` | `<calibre:series>` text has no leading/trailing whitespace |
+| 5g | `test_book_detail_one_calibre_series_pair_per_series` | Two-series book → exactly 2 `<calibre:series>` and 2 `<calibre:series_index>` |
+| 5h | `test_book_detail_no_calibre_series_when_standalone` | book_3 (no series) → no `<calibre:series>` and no series `rel="related"` link |
 | 6 | `test_book_detail_cover_link_is_absolute_url` | `<link rel="http://opds-spec.org/image" href="…">` starts with `http` |
 | 7 | `test_book_detail_has_thumbnail_link` | `<link rel="http://opds-spec.org/image/thumbnail">` present |
-| 8 | `test_book_detail_has_series_related_link` | `<link rel="related">` points to `/opds/v1/series/<series_1.pk>/` |
-| 9 | `test_book_detail_no_cover_link_when_no_cover` | GET `book_2` detail → no `<link rel="http://opds-spec.org/image">` |
+| 8 | `test_book_detail_has_series_related_link` | `<link rel="related">` → `/opds/v1/series/<series_1.pk>/`, `title` == series **name only** (`Foundation`, no `#<seq>`) |
+| 8a | `test_book_detail_author_and_series_related_links_distinguishable` | Author `rel="related"` → `/authors/<pk>/`; series → `/series/<pk>/` (distinguished by `href` prefix) |
+| 9 | `test_book_detail_no_cover_uses_no_cover_fallback` | GET `book_2` (no cover) detail → `<link rel="http://opds-spec.org/image">` href ends in `/static/png/no_cover%20600x900.jpeg` and thumbnail href ends in `/static/png/no_cover%2040x60.jpeg` (image links always present; cover-less books fall back to placeholders) |
 | 10 | `test_book_detail_no_acquisition_link_anon` | Anonymous → no acquisition link |
 | 11 | `test_book_detail_no_acquisition_link_user_no_perm` | `user_no_perm` → no acquisition link |
 | 12 | `test_book_detail_has_acquisition_link_user_with_perm` | `user_with_perm` → acquisition link present with `href` ending in `/opds/v1/books/<book_1.pk>/download/` |
+
+---
+
+### `OPDSEntryImageTest(TestCase)`
+
+**Fixture:** `create_test_dataset()` in `setUpTestData`. Cross-cutting test of the §8 "logo for every non-book entry" rule. Logo lives at `/static/png/Logo 64x64x8.png`; assertions match the thumbnail link by `rel="http://opds-spec.org/image/thumbnail"` and an `href` ending in the URL-encoded logo path. Book (acquisition) entries are asserted **not** to carry the logo.
+
+| # | Method | Assert |
+|---|---|---|
+| 1 | `test_root_feed_entries_have_logo_thumbnail` | Every `<entry>` in `/opds/v1/` has `<link rel="…/image/thumbnail" type="image/png">` whose `href` ends in `/static/png/Logo%2064x64x8.png` |
+| 2 | `test_author_list_entries_have_logo_thumbnail` | Every entry in `/opds/v1/authors/` carries the logo thumbnail |
+| 3 | `test_alphabet_tree_entries_have_logo_thumbnail` | Every entry in `/opds/v1/authors/tree/` carries the logo thumbnail |
+| 4 | `test_genre_root_entries_have_logo_thumbnail` | Every entry in `/opds/v1/genres/` carries the logo thumbnail |
+| 5 | `test_series_detail_subseries_entry_has_logo` | A subseries (nav) entry in `/opds/v1/series/<pk>/` carries the logo thumbnail |
+| 6 | `test_logo_thumbnail_href_is_absolute_url` | The logo `href` is an absolute URL (starts with `http`) |
+| 7 | `test_book_entries_do_not_use_logo` | Book (acquisition) entries in `/opds/v1/authors/<pk>/books/` do **not** carry a logo thumbnail |
+| 8 | `test_search_section_entries_have_logo` | Section entries in `/opds/v1/search/?q=<term>` carry the logo thumbnail |
 
 ---
 
@@ -877,6 +998,7 @@ Genre detail (`/genres/<pk>/`) is **subgenres-only** and 302-redirects to the ge
 | 1 | `test_download_anon_returns_403` | Anonymous GET `/opds/v1/books/<book_1.pk>/download/` → 403 |
 | 2 | `test_download_user_no_perm_returns_403` | `user_no_perm` → 403 |
 | 3 | `test_download_user_with_perm_epub_returns_200` | `user_with_perm`, EPUB book → 200; `Content-Type` is `application/epub+zip` |
+| 3b | `test_download_user_with_perm_fb2_zipped_returns_200` | `user_with_perm`, FB2-in-ZIP book → 200; decrypted/extracted content matches |
 | 4 | `test_download_no_file_returns_404` | `book_3` (no file) → 404 |
 | 5 | `test_download_content_disposition_header` | Response has `Content-Disposition: attachment; filename="…"` |
 | 6 | `test_download_content_matches_extracted` | `response.content == get_book_file_content(book_1)[1]` |
@@ -964,9 +1086,9 @@ class OPDSThrottlingTest(TestCase):
 
 4. `get_descendants([genre_pk])` returns leaf-only descendants. Books tagged directly to intermediate genre nodes are excluded from genre book counts/lists. This is consistent with existing `BookListView` behavior and the canonical dataset structure.
 
-5. `Book.cover_preview` (`ImageSpecField`) generates the 100×150 JPEG on first access. Tests using `BaseTestCase` attach a real cover image; tests using plain `TestCase` have `book.cover = None` and views must guard with `if book.cover:` before accessing `.cover.url` or `.cover_preview.url`.
+5. `Book.cover_preview` (`ImageSpecField`) generates the 100×150 JPEG on first access. Tests using `BaseTestCase` attach a real cover image; tests using plain `TestCase` have `book.cover = None`, so serializers must branch on `if book.cover:` — using `.cover.url` / `.cover_preview.url` when present, else the static `no_cover` placeholders — rather than omitting the image link.
 
-6. `Author.full_name` (i.e., `"Last, First Middle"`) is used for the OPDS `<author><name>` element, consistent with how the web app renders author names.
+6. `Author.full_name` (i.e., `"Last, First Middle"`) is used as the `title` of each author `rel="related"` link on a complete book entry (book entries emit **no** `<author>` Atom element, per §6.5), consistent with how the web app renders author names.
 
 7. The `app_name` in the include tuple for OPDS URLs is `'library'` (matching the library app's Django namespace requirement). The instance namespace `'opds'` is what all `reverse('opds:…')` calls use.
 
@@ -974,7 +1096,7 @@ class OPDSThrottlingTest(TestCase):
 
 ## Resolved Decisions
 
-1. **Author Detail sub-feed count → 3 (no dedicated no-series endpoint).** Author Detail exposes All Books (A–Z), Recently Added, and Books by Series. Books not in any series are surfaced via a **"Standalone Books" category prepended at the top** of the Books-by-Series sub-feed, linking to `authors/<pk>/books/?series=none` (an optional filter on the existing `AuthorBooksFeedView`). TDD section 6.3 and `test_author_detail_has_three_sub_feeds` reflect this.
+1. **Author Detail sub-feed count → 3 (no dedicated no-series endpoint).** Author Detail exposes Books by Title, New Arrivals, and Books by Series. Books not in any series are surfaced via a **"Standalone Books" category prepended at the top** of the Books-by-Series sub-feed, linking to `authors/<pk>/books/?series=none` (an optional filter on the existing `AuthorBooksFeedView`). TDD section 6.3 and `test_author_detail_has_three_sub_feeds` reflect this.
 
 2. **Search sections are never flattened; each section is its own paginator.** `search/` is an unpaginated navigation feed of ≤ 3 section entries, each linking to an independently paginated sub-feed: `search/authors/`, `search/series/`, `search/books/` (each `OPDSPageNumberPagination`, page_size 20, `q` preserved across pages). TDD section 6.7 and the search tests reflect this.
 
@@ -984,9 +1106,7 @@ class OPDSThrottlingTest(TestCase):
 
 5. **Genre detail = subgenres only, with leaf-genre 302 redirect.** `/genres/<pk>/` lists direct subgenres; a genre with no subgenres 302-redirects to `/genres/<pk>/books/tree/`. A non-leaf genre's aggregate book tree is reachable only by direct URL (not advertised); since directly-tagged books live only on leaf genres, no books are hidden. TDD §6.2a reflects this.
 
----
-
-*Plan authored against branch `BOOK-45-initial-opds-implementation` (clean tree, commit `46c3b46`). Primary spec source: `docs/TDD_OPDS.md`. Review notes from `/home/leech/.claude/projects/-home-leech-Projects-Bookshelf/memory/project_opds_review.md` incorporated as implementation guards (double XML declaration, `get_book_file_content` unpacking order, `cover_preview` for thumbnail, `AllowAny` for download view, throttle test isolation pattern).*
+6. **Book listing entries are thin (partial) by default; `?detail=thick` opts into complete inline entries — both in scope for BOOK-45.** All book-listing acquisition feeds (`/books/`, `/authors/<pk>/books/`, `…/books/recent/`, `/genres/<pk>/books/`, `/series/<pk>/`, `/search/books/`) emit *partial* catalog entries by default: `<title>` + `<id>` + permission-gated acquisition link + a **mandatory** `rel="alternate"` link to the complete entry at `/opds/v1/books/<pk>/` + the cover thumbnail. The default list payload is kept minimal (no `<content>`, no full-size cover, no `<calibre:*>`, no `rel="related"`). `?detail=thick` switches the same endpoints to inline *complete* entries (identical to the §6.5 / "Book detail entry" shape) for non-`alternate`-following readers, with `detail=thick` propagated across all pagination links. BOOK-45 implements **both** the thin default and the `?detail=thick` branch, covered by `OPDSBookVerbosityTest`. **Deferred (separate follow-up task):** only a **dedicated precomputed `Book` thumbnail field** (to avoid per-row lazy `cover_preview` generation on large lists) — a pure performance optimization, not a behavior change. TDD §6.5a and §12.5 reflect this.
 
 ---
 
@@ -1001,7 +1121,5 @@ class OPDSThrottlingTest(TestCase):
 - `/home/leech/Projects/Bookshelf/pyproject.toml` — confirmed `djangorestframework>=3.16.1` already declared
 - `/home/leech/Projects/Bookshelf/bookshelf/bookshelf/tests/base_test.py` — `BaseTestCase` (DummyCache, temp media root)
 - `/home/leech/Projects/Bookshelf/bookshelf/library/tests/test_data_factory.py` — `create_test_dataset()` structure
-- `/home/leech/.claude/projects/-home-leech-Projects-Bookshelf/memory/project_opds_review.md` — review bugs/missing features list
-- `/home/leech/.claude/projects/-home-leech-Projects-Bookshelf/memory/project_opds_fixture_strategy.md` — `BaseTestCase` only for `OPDSBookDetailTest`/`OPDSBookDownloadTest`
 
 CLAUDE_CODE_DISABLE_MOUSE=1 claude --resume c8e6bbbc-059e-452d-8160-ced8b5388cac

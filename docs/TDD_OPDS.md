@@ -903,7 +903,7 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 | 7 | `test_book_detail_has_thumbnail_link` | `<link rel="http://opds-spec.org/image/thumbnail">` present |
 | 8 | `test_book_detail_has_series_related_link` | `<link rel="related">` pointing to `/opds/v1/series/<series_1.pk>/` present, with `title` equal to the **series name only** (`"Foundation"`) — **no** `#<sequence_number>` in the link title |
 | 8a | `test_book_detail_author_and_series_related_links_distinguishable` | When the book has both author and series `rel="related"` links, they are distinguishable: author links point to `/opds/v1/authors/<pk>/`, series links to `/opds/v1/series/<pk>/` (asserted by `href` prefix) |
-| 9 | `test_book_detail_no_cover_link_when_no_cover` | book_2 (no cover) → no `<link rel="http://opds-spec.org/image">` in its feed |
+| 9 | `test_book_detail_no_cover_uses_no_cover_fallback` | book_2 (no cover) → `<link rel="http://opds-spec.org/image">` href ends in `/static/png/no_cover%20600x900.jpeg` and `<link rel="http://opds-spec.org/image/thumbnail">` href ends in `/static/png/no_cover%2040x60.jpeg` (image links are always present; cover-less books fall back to the placeholders, never omit the link) |
 | 10 | `test_book_detail_no_acquisition_link_anon` | Anon user → no `<link rel="http://opds-spec.org/acquisition">` |
 | 11 | `test_book_detail_no_acquisition_link_user_no_perm` | `user_no_perm` → no acquisition link |
 | 12 | `test_book_detail_has_acquisition_link_user_with_perm` | `user_with_perm` → acquisition link present, `href="/opds/v1/books/<book_1.pk>/download/"` |
@@ -1010,9 +1010,13 @@ Use `django.utils.timezone.now()` as a fallback when no objects exist rather tha
 
 Use `xml.etree.ElementTree.indent()` (Python 3.9+). Register all namespaces with `ET.register_namespace()` before building the tree to avoid `ns0:` prefixes in output.
 
-### Download view: not a DRF view
+### Download view: DRF `APIView` with no renderer
 
-`BookDownloadView` is a plain Django `View` (like the existing `BookDownloadView` in `library.views`), not a DRF `APIView`, to leverage Django's `FileResponse` / `StreamingHttpResponse` without the DRF renderer layer.
+`BookDownloadView` extends DRF `APIView` (not a plain Django `View`), but sets `renderer_classes = []` so no renderer runs. This keeps it on the same DRF stack as every other OPDS endpoint — crucially the `throttle_classes = [OPDSMinuteRateThrottle, OPDSDayRateThrottle]` required by §3 / §6.6 — while still delivering raw bytes without the Atom renderer layer.
+
+DRF only invokes a renderer when a view returns a DRF `Response`. The download view returns a plain Django `HttpResponse` / `FileResponse` / `StreamingHttpResponse` directly, which bypasses the renderer entirely. So the empty `renderer_classes` is belt-and-suspenders, and Django's file-response classes are available exactly as they would be on a plain `View`.
+
+A plain Django `View` would not run DRF's throttle machinery, forcing a manual re-implementation of throttle checks (cache keys, `429` + `Retry-After`) inside `get()` — duplicating what `APIView.initial()` provides for free. The `APIView` + empty-renderer approach avoids that.
 
 ### Permission check approach
 
