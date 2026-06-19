@@ -237,6 +237,10 @@ class Book(BaseModel):
                                       processors=[ResizeToFill(100, 150)],
                                       format='JPEG',
                                       options={'quality': 80})
+    cover_opds_thumbnail = ImageSpecField(source='cover',
+                                      processors=[ResizeToFill(40, 60)],
+                                      format='JPEG',
+                                      options={'quality': 80})
 
     authors = models.ManyToManyField('Author', related_name='books', verbose_name='Authors')
     series = models.ManyToManyField('BookSeries', through='BookSeriesLink', related_name='books', verbose_name='Series')
