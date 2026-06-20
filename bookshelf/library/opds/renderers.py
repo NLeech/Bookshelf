@@ -126,6 +126,11 @@ class OPDSRenderer(BaseRenderer):
         if updated is not None:
             ET.SubElement(feed, f'{{{ATOM_NS}}}updated').text = _fmt_datetime(updated)
 
+        # Catalog logo (Atom <icon>) — present on the root feed only.
+        icon = data.get('icon')
+        if icon:
+            ET.SubElement(feed, f'{{{ATOM_NS}}}icon').text = icon
+
         # Determine the content type for self/next/prev links based on feed kind.
         kind = data.get('kind', 'navigation')
         feed_type = NAV_CONTENT_TYPE if kind == 'navigation' else ACQ_CONTENT_TYPE

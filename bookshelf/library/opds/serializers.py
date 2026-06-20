@@ -308,6 +308,7 @@ def build_root_feed(request: Request) -> FeedDict:
         'id': 'tag:bookshelf:root',
         'title': 'Bookshelf Catalog',
         'updated': feed_updated,
+        'icon': request.build_absolute_uri(quote(LOGO_PATH)),
         'kind': 'navigation',
         'self_link': self_link,
         'start_link': self_link,
