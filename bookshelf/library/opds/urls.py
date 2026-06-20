@@ -16,6 +16,12 @@ urlpatterns = [
     path('authors/<int:pk>/books/', views.AuthorBooksFeedView.as_view(), name='author_books'),
     path('authors/<int:pk>/books/recent/', views.AuthorRecentBooksFeedView.as_view(), name='author_books_recent'),
 
+    # Series endpoints.
+    path('series/', views.SeriesListFeedView.as_view(), name='series_list'),
+    path('series/tree/', views.SeriesTreeFeedView.as_view(), name='series_tree'),
+    path('series/tree/<str:name>/', views.SeriesTreeFeedView.as_view(), name='series_tree_node'),
+    path('series/<int:pk>/', views.SeriesDetailFeedView.as_view(), name='series_detail'),
+
     # Book endpoints.
     path('books/', views.BookListFeedView.as_view(), name='book_list'),
     path('books/tree/', views.BookTreeFeedView.as_view(), name='book_tree'),

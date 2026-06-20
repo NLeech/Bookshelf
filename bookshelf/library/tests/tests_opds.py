@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 from django.core.cache import cache
 from django.core.files.base import ContentFile
-from django.db.models import Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef
 from django.test import TestCase
 from parameterized import parameterized
 from PIL import Image
@@ -1741,3 +1741,345 @@ class OPDSBookDetailTest(OPDSThrottleResetMixin, BaseTestCase):
     def test_book_detail_has_no_alternate_link(self):
         """The detail feed is the alternate target, so it carries no alternate link."""
         self.assertEqual(len(_links_by_rel(self._entry(self.book_1), 'alternate')), 0)
+
+
+# ---------------------------------------------------------------------------
+# OPDSSeriesListFeedTest
+# ---------------------------------------------------------------------------
+
+class OPDSSeriesListFeedTest(OPDSThrottleResetMixin, TestCase):
+    """Tests for the series alphabet-tree and flat results endpoints.
+
+    Covers the three series browse endpoints:
+    - ``opds:root/series/`` — flat, paginated navigation results
+    - ``opds:root/series/tree/`` — alphabet tree root (navigation)
+    - ``opds:root/series/tree/<name>/`` — alphabet sub-tree (navigation)
+
+    Fixture: canonical dataset (148 series: C=54, S=62, T=11, 0-9=10,
+    Other=11; no series starts with Z).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        create_test_dataset()
+
+    # ------------------------------------------------------------------
+    # Tree root
+    # ------------------------------------------------------------------
+
+    @parameterized.expand([
+        ('root', 'series/tree/'),       # alphabet tree root
+        ('sub_node', 'series/tree/s/'),  # S=62 is expandable
+    ])
+    def test_series_tree_status_200(self, _name, path):
+        """GET opds:root/series/tree/ and an expandable sub-node → HTTP 200."""
+        response = self.client.get(f'{OPDS_BASE}{path}')
+        self.assertEqual(response.status_code, 200)
+
+    @parameterized.expand([
+        ('list', 'series/?filter=t'),  # flat results
+        ('tree', 'series/tree/'),       # alphabet tree root
+    ])
+    def test_series_feed_is_navigation(self, _name, path):
+        """Flat series list and tree root Content-Type both contain kind=navigation."""
+        response = self.client.get(f'{OPDS_BASE}{path}')
+        self.assertIn('kind=navigation', response['Content-Type'])
+
+    def test_series_alphabet_root_has_s_entry(self):
+        """GET opds:root/series/tree/ → entry for 'S' with count 62."""
+        response = self.client.get(f'{OPDS_BASE}series/tree/')
+        entries = _parse(response).findall('atom:entry', NS)
+        s_entry = next(
+            (e for e in entries if e.findtext('atom:title', namespaces=NS) == 'S'),
+            None,
+        )
+        self.assertIsNotNone(s_entry, 'Expected an "S" root entry')
+        self.assertIn('62', s_entry.findtext('atom:content', namespaces=NS))
+
+    def test_series_alphabet_root_no_entry_for_missing_letter(self):
+        """GET opds:root/series/tree/ → no 'Z'/'z' root entry (no Z series)."""
+        response = self.client.get(f'{OPDS_BASE}series/tree/')
+        titles = _get_entry_titles(_parse(response))
+        self.assertNotIn('Z', titles)
+        self.assertNotIn('z', titles)
+
+    def test_series_tree_entries_have_count_in_content(self):
+        """Every opds:root/series/tree/ entry carries its item count in content."""
+        response = self.client.get(f'{OPDS_BASE}series/tree/')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            content = entry.findtext('atom:content', namespaces=NS) or ''
+            self.assertRegex(content, r'\d+', f'Entry content {content!r} has no count')
+
+    # ------------------------------------------------------------------
+    # Tree sub-nodes
+    # ------------------------------------------------------------------
+
+    def test_series_s_is_expanded_subtree(self):
+        """GET opds:root/series/tree/s/ → nav sub-entries, not a flat list of 62."""
+        response = self.client.get(f'{OPDS_BASE}series/tree/s/')
+        titles = set(_get_entry_titles(_parse(response)))
+        self.assertEqual(titles, {'all S', 'Sh', 'St', 'Sw'})
+
+    def test_series_st_sub_entries(self):
+        """GET opds:root/series/tree/st/ → entries Sta, Ste, all St — no others."""
+        response = self.client.get(f'{OPDS_BASE}series/tree/st/')
+        titles = set(_get_entry_titles(_parse(response)))
+        self.assertEqual(titles, {'all St', 'Sta', 'Ste'})
+
+    @parameterized.expand([
+        ('leaf_node', 't'),         # T=11 ≤ 50 is a leaf, never addressed by path
+        ('nonexistent_node', 'z'),  # no Z node at all
+    ])
+    def test_series_tree_node_returns_404(self, _name, segment):
+        """GET opds:root/series/tree/<leaf|missing>/ → HTTP 404."""
+        response = self.client.get(f'{OPDS_BASE}series/tree/{segment}/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_series_tree_sub_node_has_all_entry_first(self):
+        """GET opds:root/series/tree/s/ → first entry is 'all S' with count 62."""
+        response = self.client.get(f'{OPDS_BASE}series/tree/s/')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        self.assertEqual(entries[0].findtext('atom:title', namespaces=NS), 'all S')
+        self.assertIn('62', entries[0].findtext('atom:content', namespaces=NS))
+
+    def test_series_tree_sub_node_all_entry_links_to_filter(self):
+        """The 'all S' entry in opds:root/series/tree/s/ links to ?filter=s."""
+        response = self.client.get(f'{OPDS_BASE}series/tree/s/')
+        all_entry = _parse(response).findall('atom:entry', NS)[0]
+        hrefs = _get_link_hrefs(all_entry, 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}series/?filter=s') for h in hrefs),
+            msg=f'Expected series/?filter=s in {hrefs}',
+        )
+
+    @parameterized.expand([
+        # Leaf child links to the flat ?filter= results.
+        ('leaf_filter', 'Sh', 'series/?filter=sh'),
+        # Expandable child links to its own sub-tree.
+        ('expandable_subtree', 'St', 'series/tree/st/'),
+    ])
+    def test_series_tree_child_links_to(self, _name, child_title, href_suffix):
+        """Each child in opds:root/series/tree/s/ links to its proper target."""
+        response = self.client.get(f'{OPDS_BASE}series/tree/s/')
+        entries = _parse(response).findall('atom:entry', NS)
+        child = next(
+            e for e in entries
+            if e.findtext('atom:title', namespaces=NS) == child_title
+        )
+        hrefs = _get_link_hrefs(child, 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}{href_suffix}') for h in hrefs),
+            msg=f'Expected {href_suffix} in {hrefs}',
+        )
+
+    # ------------------------------------------------------------------
+    # Flat results
+    # ------------------------------------------------------------------
+
+    def test_series_results_by_filter_status_200(self):
+        """GET opds:root/series/?filter=t → HTTP 200 (T=11, leaf)."""
+        response = self.client.get(f'{OPDS_BASE}series/?filter=t')
+        self.assertEqual(response.status_code, 200)
+
+    def test_series_results_has_correct_count(self):
+        """GET opds:root/series/?filter=t → exactly 11 entries (T=11, one page)."""
+        response = self.client.get(f'{OPDS_BASE}series/?filter=t')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertEqual(len(entries), 11)
+
+    def test_series_results_entry_links_to_series_detail(self):
+        """Each entry in opds:root/series/?filter=t links to opds:root/series/<pk>/."""
+        response = self.client.get(f'{OPDS_BASE}series/?filter=t')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            hrefs = _get_link_hrefs(entry, 'subsection')
+            self.assertTrue(
+                any(f'{OPDS_BASE}series/' in h and h.rstrip('/').split('/')[-1].isdigit() for h in hrefs),
+                msg=f'Entry links {hrefs!r} do not point to a series detail URL',
+            )
+
+    def test_series_results_empty_filter_returns_empty_feed(self):
+        """GET opds:root/series/?filter=z → HTTP 200 with zero entries."""
+        response = self.client.get(f'{OPDS_BASE}series/?filter=z')
+        self.assertEqual(response.status_code, 200)
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertEqual(len(entries), 0)
+
+    def test_series_digits_node_list(self):
+        """GET opds:root/series/?regex=^[0-9] → 200 with exactly 10 entries."""
+        response = self.client.get(f'{OPDS_BASE}series/?regex=^[0-9]')
+        self.assertEqual(response.status_code, 200)
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertEqual(len(entries), 10)
+
+    def test_series_full_set_no_filter_returns_paginated_results(self):
+        """GET opds:root/series/ (no params) → 200 with a full first page of 20."""
+        response = self.client.get(f'{OPDS_BASE}series/')
+        self.assertEqual(response.status_code, 200)
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertEqual(len(entries), 20)
+
+    def test_series_results_entry_content_has_book_count(self):
+        """Each opds:root/series/?filter=t entry <content> carries its book count."""
+        response = self.client.get(f'{OPDS_BASE}series/?filter=t')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            entry_id = entry.findtext('atom:id', namespaces=NS) or ''
+            pk = int(entry_id.split(':')[-1])
+            expected = BookSeries.objects.get(pk=pk).books.count()
+            content = entry.findtext('atom:content', namespaces=NS) or ''
+            self.assertEqual(content, f'{expected} books')
+
+    def test_series_results_zero_book_series_shows_count_0(self):
+        """A series with no books still renders a mandatory count of 0."""
+        BookSeries.objects.create(name='Zzz Empty')
+        response = self.client.get(f'{OPDS_BASE}series/?filter=zzz')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertEqual(len(entries), 1)
+        content = entries[0].findtext('atom:content', namespaces=NS) or ''
+        self.assertEqual(content, '0 books')
+
+
+# ---------------------------------------------------------------------------
+# OPDSSeriesDetailTest
+# ---------------------------------------------------------------------------
+
+class OPDSSeriesDetailTest(OPDSThrottleResetMixin, TestCase):
+    """Tests for the series detail acquisition feed (docs/TDD_OPDS.md §6.4).
+
+    Fixture: canonical dataset.  A series with at least two books (so the
+    sequence ordering is observable) is found via ``.filter()``; one extra
+    subseries is created inline so the subseries-navigation path is exercised.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        create_test_dataset()
+        cls.series = (
+            BookSeries.objects
+            .annotate(book_count=Count('books'))
+            .filter(book_count__gte=2)
+            .first()
+        )
+        cls.subseries = BookSeries.objects.create(
+            name='SubTest', parent=cls.series,
+        )
+
+    def _book_entries(self, root):
+        """Book (acquisition) entries — id of form tag:bookshelf:book:<pk>."""
+        return [
+            e for e in root.findall('atom:entry', NS)
+            if (e.findtext('atom:id', namespaces=NS) or '').startswith('tag:bookshelf:book:')
+        ]
+
+    def _subseries_entries(self, root):
+        """Subseries (navigation) entries — id of form tag:bookshelf:series:<pk>."""
+        return [
+            e for e in root.findall('atom:entry', NS)
+            if (e.findtext('atom:id', namespaces=NS) or '').startswith('tag:bookshelf:series:')
+        ]
+
+    def test_series_detail_status_200(self):
+        """GET opds:root/series/<pk>/ → HTTP 200."""
+        response = self.client.get(f'{OPDS_BASE}series/{self.series.pk}/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_series_detail_404(self):
+        """GET opds:root/series/99999/ → HTTP 404."""
+        response = self.client.get(f'{OPDS_BASE}series/99999/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_series_detail_is_acquisition_feed(self):
+        """Series detail Content-Type contains kind=acquisition."""
+        response = self.client.get(f'{OPDS_BASE}series/{self.series.pk}/')
+        self.assertIn('kind=acquisition', response['Content-Type'])
+
+    def test_series_detail_has_subseries_nav_entry(self):
+        """Feed contains the subseries as a navigation entry linking to its detail."""
+        response = self.client.get(f'{OPDS_BASE}series/{self.series.pk}/')
+        subentries = self._subseries_entries(_parse(response))
+        target = next(
+            (e for e in subentries
+             if (e.findtext('atom:id', namespaces=NS) or '').endswith(f':{self.subseries.pk}')),
+            None,
+        )
+        self.assertIsNotNone(target, 'Expected the subseries navigation entry')
+        hrefs = _get_link_hrefs(target, 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}series/{self.subseries.pk}/') for h in hrefs),
+            msg=f'Expected subseries detail link in {hrefs}',
+        )
+
+    def test_series_detail_subseries_entry_has_count_and_logo(self):
+        """The subseries navigation entry carries a count and the logo thumbnail."""
+        response = self.client.get(f'{OPDS_BASE}series/{self.series.pk}/')
+        target = next(
+            e for e in self._subseries_entries(_parse(response))
+            if (e.findtext('atom:id', namespaces=NS) or '').endswith(f':{self.subseries.pk}')
+        )
+        content = target.findtext('atom:content', namespaces=NS) or ''
+        self.assertEqual(content, '0 books')
+        logo_links = [
+            lnk for lnk in _links_by_rel(target, THUMBNAIL_REL)
+            if lnk.get('href', '').endswith(LOGO_HREF_SUFFIX)
+        ]
+        self.assertEqual(len(logo_links), 1)
+
+    def test_series_detail_has_books(self):
+        """Feed contains at least one book (acquisition) entry."""
+        response = self.client.get(f'{OPDS_BASE}series/{self.series.pk}/')
+        self.assertGreater(len(self._book_entries(_parse(response))), 0)
+
+    def test_series_detail_books_sorted_by_sequence_number(self):
+        """Book entries appear in ascending sequence_number order."""
+        response = self.client.get(f'{OPDS_BASE}series/{self.series.pk}/')
+        seqs = [
+            int(e.findtext('atom:title', namespaces=NS).split(' ')[0].lstrip('#'))
+            for e in self._book_entries(_parse(response))
+        ]
+        self.assertEqual(seqs, sorted(seqs))
+
+    def test_series_detail_book_title_prefixed_with_seq(self):
+        """Each book entry <title> starts with '#<seq> · '."""
+        response = self.client.get(f'{OPDS_BASE}series/{self.series.pk}/')
+        entries = self._book_entries(_parse(response))
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            title = entry.findtext('atom:title', namespaces=NS) or ''
+            self.assertRegex(title, r'^#\d+ · ')
+
+    def test_series_detail_acquisition_link_always_rendered(self):
+        """Every series book entry exposes exactly one acquisition link."""
+        response = self.client.get(f'{OPDS_BASE}series/{self.series.pk}/')
+        entries = self._book_entries(_parse(response))
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertEqual(len(_links_by_rel(entry, ACQUISITION_REL)), 1)
+
+    def test_series_detail_book_entries_thin_by_default(self):
+        """Default series book entries are thin: no content/calibre/related."""
+        response = self.client.get(f'{OPDS_BASE}series/{self.series.pk}/')
+        entries = self._book_entries(_parse(response))
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertIsNone(entry.find('atom:content', NS))
+            self.assertIsNone(entry.find('calibre:series', NS))
+            self.assertEqual(len(_links_by_rel(entry, 'related')), 0)
+            self.assertEqual(len(_links_by_rel(entry, IMAGE_REL)), 0)
+            alt = _links_by_rel(entry, 'alternate')
+            self.assertEqual(len(alt), 1)
+
+    def test_series_detail_book_entries_thick_param(self):
+        """?detail=thick makes series book entries complete (full image + related)."""
+        response = self.client.get(f'{OPDS_BASE}series/{self.series.pk}/?detail=thick')
+        entries = self._book_entries(_parse(response))
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertEqual(len(_links_by_rel(entry, IMAGE_REL)), 1)
+            # The book is series-linked → carries a series rel="related" link.
+            self.assertGreaterEqual(len(_links_by_rel(entry, 'related')), 1)

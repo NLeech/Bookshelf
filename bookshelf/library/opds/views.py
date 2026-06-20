@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.utils.urls import remove_query_param
 from rest_framework.views import APIView
 
-from library.models import Author, Book, BookSeries
+from library.models import Author, Book, BookSeries, BookSeriesLink
 from library.services import find_alphabet_node_by_name, get_alphabet_tree
 
 from .renderers import OPDSRenderer
@@ -19,6 +19,8 @@ from .serializers import (
     build_book_detail_feed,
     build_book_results_feed,
     build_root_feed,
+    build_series_detail_feed,
+    build_series_results_feed,
     build_tree_feed,
     wants_thick_entries,
 )
@@ -255,6 +257,102 @@ class AuthorRecentBooksFeedView(OPDSBaseView):
             request,
             feed_id=f'tag:bookshelf:author:{author.pk}:books:recent',
             feed_title=f'{author.full_name} — Recently Added',
+            thick=wants_thick_entries(request),
+        )
+        return Response(feed)
+
+
+# ---------------------------------------------------------------------------
+# Series views
+# ---------------------------------------------------------------------------
+
+class SeriesListFeedView(OPDSBaseView):
+    """GET opds:root/series/ — flat, paginated series navigation feed.
+
+    Supports optional ``?filter=<prefix>`` and ``?regex=<regex>`` query
+    params.  ``regex`` takes precedence when both are present.  Without either
+    param the full series set is returned.  Entries are ordered by ``name`` and
+    link to the series detail feed at ``opds:root/series/<pk>/``.
+    """
+
+    def get(self, request):
+        queryset = (
+            BookSeries.objects
+            .annotate(book_count=Count('books', distinct=True))
+            .order_by('name')
+        )
+
+        regex = request.query_params.get('regex', '')
+        filter_val = request.query_params.get('filter', '')
+
+        if regex:
+            queryset = queryset.filter(name__iregex=regex)
+        elif filter_val:
+            queryset = queryset.filter(name__istartswith=filter_val)
+
+        page, pagination = self._paginate(queryset, request)
+        feed = build_series_results_feed(page, pagination, request)
+        return Response(feed)
+
+
+class SeriesTreeFeedView(OPDSBaseView):
+    """GET opds:root/series/tree/ and opds:root/series/tree/<str:name>/.
+
+    Serves the alphabet tree navigation feed for series.
+
+    Without a ``name`` segment: renders the root tree (top-level nodes only,
+    no synthetic "all" entry).
+
+    With a ``name`` segment: renders the ``name`` node's children with a
+    synthetic "all <name>" entry prepended.  Returns HTTP 404 when ``name``
+    does not resolve to an expandable node (leaf nodes are never addressed by
+    a path segment).
+    """
+
+    def get(self, request, name=None):
+        tree = get_alphabet_tree(BookSeries.objects.all(), 'name')
+
+        if name is None:
+            node = tree
+        else:
+            node = find_alphabet_node_by_name(tree, name)
+            if node is None or not node.entries:
+                raise Http404
+
+        feed = build_tree_feed(node, request, base_url='series', entity_label='Series')
+        return Response(feed)
+
+
+class SeriesDetailFeedView(OPDSBaseView):
+    """GET opds:root/series/<int:pk>/ — series detail acquisition feed.
+
+    Lists each direct subseries as a navigation entry (linking to
+    ``opds:root/series/<subpk>/``), followed by the series' books as
+    acquisition entries ordered by ``sequence_number``, each title prefixed
+    ``"#<seq> · "``.  Book entries are thin by default; ``?detail=thick``
+    renders the complete book shape inline (preserved across pagination).
+    """
+
+    def get(self, request, pk):
+        series = get_object_or_404(BookSeries, pk=pk)
+
+        subseries = (
+            series.subseries
+            .annotate(book_count=Count('books', distinct=True))
+            .order_by('name')
+        )
+
+        book_links = (
+            BookSeriesLink.objects
+            .filter(series=series)
+            .select_related('book')
+            .prefetch_related('book__authors', 'book__bookserieslink_set__series')
+            .order_by('sequence_number')
+        )
+
+        page, pagination = self._paginate(book_links, request)
+        feed = build_series_detail_feed(
+            series, subseries, page, pagination, request,
             thick=wants_thick_entries(request),
         )
         return Response(feed)

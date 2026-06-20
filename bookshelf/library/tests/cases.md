@@ -301,6 +301,46 @@ Canonical dataset (560 books: A=222, B=167, M=43, П=83, 0-9=14, Other=31; no bo
 27. **test_book_results_thick_param_propagates_to_pagination**: `?detail=thick` is preserved on the `next` pagination link.
 28. **test_book_results_thin_pagination_links_have_no_detail**: Default (thin) feed pagination links carry no `detail` param.
 
+## OPDS Series List and Tree Feeds (tests_opds.py — OPDSSeriesListFeedTest)
+
+Canonical dataset (148 series: C=54, S=62, T=11, 0-9=10, Other=11; no series starts with Z). Covers the three series browse endpoints: flat results `opds:root/series/`, alphabet tree root `opds:root/series/tree/`, and alphabet sub-tree `opds:root/series/tree/<name>/`.
+
+1. **test_series_tree_status_200** *(parameterized: root, sub_node)*: GET `opds:root/series/tree/` and an expandable sub-node `tree/s/` return HTTP 200.
+2. **test_series_feed_is_navigation** *(parameterized: list, tree)*: Flat series list (`?filter=t`) and tree root Content-Type both contain `kind=navigation`.
+3. **test_series_alphabet_root_has_s_entry**: Tree root contains an 'S' entry with count 62.
+4. **test_series_alphabet_root_no_entry_for_missing_letter**: Tree root has no 'Z'/'z' entry.
+5. **test_series_tree_entries_have_count_in_content**: Every tree root entry carries its item count in `<content>`.
+6. **test_series_s_is_expanded_subtree**: GET `opds:root/series/tree/s/` returns nav sub-entries {all S, Sh, St, Sw}, not a flat list of 62.
+7. **test_series_st_sub_entries**: GET `opds:root/series/tree/st/` returns exactly {all St, Sta, Ste}.
+8. **test_series_tree_node_returns_404** *(parameterized: leaf_node, nonexistent_node)*: GET `tree/t/` (leaf, T=11 ≤ 50) and `tree/z/` (no node) return 404.
+9. **test_series_tree_sub_node_has_all_entry_first**: GET `opds:root/series/tree/s/` first entry is 'all S' with count 62.
+10. **test_series_tree_sub_node_all_entry_links_to_filter**: The 'all S' entry links to `opds:root/series/?filter=s`.
+11. **test_series_tree_child_links_to** *(parameterized: leaf_filter, expandable_subtree)*: The leaf 'Sh' child links to `?filter=sh`; the expandable 'St' child links to `tree/st/`.
+12. **test_series_results_by_filter_status_200**: GET `opds:root/series/?filter=t` returns HTTP 200.
+13. **test_series_results_has_correct_count**: GET `opds:root/series/?filter=t` returns exactly 11 entries (T=11, one page).
+14. **test_series_results_entry_links_to_series_detail**: Each flat-list entry links to `opds:root/series/<pk>/`.
+15. **test_series_results_empty_filter_returns_empty_feed**: GET `opds:root/series/?filter=z` returns 200 with zero entries.
+16. **test_series_digits_node_list**: GET `opds:root/series/?regex=^[0-9]` returns exactly 10 entries.
+17. **test_series_full_set_no_filter_returns_paginated_results**: GET `opds:root/series/` (no params) returns 200 with a full first page of 20.
+18. **test_series_results_entry_content_has_book_count**: Each flat-list entry `<content type="text">` is `"<n> books"` matching that series' total book count.
+19. **test_series_results_zero_book_series_shows_count_0**: A series with no books (created locally) renders the mandatory count `"0 books"`.
+
+## OPDS Series Detail Feed (tests_opds.py — OPDSSeriesDetailTest)
+
+Canonical dataset. A series with ≥2 books is found via `.filter()`; an extra subseries is created inline so the subseries-navigation path is exercised. Per the catalog-is-fully-browsable convention the acquisition link is always rendered.
+
+1. **test_series_detail_status_200**: GET `opds:root/series/<pk>/` returns HTTP 200.
+2. **test_series_detail_404**: GET `opds:root/series/99999/` returns HTTP 404.
+3. **test_series_detail_is_acquisition_feed**: Series detail Content-Type contains `kind=acquisition`.
+4. **test_series_detail_has_subseries_nav_entry**: Feed contains the subseries as a navigation entry linking to `opds:root/series/<subpk>/`.
+5. **test_series_detail_subseries_entry_has_count_and_logo**: The subseries navigation entry carries a `"0 books"` count and exactly one logo thumbnail link.
+6. **test_series_detail_has_books**: Feed contains at least one book (acquisition) entry.
+7. **test_series_detail_books_sorted_by_sequence_number**: Book entries appear in ascending `sequence_number` order.
+8. **test_series_detail_book_title_prefixed_with_seq**: Each book entry `<title>` starts with `"#<seq> · "`.
+9. **test_series_detail_acquisition_link_always_rendered**: Every series book entry exposes exactly one acquisition link.
+10. **test_series_detail_book_entries_thin_by_default**: Default series book entries are thin — no `<content>`/`<calibre:series>`/`rel="related"`/full image; exactly one `rel="alternate"` link.
+11. **test_series_detail_book_entries_thick_param**: `?detail=thick` makes book entries complete — full-size image link present and a series `rel="related"` link.
+
 ## OPDS Author Detail and Sub-Feed Endpoints (tests_opds.py — OPDSAuthorDetailTest)
 
 Canonical dataset.

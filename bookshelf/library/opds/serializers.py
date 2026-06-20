@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils.timezone import now
 from rest_framework.request import Request
 
-from library.models import Author, Book, BookSeries
+from library.models import Author, Book, BookSeries, BookSeriesLink
 from library.services import AlphabetTree, get_content_type
 
 
@@ -803,4 +803,118 @@ def build_book_detail_feed(book: Book, request: Request) -> FeedDict:
         'start_link': start_link,
         'pagination': None,
         'entries': [entry],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Series serializers
+# ---------------------------------------------------------------------------
+
+def build_series_results_feed(
+    series_page: list[BookSeries],
+    pagination: PaginationDict | None,
+    request: Request,
+) -> FeedDict:
+    """Build a flat, paginated navigation feed of series.
+
+    Each entry links to the series detail feed at ``opds:root/series/<pk>/``
+    and carries the series' total book count in ``<content type="text">``.
+
+    Args:
+        series_page: A list of BookSeries instances for the current page,
+            annotated with ``book_count`` (total books in the series).
+        pagination: Pagination dict with 'first', 'next', 'previous' keys
+            (values are URLs or None), or None when there is no pagination.
+        request: The current HTTP request.
+
+    Returns:
+        A feed dict conforming to the feed dict contract.
+    """
+    opds_base = _opds_base(request)
+    self_link = _with_sticky_params(request.build_absolute_uri(), request)
+    start_link = _with_sticky_params(opds_base, request)
+
+    entries: list[EntryDict] = [
+        _nav_entry(
+            f'tag:bookshelf:series:{series.pk}', series.name,
+            _with_sticky_params(opds_base + f'series/{series.pk}/', request), request,
+            content=f'{getattr(series, "book_count", 0)} books',
+            updated=series.updated_at,
+        )
+        for series in series_page
+    ]
+
+    return {
+        'id': 'tag:bookshelf:series',
+        'title': 'Series',
+        'updated': now(),
+        'kind': 'navigation',
+        'self_link': self_link,
+        'start_link': start_link,
+        'pagination': pagination,
+        'entries': entries,
+    }
+
+
+def build_series_detail_feed(
+    series: BookSeries,
+    subseries_with_counts: Iterable[BookSeries],
+    book_links_page: Iterable[BookSeriesLink],
+    pagination: PaginationDict | None,
+    request: Request,
+    thick: bool = False,
+) -> FeedDict:
+    """Build the series detail acquisition feed (see docs/TDD_OPDS.md §6.4).
+
+    The feed lists, in order:
+    1. one navigation entry per direct subseries (``series.subseries``), each
+       linking to ``opds:root/series/<subpk>/`` and carrying its book count
+       plus the logo thumbnail;
+    2. book (acquisition) entries for the current page, ordered by
+       ``sequence_number``, whose ``<title>`` is prefixed ``"#<seq> · "``.
+
+    Book entries are thin by default; ``thick=True`` (driven by
+    ``?detail=thick``) renders the complete book shape inline.
+
+    Args:
+        series: The BookSeries instance being detailed.
+        subseries_with_counts: Direct subseries annotated with ``book_count``.
+        book_links_page: The current page of BookSeriesLink rows for this
+            series (``select_related('book')``, ordered by ``sequence_number``).
+        pagination: Pagination dict for the book list, or None.
+        request: The current HTTP request.
+        thick: Render complete (thick) book entries when True.
+
+    Returns:
+        A feed dict conforming to the feed dict contract.
+    """
+    opds_base = _opds_base(request)
+    self_link = _with_sticky_params(opds_base + f'series/{series.pk}/', request)
+    start_link = _with_sticky_params(opds_base, request)
+
+    entries: list[EntryDict] = [
+        _nav_entry(
+            f'tag:bookshelf:series:{subseries.pk}', subseries.name,
+            _with_sticky_params(opds_base + f'series/{subseries.pk}/', request),
+            request,
+            content=f'{getattr(subseries, "book_count", 0)} books',
+            updated=subseries.updated_at,
+        )
+        for subseries in subseries_with_counts
+    ]
+
+    for link in book_links_page:
+        entry = _build_book_entry(link.book, request, opds_base, thick)
+        entry['title'] = f'#{link.sequence_number} · {link.book.title}'
+        entries.append(entry)
+
+    return {
+        'id': f'tag:bookshelf:series:{series.pk}',
+        'title': series.name,
+        'updated': series.updated_at,
+        'kind': 'acquisition',
+        'self_link': self_link,
+        'start_link': start_link,
+        'pagination': pagination,
+        'entries': entries,
     }
