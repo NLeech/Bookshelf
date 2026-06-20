@@ -341,6 +341,48 @@ Canonical dataset. A series with ≥2 books is found via `.filter()`; an extra s
 10. **test_series_detail_book_entries_thin_by_default**: Default series book entries are thin — no `<content>`/`<calibre:series>`/`rel="related"`/full image; exactly one `rel="alternate"` link.
 11. **test_series_detail_book_entries_thick_param**: `?detail=thick` makes book entries complete — full-size image link present and a series `rel="related"` link.
 
+## OPDS Genre Hierarchy Feeds (tests_opds.py — OPDSGenreFeedTest)
+
+Canonical dataset plus an inline `genre_empty` top-level genre (no subgenres, no books). Covers the genre root, subgenres-only detail (leaf → 302), genre-scoped alphabet tree, and flat genre book results. Note: a single leaf genre's per-letter counts never exceed the `get_alphabet_tree` expansion threshold (50) below the first letter, so the genre-scoped tree expands at most one level; the `Alid` group cited in the TDD examples is reachable within a genre via the `?filter=alid` results endpoint, not as a tree node.
+
+1. **test_genre_root_status_200**: GET `opds:root/genres/` returns HTTP 200.
+2. **test_genre_root_is_navigation**: Genre root Content-Type contains `kind=navigation`.
+3. **test_genre_root_lists_top_level_genres_only**: Root feed lists top-level genres (incl. `genre_empty`) and excludes leaf genres.
+4. **test_genre_root_entry_links_to_genre_detail**: Each root entry links to `opds:root/genres/<pk>/`.
+5. **test_genre_root_entry_content_has_book_count**: The `sf_fantasy` entry `<content>` reports its descendant-inclusive count 279.
+6. **test_genre_root_genre_with_no_books_still_listed**: `genre_empty` appears in the root feed with the mandatory count `0`.
+7. **test_genre_root_entries_have_logo_thumbnail**: Every root entry carries the logo thumbnail link.
+8. **test_genre_detail_with_subgenres_status_200**: GET `opds:root/genres/<sf_fantasy.pk>/` returns HTTP 200 (has subgenres).
+9. **test_genre_detail_404**: GET `opds:root/genres/99999/` returns HTTP 404.
+10. **test_genre_detail_lists_subgenres_only**: `sf_fantasy` detail lists exactly its 3 subgenres, each linking to its own detail feed.
+11. **test_genre_detail_has_no_book_or_alphabet_entries**: `sf_fantasy` detail has no acquisition entries and no alphabet-tree nodes.
+12. **test_genre_detail_without_subgenres_redirects_to_book_tree** *(parameterized: leaf, empty)*: GET a genre detail with no subgenres (`dystopia`, `genre_empty`) returns 302 to its `books/tree/`.
+13. **test_genre_book_tree_status_200_navigation**: GET `opds:root/genres/<sf_fantasy.pk>/books/tree/` returns 200 with `kind=navigation`.
+14. **test_genre_book_tree_has_alphabet_entries**: `sf_fantasy` book tree has an expandable 'A' node whose sub-tree shows an 'Al' entry.
+15. **test_genre_book_tree_only_contains_own_books**: `dystopia` book tree shows only {A, B, M, П, 0-9, Other} with A=46 and M=10.
+16. **test_genre_book_tree_node_returns_404** *(parameterized: leaf_node, nonexistent_node)*: GET a leaf (`tree/a/`) and a missing (`tree/z/`) node return 404.
+17. **test_genre_book_tree_empty_genre_returns_empty_tree**: GET `genre_empty` book tree returns 200 with 0 entries.
+18. **test_genre_book_tree_leaf_links_to_results**: A leaf letter node ('M') links to `opds:root/genres/<pk>/books/?filter=m`.
+19. **test_genre_book_tree_non_leaf_links_to_subtree**: An expandable 'A' node links to its sub-tree, whose first entry is the synthetic 'all A'.
+20. **test_genre_book_tree_regex_node_link_carries_regex_param**: The '0-9' leaf links via `?regex=`; the 'Other' node links to its `tree/other/` sub-tree.
+21. **test_genre_books_results_is_acquisition_feed**: Genre book results Content-Type contains `kind=acquisition`.
+22. **test_genre_books_results_by_filter_status_200**: GET `genres/<dystopia.pk>/books/?filter=alid` returns HTTP 200.
+23. **test_genre_books_results_by_filter_filters_correctly**: `?filter=alid` returns only titles starting with 'Alid'.
+24. **test_genre_books_results_empty_filter_returns_empty_feed**: `?filter=z` returns 200 with 0 entries.
+25. **test_genre_books_results_by_regex_filters_by_regex**: `?regex=^[0-9]` total equals the genre's 0-9 tree count (2); all titles start with a digit.
+26. **test_genre_books_results_regex_beats_filter**: `?filter=0-9` (no regex) uses `istartswith` and yields 0 entries.
+27. **test_genre_books_results_thin_by_default**: Genre book entries are thin by default — no `<content>`/full image; exactly one `rel="alternate"`.
+28. **test_genre_books_results_thick_param_makes_entries_complete**: `?detail=thick` makes genre book entries complete (full-size image link present).
+
+## OPDS Genre Feed Counts (tests_opds.py — OPDSGenreFeedCountsTest)
+
+Canonical dataset. Verifies genre book counts against `test_template.md` (distinct books per genre).
+
+1. **test_genre_root_descendant_inclusive_count** *(parameterized: sf_fantasy, mysteries, action_adv)*: each top-level genre root entry reports its descendant-inclusive count (279=116+82+81, 208=130+78, 185=111+74).
+2. **test_fantasy_book_tree_no_yu_entry**: `fantasy` book tree (root + Other sub-tree) contains no 'Ю' entry.
+3. **test_nature_animals_book_tree_total_is_74**: `nature_animals` book tree top-level entry counts sum to 74.
+4. **test_genre_books_results_dystopia_filter_count** *(parameterized: alid, alit)*: `dystopia` `?filter=<value>` feed total across pages matches expected (alid=5, alit=7).
+
 ## OPDS Author Detail and Sub-Feed Endpoints (tests_opds.py — OPDSAuthorDetailTest)
 
 Canonical dataset.

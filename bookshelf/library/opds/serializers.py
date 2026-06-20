@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils.timezone import now
 from rest_framework.request import Request
 
-from library.models import Author, Book, BookSeries, BookSeriesLink
+from library.models import Author, Book, BookSeries, BookSeriesLink, Genre
 from library.services import AlphabetTree, get_content_type
 
 
@@ -864,7 +864,7 @@ def build_series_detail_feed(
     request: Request,
     thick: bool = False,
 ) -> FeedDict:
-    """Build the series detail acquisition feed (see docs/TDD_OPDS.md §6.4).
+    """Build the series detail acquisition feed.
 
     The feed lists, in order:
     1. one navigation entry per direct subseries (``series.subseries``), each
@@ -916,5 +916,105 @@ def build_series_detail_feed(
         'self_link': self_link,
         'start_link': start_link,
         'pagination': pagination,
+        'entries': entries,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Genre serializers
+# ---------------------------------------------------------------------------
+
+def build_genre_root_feed(
+    genres_with_counts: Iterable[tuple[Genre, int]],
+    request: Request,
+) -> FeedDict:
+    """Build the top-level genre navigation feed.
+
+    Lists every top-level genre (``parent=None``).  Each entry links to the
+    genre detail feed at ``opds:root/genres/<pk>/`` and carries the genre's
+    descendant-inclusive book count in ``<content type="text">``.
+
+    Args:
+        genres_with_counts: An iterable of ``(genre, book_count)`` tuples, where
+            ``book_count`` is the number of distinct books in the genre and all
+            of its descendants.
+        request: The current HTTP request.
+
+    Returns:
+        A feed dict conforming to the feed dict contract.
+    """
+    opds_base = _opds_base(request)
+    self_link = _with_sticky_params(opds_base + 'genres/', request)
+    start_link = _with_sticky_params(opds_base, request)
+
+    entries: list[EntryDict] = [
+        _nav_entry(
+            f'tag:bookshelf:genre:{genre.pk}', genre.name,
+            _with_sticky_params(opds_base + f'genres/{genre.pk}/', request), request,
+            content=f'{count} books',
+            updated=genre.updated_at,
+        )
+        for genre, count in genres_with_counts
+    ]
+
+    return {
+        'id': 'tag:bookshelf:genres',
+        'title': 'Genres',
+        'updated': now(),
+        'kind': 'navigation',
+        'self_link': self_link,
+        'start_link': start_link,
+        'pagination': None,
+        'entries': entries,
+    }
+
+
+def build_genre_detail_feed(
+    genre: Genre,
+    subgenres_with_counts: Iterable[tuple[Genre, int]],
+    request: Request,
+) -> FeedDict:
+    """Build the genre detail navigation feed.
+
+    A genre detail is a pure subgenre browser: it renders exactly one
+    navigation entry per direct subgenre (linking to
+    ``opds:root/genres/<subpk>/``), each carrying its descendant-inclusive book
+    count.  It contains no book or alphabet-tree entries — those live at the
+    genre's own ``books/tree/`` and ``books/`` endpoints.  The view
+    302-redirects to the book tree instead of calling this builder when the
+    genre has no subgenres.
+
+    Args:
+        genre: The Genre model instance being detailed.
+        subgenres_with_counts: An iterable of ``(subgenre, book_count)`` tuples
+            for the genre's direct subgenres, where ``book_count`` is the number
+            of distinct books in the subgenre and all of its descendants.
+        request: The current HTTP request.
+
+    Returns:
+        A feed dict conforming to the feed dict contract.
+    """
+    opds_base = _opds_base(request)
+    self_link = _with_sticky_params(opds_base + f'genres/{genre.pk}/', request)
+    start_link = _with_sticky_params(opds_base, request)
+
+    entries: list[EntryDict] = [
+        _nav_entry(
+            f'tag:bookshelf:genre:{subgenre.pk}', subgenre.name,
+            _with_sticky_params(opds_base + f'genres/{subgenre.pk}/', request), request,
+            content=f'{count} books',
+            updated=subgenre.updated_at,
+        )
+        for subgenre, count in subgenres_with_counts
+    ]
+
+    return {
+        'id': f'tag:bookshelf:genre:{genre.pk}',
+        'title': genre.name,
+        'updated': genre.updated_at,
+        'kind': 'navigation',
+        'self_link': self_link,
+        'start_link': start_link,
+        'pagination': None,
         'entries': entries,
     }

@@ -13,7 +13,7 @@ from parameterized import parameterized
 from PIL import Image
 
 from bookshelf.tests.base_test import BaseTestCase
-from library.models import Author, Book, BookSeries, BookSeriesLink, Language
+from library.models import Author, Book, BookSeries, BookSeriesLink, Genre, Language
 from library.tests.test_data_factory import create_test_dataset
 
 
@@ -2083,3 +2083,430 @@ class OPDSSeriesDetailTest(OPDSThrottleResetMixin, TestCase):
             self.assertEqual(len(_links_by_rel(entry, IMAGE_REL)), 1)
             # The book is series-linked → carries a series rel="related" link.
             self.assertGreaterEqual(len(_links_by_rel(entry, 'related')), 1)
+
+
+# ---------------------------------------------------------------------------
+# OPDSGenreFeedTest
+# ---------------------------------------------------------------------------
+
+class OPDSGenreFeedTest(OPDSThrottleResetMixin, TestCase):
+    """Tests for the genre hierarchy feeds (see docs/TDD_OPDS.md §6.2a).
+
+    Covers:
+    - ``opds:root/genres/`` — top-level genre navigation feed
+    - ``opds:root/genres/<pk>/`` — subgenres-only navigation feed (leaf → 302)
+    - ``opds:root/genres/<pk>/books/tree/[<name>/]`` — genre-scoped alphabet tree
+    - ``opds:root/genres/<pk>/books/`` — flat genre book acquisition results
+
+    Fixture: canonical dataset plus an inline ``genre_empty`` top-level genre
+    (no subgenres, no books) used to exercise the ``count=0`` and empty-tree
+    edges.
+
+    Note: the genre-scoped alphabet tree is built from the genre's own
+    (+descendant) book set, whose per-letter counts never exceed the
+    ``get_alphabet_tree`` expansion threshold (50) below the first letter, so a
+    single leaf genre's tree expands at most one level — the ``"alid"`` branch
+    cited in the TDD test-table examples exists only in the global book tree.
+    The ``Alid`` books remain reachable within a genre via the ``?filter=alid``
+    results endpoint, which these tests assert directly.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        create_test_dataset()
+        cls.sf_fantasy = Genre.objects.get(code='sf_fantasy')
+        cls.myst = Genre.objects.get(code='mysteries_thrillers')
+        cls.action = Genre.objects.get(code='action_adventure')
+        cls.dystopia = Genre.objects.get(code='dystopia')
+        cls.sci_fi = Genre.objects.get(code='science_fiction')
+        cls.fantasy = Genre.objects.get(code='fantasy')
+        cls.nature_animals = Genre.objects.get(code='nature_animals')
+        cls.genre_empty = Genre.objects.create(name='Empty Genre', code='empty_genre')
+
+    # ------------------------------------------------------------------
+    # Genre root feed
+    # ------------------------------------------------------------------
+
+    def test_genre_root_status_200(self):
+        """GET opds:root/genres/ → HTTP 200."""
+        response = self.client.get(f'{OPDS_BASE}genres/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_genre_root_is_navigation(self):
+        """GET opds:root/genres/ → Content-Type contains kind=navigation."""
+        response = self.client.get(f'{OPDS_BASE}genres/')
+        self.assertIn('kind=navigation', response['Content-Type'])
+
+    def test_genre_root_lists_top_level_genres_only(self):
+        """GET opds:root/genres/ → top-level genres present, leaf genres absent."""
+        response = self.client.get(f'{OPDS_BASE}genres/')
+        titles = set(_get_entry_titles(_parse(response)))
+        self.assertIn(self.sf_fantasy.name, titles)
+        self.assertIn(self.myst.name, titles)
+        self.assertIn(self.action.name, titles)
+        self.assertIn(self.genre_empty.name, titles)
+        self.assertNotIn(self.dystopia.name, titles)
+        self.assertNotIn(self.sci_fi.name, titles)
+
+    def test_genre_root_entry_links_to_genre_detail(self):
+        """Each opds:root/genres/ entry links to opds:root/genres/<pk>/."""
+        response = self.client.get(f'{OPDS_BASE}genres/')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            entry_id = entry.findtext('atom:id', namespaces=NS) or ''
+            pk = entry_id.split(':')[-1]
+            hrefs = _get_link_hrefs(entry, 'subsection')
+            self.assertTrue(
+                any(h.endswith(f'{OPDS_BASE}genres/{pk}/') for h in hrefs),
+                msg=f'Expected genres/{pk}/ in {hrefs}',
+            )
+
+    def test_genre_root_entry_content_has_book_count(self):
+        """The sf_fantasy entry <content> reports its descendant-inclusive count 279."""
+        response = self.client.get(f'{OPDS_BASE}genres/')
+        entries = _parse(response).findall('atom:entry', NS)
+        sf_entry = next(
+            e for e in entries
+            if e.findtext('atom:title', namespaces=NS) == self.sf_fantasy.name
+        )
+        self.assertIn('279', sf_entry.findtext('atom:content', namespaces=NS))
+
+    def test_genre_root_genre_with_no_books_still_listed(self):
+        """genre_empty (no books) still appears in opds:root/genres/ with count 0."""
+        response = self.client.get(f'{OPDS_BASE}genres/')
+        entries = _parse(response).findall('atom:entry', NS)
+        empty_entry = next(
+            e for e in entries
+            if e.findtext('atom:title', namespaces=NS) == self.genre_empty.name
+        )
+        self.assertIn('0', empty_entry.findtext('atom:content', namespaces=NS))
+
+    def test_genre_root_entries_have_logo_thumbnail(self):
+        """Every opds:root/genres/ entry carries the logo thumbnail link."""
+        response = self.client.get(f'{OPDS_BASE}genres/')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            hrefs = _get_link_hrefs(entry, THUMBNAIL_REL)
+            self.assertTrue(
+                any(h.endswith(LOGO_HREF_SUFFIX) for h in hrefs),
+                msg=f'Entry missing logo thumbnail: {hrefs}',
+            )
+
+    # ------------------------------------------------------------------
+    # Genre detail feed (subgenres only)
+    # ------------------------------------------------------------------
+
+    def test_genre_detail_with_subgenres_status_200(self):
+        """GET opds:root/genres/<sf_fantasy.pk>/ → HTTP 200 (has subgenres)."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_genre_detail_404(self):
+        """GET opds:root/genres/99999/ → HTTP 404 (unknown genre)."""
+        response = self.client.get(f'{OPDS_BASE}genres/99999/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_genre_detail_lists_subgenres_only(self):
+        """sf_fantasy detail lists exactly its 3 subgenres, each linking to its detail."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/')
+        root = _parse(response)
+        titles = set(_get_entry_titles(root))
+        self.assertEqual(
+            titles,
+            {self.dystopia.name, self.sci_fi.name, self.fantasy.name},
+        )
+        for entry in root.findall('atom:entry', NS):
+            entry_id = entry.findtext('atom:id', namespaces=NS) or ''
+            pk = entry_id.split(':')[-1]
+            hrefs = _get_link_hrefs(entry, 'subsection')
+            self.assertTrue(
+                any(h.endswith(f'{OPDS_BASE}genres/{pk}/') for h in hrefs),
+                msg=f'Expected genres/{pk}/ in {hrefs}',
+            )
+
+    def test_genre_detail_has_no_book_or_alphabet_entries(self):
+        """sf_fantasy detail has no acquisition entries and no alphabet-tree nodes."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/')
+        root = _parse(response)
+        titles = set(_get_entry_titles(root))
+        self.assertNotIn('Alid', titles)
+        self.assertNotIn('A', titles)
+        for entry in root.findall('atom:entry', NS):
+            self.assertEqual(len(_links_by_rel(entry, ACQUISITION_REL)), 0)
+
+    @parameterized.expand([
+        ('leaf', 'dystopia'),      # leaf genre (has books, no subgenres)
+        ('empty', 'genre_empty'),  # no subgenres and no books
+    ])
+    def test_genre_detail_without_subgenres_redirects_to_book_tree(self, _name, attr):
+        """GET opds:root/genres/<pk>/ with no subgenres → 302 to its books/tree/."""
+        genre = getattr(self, attr)
+        response = self.client.get(f'{OPDS_BASE}genres/{genre.pk}/')
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            response['Location'].endswith(f'{OPDS_BASE}genres/{genre.pk}/books/tree/')
+        )
+
+    # ------------------------------------------------------------------
+    # Genre book tree (navigation)
+    # ------------------------------------------------------------------
+
+    def test_genre_book_tree_status_200_navigation(self):
+        """GET opds:root/genres/<sf_fantasy.pk>/books/tree/ → 200, kind=navigation."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/tree/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('kind=navigation', response['Content-Type'])
+
+    def test_genre_book_tree_has_alphabet_entries(self):
+        """sf_fantasy book tree has an expandable 'A' node; its sub-tree shows 'Al'."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/tree/')
+        root = _parse(response)
+        a_entry = next(
+            e for e in root.findall('atom:entry', NS)
+            if e.findtext('atom:title', namespaces=NS) == 'A'
+        )
+        a_hrefs = _get_link_hrefs(a_entry, 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/tree/a/')
+                for h in a_hrefs),
+            msg=f'Expected expandable A node in {a_hrefs}',
+        )
+        sub = self.client.get(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/tree/a/')
+        self.assertIn('Al', set(_get_entry_titles(_parse(sub))))
+
+    def test_genre_book_tree_only_contains_own_books(self):
+        """dystopia book tree shows only its own letters with matching counts."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.dystopia.pk}/books/tree/')
+        root = _parse(response)
+        titles = set(_get_entry_titles(root))
+        self.assertEqual(titles, {'A', 'B', 'M', 'П', '0-9', 'Other'})
+        entries = {
+            e.findtext('atom:title', namespaces=NS): e
+            for e in root.findall('atom:entry', NS)
+        }
+        self.assertIn('46', entries['A'].findtext('atom:content', namespaces=NS))
+        self.assertIn('10', entries['M'].findtext('atom:content', namespaces=NS))
+
+    @parameterized.expand([
+        ('leaf_node', 'a'),         # dystopia A=46 ≤ 50 is a leaf, never path-addressable
+        ('nonexistent_node', 'z'),  # no Z node in dystopia
+    ])
+    def test_genre_book_tree_node_returns_404(self, _name, segment):
+        """GET opds:root/genres/<dystopia.pk>/books/tree/<leaf|missing>/ → HTTP 404."""
+        response = self.client.get(
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/tree/{segment}/'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_genre_book_tree_empty_genre_returns_empty_tree(self):
+        """GET opds:root/genres/<genre_empty.pk>/books/tree/ → 200 with 0 entries."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.genre_empty.pk}/books/tree/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(_parse(response).findall('atom:entry', NS)), 0)
+
+    def test_genre_book_tree_leaf_links_to_results(self):
+        """A leaf letter node ('M') links to opds:root/genres/<pk>/books/?filter=m."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/tree/')
+        m_entry = next(
+            e for e in _parse(response).findall('atom:entry', NS)
+            if e.findtext('atom:title', namespaces=NS) == 'M'
+        )
+        hrefs = _get_link_hrefs(m_entry, 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/?filter=m')
+                for h in hrefs),
+            msg=f'Expected genre book filter results in {hrefs}',
+        )
+
+    def test_genre_book_tree_non_leaf_links_to_subtree(self):
+        """An expandable 'A' node links to its sub-tree, which has a synthetic 'all A'."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/tree/')
+        a_entry = next(
+            e for e in _parse(response).findall('atom:entry', NS)
+            if e.findtext('atom:title', namespaces=NS) == 'A'
+        )
+        hrefs = _get_link_hrefs(a_entry, 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/tree/a/')
+                for h in hrefs),
+        )
+        sub = self.client.get(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/tree/a/')
+        first = _parse(sub).findall('atom:entry', NS)[0]
+        self.assertEqual(first.findtext('atom:title', namespaces=NS), 'all A')
+
+    def test_genre_book_tree_regex_node_link_carries_regex_param(self):
+        """The '0-9' leaf links via ?regex=; the 'Other' node links to its sub-tree."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/tree/')
+        entries = {
+            e.findtext('atom:title', namespaces=NS): e
+            for e in _parse(response).findall('atom:entry', NS)
+        }
+        digit_hrefs = _get_link_hrefs(entries['0-9'], 'subsection')
+        self.assertTrue(
+            any(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/?regex=' in h
+                for h in digit_hrefs),
+            msg=f'Expected a ?regex= results link in {digit_hrefs}',
+        )
+        other_hrefs = _get_link_hrefs(entries['Other'], 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}genres/{self.sf_fantasy.pk}/books/tree/other/')
+                for h in other_hrefs),
+            msg=f'Expected other sub-tree link in {other_hrefs}',
+        )
+
+    # ------------------------------------------------------------------
+    # Genre book results (acquisition)
+    # ------------------------------------------------------------------
+
+    def test_genre_books_results_is_acquisition_feed(self):
+        """GET opds:root/genres/<pk>/books/?filter=alid → kind=acquisition."""
+        response = self.client.get(
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?filter=alid'
+        )
+        self.assertIn('kind=acquisition', response['Content-Type'])
+
+    def test_genre_books_results_by_filter_status_200(self):
+        """GET opds:root/genres/<dystopia.pk>/books/?filter=alid → HTTP 200."""
+        response = self.client.get(
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?filter=alid'
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_genre_books_results_by_filter_filters_correctly(self):
+        """dystopia ?filter=alid → all titles start 'Alid', none start 'Alit'."""
+        response = self.client.get(
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?filter=alid'
+        )
+        titles = _get_entry_titles(_parse(response))
+        self.assertTrue(titles)
+        for title in titles:
+            self.assertTrue(title.lower().startswith('alid'), msg=f'Unexpected {title!r}')
+
+    def test_genre_books_results_empty_filter_returns_empty_feed(self):
+        """GET opds:root/genres/<dystopia.pk>/books/?filter=z → 200 with 0 entries."""
+        response = self.client.get(
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?filter=z'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(_parse(response).findall('atom:entry', NS)), 0)
+
+    def test_genre_books_results_by_regex_filters_by_regex(self):
+        """dystopia ?regex=^[0-9] → total equals the 0-9 tree count (2); digit titles."""
+        total = _count_all_pages(
+            self.client,
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?regex=^[0-9]',
+        )
+        self.assertEqual(total, 2)
+        response = self.client.get(
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?regex=^[0-9]'
+        )
+        for title in _get_entry_titles(_parse(response)):
+            self.assertTrue(title[0].isdigit(), msg=f'Non-digit title {title!r}')
+
+    def test_genre_books_results_regex_beats_filter(self):
+        """dystopia ?filter=0-9 (no regex) → istartswith yields 0 entries."""
+        response = self.client.get(
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?filter=0-9'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(_parse(response).findall('atom:entry', NS)), 0)
+
+    def test_genre_books_results_thin_by_default(self):
+        """GET opds:root/genres/<pk>/books/?filter=alid → thin entries by default."""
+        response = self.client.get(
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?filter=alid'
+        )
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertIsNone(entry.find('atom:content', NS))
+            self.assertEqual(len(_links_by_rel(entry, IMAGE_REL)), 0)
+            self.assertEqual(len(_links_by_rel(entry, 'alternate')), 1)
+
+    def test_genre_books_results_thick_param_makes_entries_complete(self):
+        """GET opds:root/genres/<pk>/books/?filter=alid&detail=thick → complete entries."""
+        response = self.client.get(
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?filter=alid&detail=thick'
+        )
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertEqual(len(_links_by_rel(entry, IMAGE_REL)), 1)
+
+
+# ---------------------------------------------------------------------------
+# OPDSGenreFeedCountsTest
+# ---------------------------------------------------------------------------
+
+class OPDSGenreFeedCountsTest(OPDSThrottleResetMixin, TestCase):
+    """Verifies genre book counts against docs/library/tests/test_template.md.
+
+    All counts are distinct books per genre (a multi-genre book is counted in
+    each of its genres).  Fixture: canonical dataset.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        create_test_dataset()
+        cls.sf_fantasy = Genre.objects.get(code='sf_fantasy')
+        cls.myst = Genre.objects.get(code='mysteries_thrillers')
+        cls.action = Genre.objects.get(code='action_adventure')
+        cls.dystopia = Genre.objects.get(code='dystopia')
+        cls.fantasy = Genre.objects.get(code='fantasy')
+        cls.nature_animals = Genre.objects.get(code='nature_animals')
+
+    def _root_entry_content(self, genre):
+        response = self.client.get(f'{OPDS_BASE}genres/')
+        entries = _parse(response).findall('atom:entry', NS)
+        entry = next(
+            e for e in entries
+            if e.findtext('atom:title', namespaces=NS) == genre.name
+        )
+        return entry.findtext('atom:content', namespaces=NS)
+
+    @parameterized.expand([
+        ('sf_fantasy', 'sf_fantasy', '279'),  # 116+82+81
+        ('mysteries', 'myst', '208'),         # 130+78
+        ('action_adv', 'action', '185'),      # 111+74
+    ])
+    def test_genre_root_descendant_inclusive_count(self, _name, attr, count):
+        """Top-level genre root entry reports its descendant-inclusive book count."""
+        self.assertIn(count, self._root_entry_content(getattr(self, attr)))
+
+    def test_fantasy_book_tree_no_yu_entry(self):
+        """fantasy book tree (root + Other sub-tree) contains no 'Ю' entry."""
+        root = self.client.get(f'{OPDS_BASE}genres/{self.fantasy.pk}/books/tree/')
+        self.assertNotIn('Ю', set(_get_entry_titles(_parse(root))))
+        other = self.client.get(
+            f'{OPDS_BASE}genres/{self.fantasy.pk}/books/tree/other/'
+        )
+        self.assertNotIn('Ю', set(_get_entry_titles(_parse(other))))
+
+    def test_nature_animals_book_tree_total_is_74(self):
+        """nature_animals book tree top-level entry counts sum to 74."""
+        response = self.client.get(
+            f'{OPDS_BASE}genres/{self.nature_animals.pk}/books/tree/'
+        )
+        entries = _parse(response).findall('atom:entry', NS)
+        total = 0
+        for entry in entries:
+            title = entry.findtext('atom:title', namespaces=NS) or ''
+            if title.startswith('all '):
+                continue
+            content = entry.findtext('atom:content', namespaces=NS) or '0'
+            total += int(''.join(ch for ch in content if ch.isdigit()))
+        self.assertEqual(total, 74)
+
+    @parameterized.expand([
+        ('alid', 'alid', 5),  # the 'Alid' group cited in TDD
+        ('alit', 'alit', 7),
+    ])
+    def test_genre_books_results_dystopia_filter_count(self, _name, filter_value, expected):
+        """dystopia ?filter=<value> → feed total (across pages) matches expected."""
+        total = _count_all_pages(
+            self.client,
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?filter={filter_value}',
+        )
+        self.assertEqual(total, expected)

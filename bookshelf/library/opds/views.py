@@ -1,15 +1,19 @@
 from django.conf import settings
 from django.db.models import Count, Exists, OuterRef, Q
 from django.http import Http404
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.utils.urls import remove_query_param
 from rest_framework.views import APIView
 
-from library.models import Author, Book, BookSeries, BookSeriesLink
-from library.services import find_alphabet_node_by_name, get_alphabet_tree
+from library.models import Author, Book, BookSeries, BookSeriesLink, Genre
+from library.services import (
+    find_alphabet_node_by_name,
+    get_alphabet_tree,
+    get_descendants,
+)
 
 from .renderers import OPDSRenderer
 from .serializers import (
@@ -18,6 +22,8 @@ from .serializers import (
     build_author_series_feed,
     build_book_detail_feed,
     build_book_results_feed,
+    build_genre_detail_feed,
+    build_genre_root_feed,
     build_root_feed,
     build_series_detail_feed,
     build_series_results_feed,
@@ -353,6 +359,143 @@ class SeriesDetailFeedView(OPDSBaseView):
         page, pagination = self._paginate(book_links, request)
         feed = build_series_detail_feed(
             series, subseries, page, pagination, request,
+            thick=wants_thick_entries(request),
+        )
+        return Response(feed)
+
+
+# ---------------------------------------------------------------------------
+# Genre views
+# ---------------------------------------------------------------------------
+
+def _genre_book_queryset(genre):
+    """Return the base Book queryset for a genre (genre + all descendants).
+
+    Mirrors ``BookListView.get_queryset``: a book is "in" a genre when it is
+    tagged with that genre or any of its (leaf) descendant genres, found via
+    :func:`library.services.get_descendants`.
+
+    Args:
+        genre: A Genre model instance.
+
+    Returns:
+        A distinct ``Book`` queryset scoped to the genre and its descendants.
+    """
+    all_ids = {genre.pk} | get_descendants([genre.pk])
+    return Book.objects.filter(genres__id__in=all_ids).distinct()
+
+
+class GenreRootFeedView(OPDSBaseView):
+    """GET opds:root/genres/ — top-level genre navigation feed.
+
+    Lists every top-level genre (``parent=None``).  Each entry links to the
+    genre detail feed at ``opds:root/genres/<pk>/`` and carries the genre's
+    descendant-inclusive distinct book count.
+    """
+
+    def get(self, request):
+        genres = Genre.objects.filter(parent=None).order_by('name')
+        genres_with_counts = [
+            (genre, _genre_book_queryset(genre).count())
+            for genre in genres
+        ]
+        feed = build_genre_root_feed(genres_with_counts, request)
+        return Response(feed)
+
+
+class GenreDetailFeedView(OPDSBaseView):
+    """GET opds:root/genres/<int:pk>/ — genre detail (subgenres-only) feed.
+
+    Renders one navigation entry per direct subgenre, each linking to
+    ``opds:root/genres/<subpk>/`` and carrying its descendant-inclusive book
+    count.  When the genre has no subgenres (a leaf genre), the view issues an
+    HTTP 302 redirect to ``opds:root/genres/<pk>/books/tree/`` instead (302, not
+    301, because leaf-ness is data-dependent).  Returns HTTP 404 for an unknown
+    genre.
+    """
+
+    def get(self, request, pk):
+        genre = get_object_or_404(Genre, pk=pk)
+        subgenres = genre.subgenres.order_by('name')
+
+        if not subgenres.exists():
+            return redirect('opds:genre_book_tree', pk=pk)
+
+        subgenres_with_counts = [
+            (subgenre, _genre_book_queryset(subgenre).count())
+            for subgenre in subgenres
+        ]
+        feed = build_genre_detail_feed(genre, subgenres_with_counts, request)
+        return Response(feed)
+
+
+class GenreBookTreeFeedView(OPDSBaseView):
+    """GET opds:root/genres/<int:pk>/books/tree/[<str:name>/].
+
+    The standard alphabet-tree navigation feed (see docs/TDD_OPDS.md §6.2),
+    built from the genre's (+descendants) book queryset so the tree only
+    contains letters this genre actually has.  Child links use the
+    ``genres/<pk>/books`` base, so leaves link to
+    ``opds:root/genres/<pk>/books/?filter=|?regex=`` and expandable nodes to
+    ``opds:root/genres/<pk>/books/tree/<name>/``.
+
+    Without a ``name`` segment: renders the root tree.  With a ``name`` segment:
+    resolves the node via ``find_alphabet_node_by_name`` (HTTP 404 when missing
+    or a leaf — leaves are never addressed by a path segment).
+    """
+
+    def get(self, request, pk, name=None):
+        genre = get_object_or_404(Genre, pk=pk)
+        tree = get_alphabet_tree(_genre_book_queryset(genre), 'title')
+
+        if name is None:
+            node = tree
+        else:
+            node = find_alphabet_node_by_name(tree, name)
+            if node is None or not node.entries:
+                raise Http404
+
+        feed = build_tree_feed(
+            node, request,
+            base_url=f'genres/{genre.pk}/books',
+            entity_label=genre.name,
+        )
+        return Response(feed)
+
+
+class GenreBookListFeedView(OPDSBaseView):
+    """GET opds:root/genres/<int:pk>/books/ — flat genre book acquisition feed.
+
+    The genre's (+descendants) book queryset, filtered by the standard
+    precedence: ``?regex=`` → ``title__iregex`` (wins), elif ``?filter=`` →
+    ``title__istartswith``, else the full genre set.  Always paginated and
+    ordered by ``title``.  Entries are thin by default; ``?detail=thick``
+    renders the complete book shape inline (preserved across pagination).
+    """
+
+    def get(self, request, pk):
+        genre = get_object_or_404(Genre, pk=pk)
+        queryset = (
+            _genre_book_queryset(genre)
+            .prefetch_related('authors', 'bookserieslink_set__series')
+            .order_by('title')
+        )
+
+        regex = request.query_params.get('regex', '')
+        filter_val = request.query_params.get('filter', '')
+
+        if regex:
+            queryset = queryset.filter(title__iregex=regex)
+        elif filter_val:
+            queryset = queryset.filter(title__istartswith=filter_val)
+
+        page, pagination = self._paginate(queryset, request)
+        feed = build_book_results_feed(
+            page,
+            pagination,
+            request,
+            feed_id=f'tag:bookshelf:genre:{genre.pk}:books',
+            feed_title=f'{genre.name} — Books',
             thick=wants_thick_entries(request),
         )
         return Response(feed)
