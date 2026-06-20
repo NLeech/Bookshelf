@@ -83,7 +83,7 @@ class OPDSBaseView(APIView):
 
 
 class RootFeedView(OPDSBaseView):
-    """GET /opds/v1/ — root navigation catalog feed.
+    """GET opds:root/ — root navigation catalog feed.
     """
 
     def get(self, request):
@@ -96,13 +96,13 @@ class RootFeedView(OPDSBaseView):
 # ---------------------------------------------------------------------------
 
 class AuthorListFeedView(OPDSBaseView):
-    """GET /opds/v1/authors/ — flat, paginated author navigation feed.
+    """GET opds:root/authors/ — flat, paginated author navigation feed.
 
     Supports optional ``?filter=<prefix>`` and ``?regex=<regex>`` query
     params.  ``regex`` takes precedence when both are present.  Without
     either param the full author set is returned.
     Entries are ordered by ``last_name``, ``first_name``, ``middle_name``
-    and link to the author detail feed at ``/opds/v1/authors/<pk>/``.
+    and link to the author detail feed at ``opds:root/authors/<pk>/``.
     """
 
     def get(self, request):
@@ -126,7 +126,7 @@ class AuthorListFeedView(OPDSBaseView):
 
 
 class AuthorTreeFeedView(OPDSBaseView):
-    """GET /opds/v1/authors/tree/ and /opds/v1/authors/tree/<str:name>/.
+    """GET opds:root/authors/tree/ and opds:root/authors/tree/<str:name>/.
 
     Serves the alphabet tree navigation feed for authors.
 
@@ -152,7 +152,7 @@ class AuthorTreeFeedView(OPDSBaseView):
 
 
 class AuthorDetailFeedView(OPDSBaseView):
-    """GET /opds/v1/authors/<int:pk>/ — author detail navigation feed.
+    """GET opds:root/authors/<int:pk>/ — author detail navigation feed.
 
     Returns exactly the author sub-feed entries
     """
@@ -164,12 +164,12 @@ class AuthorDetailFeedView(OPDSBaseView):
 
 
 class AuthorSeriesFeedView(OPDSBaseView):
-    """GET /opds/v1/authors/<int:pk>/series/ — author series navigation feed.
+    """GET opds:root/authors/<int:pk>/series/ — author series navigation feed.
 
     Lists each series the author has books in, annotated with the per-author
     book count.  When the author has standalone books (books not linked to any
     series), a "Standalone Books" entry is prepended as the first entry,
-    linking to ``/opds/v1/authors/<pk>/books/?series=none``.
+    linking to ``opds:root/authors/<pk>/books/?series=none``.
     """
 
     def get(self, request, pk):
@@ -198,7 +198,7 @@ class AuthorSeriesFeedView(OPDSBaseView):
 
 
 class AuthorBooksFeedView(OPDSBaseView):
-    """GET /opds/v1/authors/<int:pk>/books/ — author books acquisition feed.
+    """GET opds:root/authors/<int:pk>/books/ — author books acquisition feed.
 
     Returns a paginated acquisition feed of all books by this author, sorted
     alphabetically by title.
@@ -228,7 +228,7 @@ class AuthorBooksFeedView(OPDSBaseView):
 
 
 class AuthorRecentBooksFeedView(OPDSBaseView):
-    """GET /opds/v1/authors/<int:pk>/books/recent/ — recently added books.
+    """GET opds:root/authors/<int:pk>/books/recent/ — recently added books.
 
     Returns a paginated acquisition feed of this author's books, sorted by
     ``created_at`` descending (most recently added first).
@@ -261,7 +261,7 @@ class AuthorRecentBooksFeedView(OPDSBaseView):
 # ---------------------------------------------------------------------------
 
 class BookDetailFeedView(OPDSBaseView):
-    """GET /opds/v1/books/<int:pk>/ — complete book-detail acquisition feed.
+    """GET opds:root/books/<int:pk>/ — complete book-detail acquisition feed.
 
     Renders the single complete book entry: title, sanitized-XHTML
     description, ``<calibre:series>`` metadata, cover image + thumbnail, one

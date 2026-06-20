@@ -24,7 +24,7 @@ OPENSEARCH_TYPE = 'application/opensearchdescription+xml'
 ATOM_TYPE = 'application/atom+xml'
 
 # Type advertised by the mandatory ``rel="alternate"`` link on thin book
-# entries — it points at the complete (§6.5) catalog entry.
+# entries — it points at the complete catalog entry.
 ALTERNATE_ENTRY_TYPE = 'application/atom+xml;type=entry;profile=opds-catalog'
 
 # Static placeholder/branding assets (paths are URL-encoded for the feed).
@@ -37,6 +37,21 @@ NO_COVER_THUMBNAIL_PATH = '/static/img/no_cover 40x60.jpeg'
 # browsable feed, so the preference survives link-following.  Add a new sticky
 # preference here
 STICKY_QUERY_PARAMS = ('detail',)
+
+def _opds_base(request: Request) -> str:
+    """Return the absolute OPDS catalog base URL (the ``opds:root`` path).
+
+    The base path is derived from the URLconf via ``reverse('opds:root')`` —
+    the URLconf is the single source of truth, so the catalog can be remounted
+    (or re-versioned) without touching this module.
+
+    Args:
+        request: The current HTTP request.
+
+    Returns:
+        The absolute base URL all feed links are built from.
+    """
+    return request.build_absolute_uri(reverse('opds:root'))
 
 
 # ---------------------------------------------------------------------------
@@ -192,8 +207,8 @@ def build_root_feed(request: Request) -> FeedDict:
     Returns:
         A feed dict conforming to the feed dict contract.
     """
-    self_link = _with_sticky_params(request.build_absolute_uri(reverse('opds:root')), request)
-    opds_base = request.build_absolute_uri('/opds/v1/')
+    opds_base = _opds_base(request)
+    self_link = _with_sticky_params(opds_base, request)
 
     feed_updated = now()
 
@@ -319,7 +334,7 @@ def _build_author_tree_child_href(child: AlphabetTree, opds_base: str) -> str:
 
     Args:
         child: An AlphabetTree node.
-        opds_base: Absolute base URL ending in '/opds/v1/'.
+        opds_base: Absolute OPDS catalog base URL (see :func:`_opds_base`).
 
     Returns:
         The href string for this child's navigation link.
@@ -347,8 +362,8 @@ def build_author_tree_feed(node: AlphabetTree, request: Request) -> FeedDict:
     Returns:
         A feed dict conforming to the feed dict contract.
     """
-    opds_base = request.build_absolute_uri('/opds/v1/')
-    start_link = _with_sticky_params(request.build_absolute_uri('/opds/v1/'), request)
+    opds_base = _opds_base(request)
+    start_link = _with_sticky_params(opds_base, request)
 
     if not node.name:
         feed_id = 'tag:bookshelf:authors'
@@ -430,7 +445,7 @@ def build_author_results_feed(
     """Build a flat, paginated navigation feed of authors.
 
     Each entry links to the author's detail feed at
-    ``/opds/v1/authors/<pk>/``.
+    ``opds:root/authors/<pk>/``.
 
     Args:
         authors_page: A list of Author instances for the current page.
@@ -441,9 +456,9 @@ def build_author_results_feed(
     Returns:
         A feed dict conforming to the feed dict contract.
     """
-    opds_base = request.build_absolute_uri('/opds/v1/')
+    opds_base = _opds_base(request)
     self_link = _with_sticky_params(request.build_absolute_uri(), request)
-    start_link = _with_sticky_params(request.build_absolute_uri('/opds/v1/'), request)
+    start_link = _with_sticky_params(opds_base, request)
 
     entries: list[EntryDict] = [
         {
@@ -493,9 +508,9 @@ def build_author_detail_feed(author: Author, request: Request) -> FeedDict:
     Returns:
         A feed dict conforming to the feed dict contract.
     """
-    opds_base = request.build_absolute_uri('/opds/v1/')
+    opds_base = _opds_base(request)
     self_link = _with_sticky_params(opds_base + f'authors/{author.pk}/', request)
-    start_link = _with_sticky_params(request.build_absolute_uri('/opds/v1/'), request)
+    start_link = _with_sticky_params(opds_base, request)
 
     entries: list[EntryDict] = [
         {
@@ -572,9 +587,9 @@ def build_author_series_feed(
     """Build the author series navigation feed.
 
     When ``standalone_count > 0``, prepends a "Standalone Books" entry as
-    the first entry linking to ``/opds/v1/authors/<pk>/books/?series=none``.
+    the first entry linking to ``opds:root/authors/<pk>/books/?series=none``.
     Followed by one navigation entry per series, linking to
-    ``/opds/v1/series/<pk>/``.
+    ``opds:root/series/<pk>/``.
 
     Args:
         author: An Author model instance.
@@ -586,9 +601,9 @@ def build_author_series_feed(
     Returns:
         A feed dict conforming to the feed dict contract.
     """
-    opds_base = request.build_absolute_uri('/opds/v1/')
+    opds_base = _opds_base(request)
     self_link = _with_sticky_params(opds_base + f'authors/{author.pk}/series/', request)
-    start_link = _with_sticky_params(request.build_absolute_uri('/opds/v1/'), request)
+    start_link = _with_sticky_params(opds_base, request)
 
     entries: list[EntryDict] = []
 
@@ -785,9 +800,9 @@ def build_author_books_feed(
     Returns:
         A feed dict conforming to the feed dict contract.
     """
-    opds_base = request.build_absolute_uri('/opds/v1/')
+    opds_base = _opds_base(request)
     self_link = _with_sticky_params(request.build_absolute_uri(), request)
-    start_link = _with_sticky_params(request.build_absolute_uri('/opds/v1/'), request)
+    start_link = _with_sticky_params(opds_base, request)
 
     if feed_id is None:
         feed_id = f'tag:bookshelf:author:{author.pk}:books'
@@ -827,9 +842,9 @@ def build_book_detail_feed(book: Book, request: Request) -> FeedDict:
     Returns:
         A feed dict conforming to the feed dict contract, with one entry.
     """
-    opds_base = request.build_absolute_uri('/opds/v1/')
+    opds_base = _opds_base(request)
     self_link = _with_sticky_params(opds_base + f'books/{book.pk}/', request)
-    start_link = _with_sticky_params(request.build_absolute_uri('/opds/v1/'), request)
+    start_link = _with_sticky_params(opds_base, request)
 
     entry = _build_book_entry(
         book, request, opds_base, thick=True, include_alternate=False,
