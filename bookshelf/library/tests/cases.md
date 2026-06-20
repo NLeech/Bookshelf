@@ -261,6 +261,7 @@ Canonical dataset (255 authors: A=137, B=58, C=19, Ш=15, 0-9=12, Other=14).
 7. **test_author_results_filter_not_found_returns_empty_feed**: GET `/opds/v1/authors/?filter=y` returns HTTP 200 with zero entries.
 8. **test_author_results_sorted_alphabetically**: Entries in the flat list are in ascending last_name order.
 9. **test_author_digits_node_list**: GET `/opds/v1/authors/?regex=^[0-9]` returns exactly 12 entries.
+9a. **test_author_results_entry_content_has_book_count**: Each flat-list entry `<content type="text">` is `"<n> books"` matching that author's book count.
 10. **test_author_list_is_navigation_feed**: Flat author list response Content-Type contains `kind=navigation`.
 11. **test_author_tree_is_navigation_feed**: Tree root response Content-Type contains `kind=navigation`.
 12. **test_author_tree_node_status_200**: GET `/opds/v1/authors/tree/a/` returns HTTP 200 (expandable node).
@@ -276,7 +277,8 @@ Canonical dataset.
 
 1. **test_author_detail_status_200**: GET `/opds/v1/authors/<pk>/` returns HTTP 200.
 2. **test_author_detail_404**: GET `/opds/v1/authors/99999/` returns HTTP 404.
-3. **test_author_detail_has_three_sub_feeds**: Author detail feed has exactly 3 entries titled 'All Books (A–Z)', 'Recently Added', 'Books by Series'.
+3. **test_author_detail_has_three_sub_feeds**: Author detail feed has exactly 3 entries titled 'Books by Title', 'New Arrivals', 'Books by Series'.
+3a. **test_author_detail_sub_feed_titles_match**: Sub-feed titles are exactly `['Books by Title', 'New Arrivals', 'Books by Series']` in order; legacy labels ('All Books (A–Z)', 'Recently Added') are absent.
 4. **test_author_detail_is_navigation_feed**: Author detail response Content-Type contains `kind=navigation`.
 5. **test_author_detail_sub_feed_books_alpha_status_200**: GET `/opds/v1/authors/<pk>/books/` returns HTTP 200.
 6. **test_author_detail_sub_feed_books_alpha_is_acquisition**: Author books feed Content-Type contains `kind=acquisition`.
@@ -297,3 +299,73 @@ Canonical dataset.
 21. **test_author_books_acquisition_link_always_rendered**: GET `/opds/v1/authors/<pk>/books/` returns entries each containing exactly one acquisition link pointing to a `/download/` URL, regardless of authentication.
 22. **test_author_books_acquisition_type_matches_file_type**: Each entry's acquisition link `type` reflects the book's `file_type` (`epub` → `application/epub+zip`, `fb2` → `application/x-fictionbook+xml`).
 23. **test_author_books_acquisition_type_defaults_for_unknown_format**: Blank/unknown `file_type` falls back to `application/octet-stream` on the acquisition link.
+
+## OPDS Entry Image / Logo (tests_opds.py — OPDSEntryImageTest)
+
+Canonical dataset. Verifies the §8 "logo for every non-book entry" rule.
+
+1. **test_root_feed_entries_have_logo_thumbnail**: Every entry in `/opds/v1/` carries one `<link rel="http://opds-spec.org/image/thumbnail" type="image/png">` whose href ends in `/static/img/Logo%2064x64x8.png`.
+2. **test_author_tree_entries_have_logo_thumbnail**: Every entry in `/opds/v1/authors/tree/` carries the logo thumbnail link.
+3. **test_author_results_entries_have_logo_thumbnail**: Every entry in `/opds/v1/authors/?filter=b` carries the logo thumbnail link.
+4. **test_author_detail_entries_have_logo_thumbnail**: Every sub-feed entry in the author detail feed carries the logo thumbnail link.
+5. **test_author_series_entries_have_logo_thumbnail**: Every entry in the author series feed carries the logo thumbnail link.
+6. **test_logo_thumbnail_href_is_absolute_url**: The logo thumbnail href is an absolute URL (starts with `http`).
+7. **test_book_entries_do_not_use_logo**: Book (acquisition) entries never carry the logo thumbnail link.
+
+## OPDS Book Entry Verbosity (tests_opds.py — OPDSBookVerbosityTest)
+
+Canonical dataset plus an inline described author/book (with `<script>`/`<iframe>`/list markup) and 25 extra books for pagination. Verifies the §6.5a thin-default / `?detail=thick` split and the §6.5 complete entry shape on author book feeds.
+
+1. **test_author_books_feed_thin_by_default**: Default author book entries are thin — no `<content>`, no `<calibre:series>`, no `rel="related"` links, and no Atom `<author>` element.
+2. **test_thin_entry_has_mandatory_alternate_link**: Each thin entry has exactly one `<link rel="alternate" type="application/atom+xml;type=entry;profile=opds-catalog">` whose href ends in `/opds/v1/books/<pk>/`.
+3. **test_thin_entry_has_thumbnail_no_full_image**: A thin entry has a thumbnail link but no full-size `http://opds-spec.org/image` link.
+4. **test_thin_pagination_links_have_no_detail_param**: Default (thin) paginated feed exposes a `next` link and no pagination link carries a `detail` param.
+5. **test_author_books_feed_thick_has_author_related_links**: Thick entries carry author `rel="related"` links to `/opds/v1/authors/<pk>/` and emit no Atom `<author>` element.
+6. **test_thick_entry_has_full_image_and_alternate**: Thick entries add the full-size `http://opds-spec.org/image` link and keep the mandatory `rel="alternate"` link.
+7. **test_thick_param_propagates_to_pagination_links**: `detail=thick` is preserved on every `first`/`next`/`previous` pagination link, asserted across page 1 (first + next) and page 2 (first + previous).
+8. **test_thick_series_book_has_calibre_and_series_related**: A series-linked book in thick mode has `<calibre:series>` + `<calibre:series_index>` and a series `rel="related"` link to `/opds/v1/series/<pk>/`.
+9. **test_thick_entry_content_is_sanitized_xhtml**: A described book's thick `<content type="xhtml">` is an XHTML `<div>` where allowlisted tags (`p`, `strong`) survive and disallowed tags (`script`, `iframe`) and script text are stripped.
+
+## OPDS Thick Propagation (tests_opds.py — OPDSThickPropagationTest)
+
+Canonical dataset. Verifies the §6.5a Propagation rule — `?detail=thick` is a sticky, catalog-wide preference threaded through every browsable-catalog link and omitted from non-feed / always-complete links. Uses the implemented Root + Author feeds; a series+standalone author is found via `.filter()`.
+
+1. **test_root_subsection_links_preserve_detail**: Every root entry `rel="subsection"` link (Authors, Genres, Series, Books) carries `detail=thick`.
+2. **test_root_search_query_link_preserves_detail**: The Search entry's `application/atom+xml` query-template link carries `detail=thick`, while the `application/opensearchdescription+xml` description link does not.
+3. **test_root_self_and_start_links_preserve_detail**: The feed `rel="self"` and `rel="start"` links both carry `detail=thick`.
+4. **test_root_logo_thumbnail_link_omits_detail**: The non-book logo thumbnail links never carry a `detail` param.
+5. **test_author_tree_subsection_links_preserve_detail**: Every author-tree child `subsection` link and the synthetic "all" link carry `detail=thick`.
+6. **test_author_results_links_preserve_detail**: Each author-result detail-feed `subsection` link and the `first`/`next` pagination links carry `detail=thick`.
+7. **test_author_detail_subsection_links_preserve_detail**: All three author-detail `subsection` links (Books by Title, New Arrivals, Books by Series) carry `detail=thick`.
+8. **test_author_series_links_preserve_detail**: The Standalone Books link and every per-series `subsection` link carry `detail=thick`.
+9. **test_detail_survives_drilldown_to_acquisition_feed**: Following the `detail=thick`-bearing Books-by-Title link reaches `/opds/v1/authors/<pk>/books/?detail=thick`, whose book entries are complete (full-size image present) — proving the preference survives link-following to the terminal acquisition feed.
+10. **test_navigation_links_omit_detail_by_default**: Without `?detail=thick`, no feed- or entry-level link on a navigation feed carries a `detail` param.
+
+## OPDS Book Detail Feed (tests_opds.py — OPDSBookDetailTest)
+
+`BaseTestCase` + small detail fixture (`book_1` with a real cover, `book_2` cover-less, `book_3` standalone; authors Asimov/Bradbury; series Foundation + Robot Series subseries). Verifies the §6.5 complete book-detail feed at `GET /opds/v1/books/<pk>/`. Per the catalog-is-fully-browsable convention the acquisition link is always rendered, so there are no permission-gating cases.
+
+1. **test_book_detail_status_200**: GET `/opds/v1/books/<pk>/` returns 200.
+2. **test_book_detail_404**: GET `/opds/v1/books/99999/` returns 404.
+3. **test_book_detail_is_acquisition_feed**: Content-Type contains `kind=acquisition`.
+4. **test_book_detail_has_title**: The single entry `<title>` equals the book title.
+5. **test_book_detail_has_author_related_link**: The entry has one `rel="related"` link to `/opds/v1/authors/<pk>/` with `kind=navigation` type and the author `full_name` as title.
+6. **test_book_detail_one_related_link_per_author**: A two-author book renders exactly one author `rel="related"` link per author.
+7. **test_book_detail_author_related_link_mandatory**: Every complete book entry has at least one author `rel="related"` link.
+8. **test_book_detail_has_no_atom_author_element**: The entry emits no `<author>` Atom element.
+9. **test_book_detail_content_is_xhtml_type**: The entry has `<content type="xhtml">` with a `<div>` and no `<summary>`.
+10. **test_book_detail_content_has_description**: The `<content>` `<div>` text carries the book description text.
+11. **test_book_detail_content_has_no_series_text**: The `<content>` contains no series text.
+12. **test_book_detail_content_sanitizes_disallowed_html**: Disallowed tags (e.g. `<script>`) are stripped while allowlisted `<p>`/`<strong>` survive.
+13. **test_book_detail_no_content_when_no_description**: A book with an empty description has no `<content>` element.
+14. **test_book_detail_has_calibre_series**: The entry has `<calibre:series>` `Foundation` and `<calibre:series_index>` `1`.
+15. **test_book_detail_calibre_series_name_stripped**: The `<calibre:series>` text has no leading/trailing whitespace.
+16. **test_book_detail_one_calibre_series_pair_per_series**: A book in two series yields exactly two `<calibre:series>`/`<calibre:series_index>` pairs.
+17. **test_book_detail_no_calibre_series_when_standalone**: A standalone book has no `<calibre:series>` and no series `rel="related"` link.
+18. **test_book_detail_cover_link_is_absolute_url**: The full-size cover `rel="…/image"` href is an absolute URL.
+19. **test_book_detail_has_thumbnail_link**: The entry carries a `rel="…/image/thumbnail"` link.
+20. **test_book_detail_no_cover_uses_no_cover_fallback**: A cover-less book falls back to the `no_cover` placeholder hrefs for both full image and thumbnail (links never omitted).
+21. **test_book_detail_has_series_related_link**: The entry has a `rel="related"` link to `/opds/v1/series/<pk>/` titled with the series name only.
+22. **test_book_detail_author_and_series_related_links_distinguishable**: Author related links target `/authors/<pk>/`; series related links target `/series/<pk>/`.
+23. **test_book_detail_acquisition_link_always_rendered**: The acquisition link is always present and points to `/opds/v1/books/<pk>/download/`.
+24. **test_book_detail_has_no_alternate_link**: The detail feed (being the alternate target) carries no `rel="alternate"` link.

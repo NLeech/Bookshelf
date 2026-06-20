@@ -227,7 +227,16 @@ Book-listing acquisition feeds — `/books/`, `/authors/<pk>/books/`, `…/books
 
 No `<content>`, no full-size `http://opds-spec.org/image`, no `<calibre:*>`, no author/series `rel="related"` links in thin entries.
 
-`?detail=thick` switches the **same** endpoints to **complete** inline entries (identical to the §"Book detail entry" complete shape). `detail=thick` MUST be preserved on the feed's `first`/`next`/`previous` pagination links. The standalone `/opds/v1/books/<pk>/` complete-entry endpoint (the `alternate` target) is unaffected by the param.
+`?detail=thick` switches the **same** endpoints to **complete** inline entries (identical to the §"Book detail entry" complete shape).
+
+**`?detail=thick` is a sticky, catalog-wide preference.** Because OPDS clients only *follow links* (they never synthesise URLs), the param is useless unless threaded through the whole browse path. When present on a request it MUST be re-appended to **every link whose target is another browsable catalog feed**, so it survives navigation/search/drill-down to the terminal acquisition feed:
+
+- every **`subsection`** link in every navigation feed (Root, Alphabet Tree incl. the synthetic "all …" entry, Author/Genre/Series results & detail, Author Series);
+- the **search query-template link** (`rel="search"`, `application/atom+xml`, `…/search/?q={searchTerms}`);
+- **author/series `rel="related"`** links on thick book entries;
+- the feed's **`self`** / **`start`** links and its `first`/`next`/`previous` pagination links.
+
+Omitted from non-feed / always-complete links: the `rel="alternate"` link (target `/opds/v1/books/<pk>/` is already complete and **unaffected** by the param), the acquisition/download link, the cover `image`/`thumbnail` links, the logo thumbnail link, and the OpenSearch `…description+xml` link. Link propagation is **param-agnostic**: a single `_with_sticky_params(href, request)` serializer helper re-appends every catalog-wide sticky preference listed in a `STICKY_QUERY_PARAMS` tuple (currently `('detail',)`) that is present on the request — respecting an existing query string and skipping params already on the href. Navigation builders carry no per-feature flag, so a future sticky preference is one tuple entry with no signature churn. Entry verbosity is decided separately by a single `wants_thick_entries(request)` predicate (the only place `detail == 'thick'` is interpreted), called by the two book acquisition views and passed as the `thick` argument to `build_author_books_feed`. DRF's paginator already preserves the query string on `self`/pagination links. The param changes only book-entry verbosity — never the body of a navigation feed.
 
 ### Book detail entry (complete shape)
 
@@ -236,14 +245,14 @@ A complete book entry — the standalone `/opds/v1/books/<pk>/` feed and every t
 - `<title>`.
 - `<content type="xhtml">` — the **description only**, sanitized to an allowlist (`p, br, strong, b, em, i, u, ul, ol, li`; all attributes stripped) and emitted as a real un-escaped XHTML `<div>` of live nodes. Omitted when the book has no description.
 - `<calibre:series>` / `<calibre:series_index>` — one pair per series (Calibre metadata namespace); series name `.strip()`-ed, index = sequence number. Omitted when standalone.
-- `<link rel="http://opds-spec.org/image">` + `<link rel="http://opds-spec.org/image/thumbnail">` — cover and thumbnail. **Always present:** when `book.cover` is set, use `book.cover.url` / `book.cover_preview.url`; when it is not, fall back to the static placeholders `/static/png/no_cover 600x900.jpeg` (full) and `/static/png/no_cover 40x60.jpeg` (thumbnail). The image links are never omitted.
+- `<link rel="http://opds-spec.org/image">` + `<link rel="http://opds-spec.org/image/thumbnail">` — cover and thumbnail. **Always present:** when `book.cover` is set, use `book.cover.url` / `book.cover_preview.url`; when it is not, fall back to the static placeholders `/static/img/no_cover 600x900.jpeg` (full) and `/static/img/no_cover 40x60.jpeg` (thumbnail). The image links are never omitted.
 - `<link rel="related">` **per author** → `/opds/v1/authors/<pk>/`, `type="…;kind=navigation"`, `title` = author `full_name`. This is the **only** author representation — **no `<author>` Atom element is emitted.**
 - `<link rel="related">` **per series** → `/opds/v1/series/<pk>/`, `title` = series **name only** (no `#<seq>`).
 - `<link rel="http://opds-spec.org/acquisition">` — only when the user has `library.view_book`.
 
 ### Default entry image (logo for non-book entries)
 
-Every entry that does **not** carry an acquisition link — root, author, series, genre, alphabet-tree, and search-section entries — MUST carry the application logo as its thumbnail: `<link rel="http://opds-spec.org/image/thumbnail" type="image/png" href="<abs>/static/png/Logo 64x64x8.png">` (absolute URL via `request.build_absolute_uri`). Book (acquisition) entries are excluded; they use their own cover/thumbnail.
+Every entry that does **not** carry an acquisition link — root, author, series, genre, alphabet-tree, and search-section entries — MUST carry the application logo as its thumbnail: `<link rel="http://opds-spec.org/image/thumbnail" type="image/png" href="<abs>/static/img/Logo 64x64x8.png">` (absolute URL via `request.build_absolute_uri`). Book (acquisition) entries are excluded; they use their own cover/thumbnail.
 
 ### Navigation entry counts (mandatory)
 
@@ -353,7 +362,7 @@ Two classes: `OPDSMinuteRateThrottle(AnonRateThrottle)` with `scope = 'opds_anon
   - `_sanitize_html(text)` → allowlist sanitizer used for the XHTML `<content>`; only `p, br, strong, b, em, i, u, ul, ol, li` survive and all attributes are stripped.
   - Cover full image: `rel="http://opds-spec.org/image"`, type `image/jpeg`
   - Cover thumbnail: `rel="http://opds-spec.org/image/thumbnail"`, type `image/jpeg` — uses `cover_preview.url` (the 100×150 `ImageSpecField`), NOT `cover.url`
-  - **Logo thumbnail (non-book entries):** every entry that does **not** carry an acquisition link (root, author, series, genre, alphabet-tree, search-section entries) MUST carry `<link rel="http://opds-spec.org/image/thumbnail" type="image/png" href="<abs>/static/png/Logo 64x64x8.png">`, built with `request.build_absolute_uri`. Book (acquisition) entries are excluded — they use their own cover/thumbnail.
+  - **Logo thumbnail (non-book entries):** every entry that does **not** carry an acquisition link (root, author, series, genre, alphabet-tree, search-section entries) MUST carry `<link rel="http://opds-spec.org/image/thumbnail" type="image/png" href="<abs>/static/img/Logo 64x64x8.png">`, built with `request.build_absolute_uri`. Book (acquisition) entries are excluded — they use their own cover/thumbnail.
   - Navigation kind Content-Type: `application/atom+xml;profile=opds-catalog;kind=navigation`
   - Acquisition kind Content-Type: `application/atom+xml;profile=opds-catalog;kind=acquisition`
   - The renderer reads `data['kind']` to set the Content-Type via `renderer_context['response']['Content-Type']`
@@ -368,7 +377,7 @@ Pure Python functions. No DRF serializer classes. No XML. All accept `request` f
 
 **Cross-cutting rules every builder honours:**
 - **Navigation entry counts (mandatory).** Every navigation entry that represents a collection (author, series, genre, alphabet-tree node, root browse entries, author-results, series-results) carries its item count in `content` (e.g. `"42 books"`). A count of `0` is still rendered — a navigation entry without a count is incomplete.
-- **Logo thumbnail (mandatory on non-book entries).** Every non-acquisition entry carries a `links` item `{'rel': 'http://opds-spec.org/image/thumbnail', 'type': 'image/png', 'href': request.build_absolute_uri('/static/png/Logo 64x64x8.png')}`. Book (acquisition) entries never carry the logo. (The renderer enforces the same rule; builders supply the absolute href.)
+- **Logo thumbnail (mandatory on non-book entries).** Every non-acquisition entry carries a `links` item `{'rel': 'http://opds-spec.org/image/thumbnail', 'type': 'image/png', 'href': request.build_absolute_uri('/static/img/Logo 64x64x8.png')}`. Book (acquisition) entries never carry the logo. (The renderer enforces the same rule; builders supply the absolute href.)
 
 Functions:
 
@@ -548,7 +557,7 @@ The `('library.opds.urls', 'library')` 2-tuple sets the app namespace to `'libra
    - Then implement feed-level builders.
    - Thumbnail: `book.cover_preview.url` — not `book.cover.url`.
    - Cover links: `request.build_absolute_uri(book.cover.url)`.
-   - Cover/thumbnail links are **always emitted**: use `book.cover.url` / `book.cover_preview.url` when `book.cover` is set, else fall back to the static `no_cover 600x900.jpeg` / `no_cover 40x60.jpeg` placeholders (build absolute via `request.build_absolute_uri('/static/png/...')`). Never omit the image link for a cover-less book.
+   - Cover/thumbnail links are **always emitted**: use `book.cover.url` / `book.cover_preview.url` when `book.cover` is set, else fall back to the static `no_cover 600x900.jpeg` / `no_cover 40x60.jpeg` placeholders (build absolute via `request.build_absolute_uri('/static/img/...')`). Never omit the image link for a cover-less book.
    - Book entries are **thin by default**; `build_book_entry(..., thick=True)` emits the complete shape. Listing views pass `thick = request.query_params.get('detail') == 'thick'` and preserve `detail=thick` on pagination links.
    - Complete book entry: sanitized-XHTML description in `content` (via `_sanitize_html`, **not** truncated), structured `series` list for `<calibre:*>`, author + series `rel="related"` links, **no `<author>` element**.
    - Thin book entry: mandatory `rel="alternate"` link → `/opds/v1/books/<pk>/`, cover thumbnail only.
@@ -870,6 +879,25 @@ Genre detail (`/genres/<pk>/`) is **subgenres-only** and 302-redirects to the ge
 
 ---
 
+### `OPDSThickPropagationTest(TestCase)`
+
+**Fixture:** `create_test_dataset()` in `setUpTestData`. Verifies the sticky-preference Propagation rule — `?detail=thick` is threaded through every browsable-catalog link and omitted from non-feed / always-complete links. Covers the implemented Root + Author feeds; a specific author with books/series is found via `.filter()`.
+
+| # | Method | Assert |
+|---|---|---|
+| 1 | `test_root_subsection_links_preserve_detail` | GET `/opds/v1/?detail=thick`: every entry `<link rel="subsection">` href contains `detail=thick` |
+| 2 | `test_root_search_query_link_preserves_detail` | Search entry `rel="search"` `application/atom+xml` link contains `detail=thick`; the `…opensearchdescription+xml` link does **not** |
+| 3 | `test_root_self_and_start_links_preserve_detail` | Feed `<link rel="self">` and `<link rel="start">` hrefs both contain `detail=thick` |
+| 4 | `test_root_logo_thumbnail_link_omits_detail` | The non-book logo `rel="…/image/thumbnail">` link never carries `detail=thick` |
+| 5 | `test_author_tree_subsection_links_preserve_detail` | GET `/opds/v1/authors/tree/a/?detail=thick`: every child `subsection` link and the synthetic "all a" link contain `detail=thick` |
+| 6 | `test_author_results_links_preserve_detail` | GET `/opds/v1/authors/?filter=b&detail=thick`: each author detail-feed `subsection` link plus `next`/`first` pagination links contain `detail=thick` |
+| 7 | `test_author_detail_subsection_links_preserve_detail` | GET `/opds/v1/authors/<pk>/?detail=thick`: Books by Title / New Arrivals / Books by Series `subsection` links all contain `detail=thick` |
+| 8 | `test_author_series_links_preserve_detail` | GET `/opds/v1/authors/<pk>/series/?detail=thick`: Standalone Books link + every per-series `subsection` link contain `detail=thick` |
+| 9 | `test_detail_survives_drilldown_to_acquisition_feed` | Following the `detail=thick`-bearing Books-by-Title link lands on `/opds/v1/authors/<pk>/books/?detail=thick` whose book entries are complete (thick) |
+| 10 | `test_navigation_links_omit_detail_by_default` | Without `?detail=thick`: no `subsection`, search-query, `self`, `start`, or pagination link carries a `detail` param |
+
+---
+
 ### `OPDSPaginationTest(TestCase)`
 
 **Fixture:** `create_test_dataset()` in `setUpTestData`. Uses results endpoints `/opds/v1/authors/?filter=b` (B=58) and `/opds/v1/books/?filter=m` (M=43).
@@ -965,7 +993,7 @@ Genre detail (`/genres/<pk>/`) is **subgenres-only** and 302-redirects to the ge
 | 7 | `test_book_detail_has_thumbnail_link` | `<link rel="http://opds-spec.org/image/thumbnail">` present |
 | 8 | `test_book_detail_has_series_related_link` | `<link rel="related">` → `/opds/v1/series/<series_1.pk>/`, `title` == series **name only** (`Foundation`, no `#<seq>`) |
 | 8a | `test_book_detail_author_and_series_related_links_distinguishable` | Author `rel="related"` → `/authors/<pk>/`; series → `/series/<pk>/` (distinguished by `href` prefix) |
-| 9 | `test_book_detail_no_cover_uses_no_cover_fallback` | GET `book_2` (no cover) detail → `<link rel="http://opds-spec.org/image">` href ends in `/static/png/no_cover%20600x900.jpeg` and thumbnail href ends in `/static/png/no_cover%2040x60.jpeg` (image links always present; cover-less books fall back to placeholders) |
+| 9 | `test_book_detail_no_cover_uses_no_cover_fallback` | GET `book_2` (no cover) detail → `<link rel="http://opds-spec.org/image">` href ends in `/static/img/no_cover%20600x900.jpeg` and thumbnail href ends in `/static/img/no_cover%2040x60.jpeg` (image links always present; cover-less books fall back to placeholders) |
 | 10 | `test_book_detail_no_acquisition_link_anon` | Anonymous → no acquisition link |
 | 11 | `test_book_detail_no_acquisition_link_user_no_perm` | `user_no_perm` → no acquisition link |
 | 12 | `test_book_detail_has_acquisition_link_user_with_perm` | `user_with_perm` → acquisition link present with `href` ending in `/opds/v1/books/<book_1.pk>/download/` |
@@ -974,11 +1002,11 @@ Genre detail (`/genres/<pk>/`) is **subgenres-only** and 302-redirects to the ge
 
 ### `OPDSEntryImageTest(TestCase)`
 
-**Fixture:** `create_test_dataset()` in `setUpTestData`. Cross-cutting test of the §8 "logo for every non-book entry" rule. Logo lives at `/static/png/Logo 64x64x8.png`; assertions match the thumbnail link by `rel="http://opds-spec.org/image/thumbnail"` and an `href` ending in the URL-encoded logo path. Book (acquisition) entries are asserted **not** to carry the logo.
+**Fixture:** `create_test_dataset()` in `setUpTestData`. Cross-cutting test of the §8 "logo for every non-book entry" rule. Logo lives at `/static/img/Logo 64x64x8.png`; assertions match the thumbnail link by `rel="http://opds-spec.org/image/thumbnail"` and an `href` ending in the URL-encoded logo path. Book (acquisition) entries are asserted **not** to carry the logo.
 
 | # | Method | Assert |
 |---|---|---|
-| 1 | `test_root_feed_entries_have_logo_thumbnail` | Every `<entry>` in `/opds/v1/` has `<link rel="…/image/thumbnail" type="image/png">` whose `href` ends in `/static/png/Logo%2064x64x8.png` |
+| 1 | `test_root_feed_entries_have_logo_thumbnail` | Every `<entry>` in `/opds/v1/` has `<link rel="…/image/thumbnail" type="image/png">` whose `href` ends in `/static/img/Logo%2064x64x8.png` |
 | 2 | `test_author_list_entries_have_logo_thumbnail` | Every entry in `/opds/v1/authors/` carries the logo thumbnail |
 | 3 | `test_alphabet_tree_entries_have_logo_thumbnail` | Every entry in `/opds/v1/authors/tree/` carries the logo thumbnail |
 | 4 | `test_genre_root_entries_have_logo_thumbnail` | Every entry in `/opds/v1/genres/` carries the logo thumbnail |

@@ -18,7 +18,9 @@ from .serializers import (
     build_author_results_feed,
     build_author_series_feed,
     build_author_tree_feed,
+    build_book_detail_feed,
     build_root_feed,
+    wants_thick_entries,
 )
 from .throttles import OPDSDayRateThrottle, OPDSMinuteRateThrottle
 
@@ -26,7 +28,7 @@ from .throttles import OPDSDayRateThrottle, OPDSMinuteRateThrottle
 class OPDSPageNumberPagination(PageNumberPagination):
     """DRF page-number paginator configured for OPDS feeds.
 
-    Page size is controlled by ``settings.OPDS_PAGE_SIZE`` (default 20).
+    Page size is controlled by ``settings.OPDS_PAGE_SIZE``
     Clients cannot override the page size.  The ``first`` link is always
     the URL with the ``page`` param removed.
     """
@@ -46,10 +48,7 @@ class OPDSBaseView(APIView):
     """Base class for all OPDS feed views.
 
     Enforces the shared renderer, throttle, and permission configuration
-    used across every OPDS endpoint.  Feeds are fully public (``AllowAny``)
-    and the catalog is entirely browsable; acquisition links are always
-    rendered.  Download permission is enforced at the download endpoint
-    itself, so feed views require no authentication.
+    used across every OPDS endpoint.
     """
 
     renderer_classes = [OPDSRenderer]
@@ -85,10 +84,6 @@ class OPDSBaseView(APIView):
 
 class RootFeedView(OPDSBaseView):
     """GET /opds/v1/ — root navigation catalog feed.
-
-    Returns a fixed navigation feed with five entries:
-    Authors, Genres, Series, Books, Search.
-    No database queries are required.
     """
 
     def get(self, request):
@@ -105,13 +100,17 @@ class AuthorListFeedView(OPDSBaseView):
 
     Supports optional ``?filter=<prefix>`` and ``?regex=<regex>`` query
     params.  ``regex`` takes precedence when both are present.  Without
-    either param the full author set is returned (valid but not advertised).
+    either param the full author set is returned.
     Entries are ordered by ``last_name``, ``first_name``, ``middle_name``
     and link to the author detail feed at ``/opds/v1/authors/<pk>/``.
     """
 
     def get(self, request):
-        queryset = Author.objects.order_by('last_name', 'first_name', 'middle_name')
+        queryset = (
+            Author.objects
+            .annotate(book_count=Count('books', distinct=True))
+            .order_by('last_name', 'first_name', 'middle_name')
+        )
 
         regex = request.query_params.get('regex', '')
         filter_val = request.query_params.get('filter', '')
@@ -134,10 +133,8 @@ class AuthorTreeFeedView(OPDSBaseView):
     Without a ``name`` segment: renders the root tree (top-level nodes only,
     no synthetic "all" entry).
 
-    With a ``name`` segment: resolves the named node via
-    ``find_alphabet_node_by_name``; returns HTTP 404 if the node is not found
-    or is a leaf (leaves are never addressable by path).  Renders the node's
-    children with a synthetic "all <prefix>" entry prepended.
+    With a ``name`` segment: renders the ``name`` node's
+    children with a synthetic "all <name>" entry prepended.
     """
 
     def get(self, request, name=None):
@@ -157,9 +154,7 @@ class AuthorTreeFeedView(OPDSBaseView):
 class AuthorDetailFeedView(OPDSBaseView):
     """GET /opds/v1/authors/<int:pk>/ — author detail navigation feed.
 
-    Returns exactly three sub-feed entries:
-    All Books (A–Z), Recently Added, Books by Series.
-    Returns HTTP 404 when the author does not exist.
+    Returns exactly the author sub-feed entries
     """
 
     def get(self, request, pk):
@@ -175,8 +170,6 @@ class AuthorSeriesFeedView(OPDSBaseView):
     book count.  When the author has standalone books (books not linked to any
     series), a "Standalone Books" entry is prepended as the first entry,
     linking to ``/opds/v1/authors/<pk>/books/?series=none``.
-
-    Returns HTTP 404 when the author does not exist.
     """
 
     def get(self, request, pk):
@@ -198,7 +191,9 @@ class AuthorSeriesFeedView(OPDSBaseView):
 
         standalone_count = author.books.filter(bookserieslink__isnull=True).count()
 
-        feed = build_author_series_feed(author, request, series_with_counts, standalone_count)
+        feed = build_author_series_feed(
+            author, request, series_with_counts, standalone_count
+        )
         return Response(feed)
 
 
@@ -211,20 +206,24 @@ class AuthorBooksFeedView(OPDSBaseView):
     Supports optional ``?series=none`` query param: when present, filters to
     books not linked to any series (powers the "Standalone Books" category
     from the series feed).
-
-    Returns HTTP 404 when the author does not exist.
     """
 
     def get(self, request, pk):
         author = get_object_or_404(Author, pk=pk)
 
-        queryset = author.books.prefetch_related('authors').order_by('title')
+        queryset = (
+            author.books
+            .prefetch_related('authors', 'bookserieslink_set__series')
+            .order_by('title')
+        )
 
         if request.query_params.get('series') == 'none':
             queryset = queryset.filter(bookserieslink__isnull=True)
 
         page, pagination = self._paginate(queryset, request)
-        feed = build_author_books_feed(page, pagination, author, request)
+        feed = build_author_books_feed(
+            page, pagination, author, request, thick=wants_thick_entries(request)
+        )
         return Response(feed)
 
 
@@ -233,14 +232,16 @@ class AuthorRecentBooksFeedView(OPDSBaseView):
 
     Returns a paginated acquisition feed of this author's books, sorted by
     ``created_at`` descending (most recently added first).
-
-    Returns HTTP 404 when the author does not exist.
     """
 
     def get(self, request, pk):
         author = get_object_or_404(Author, pk=pk)
 
-        queryset = author.books.prefetch_related('authors').order_by('-created_at')
+        queryset = (
+            author.books
+            .prefetch_related('authors', 'bookserieslink_set__series')
+            .order_by('-created_at')
+        )
 
         page, pagination = self._paginate(queryset, request)
         feed = build_author_books_feed(
@@ -250,5 +251,29 @@ class AuthorRecentBooksFeedView(OPDSBaseView):
             request,
             feed_id=f'tag:bookshelf:author:{author.pk}:books:recent',
             feed_title=f'{author.full_name} — Recently Added',
+            thick=wants_thick_entries(request),
         )
+        return Response(feed)
+
+
+# ---------------------------------------------------------------------------
+# Book views
+# ---------------------------------------------------------------------------
+
+class BookDetailFeedView(OPDSBaseView):
+    """GET /opds/v1/books/<int:pk>/ — complete book-detail acquisition feed.
+
+    Renders the single complete book entry: title, sanitized-XHTML
+    description, ``<calibre:series>`` metadata, cover image + thumbnail, one
+    ``rel="related"`` link per author and per series, and the acquisition link.
+    This feed is the ``rel="alternate"`` target referenced by thin listing
+    entries, so it never carries a self-referential alternate link.
+    """
+
+    def get(self, request, pk):
+        book = get_object_or_404(
+            Book.objects.prefetch_related('authors', 'bookserieslink_set__series'),
+            pk=pk,
+        )
+        feed = build_book_detail_feed(book, request)
         return Response(feed)

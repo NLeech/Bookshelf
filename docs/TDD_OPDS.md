@@ -299,7 +299,25 @@ Acquisition feed entry containing, **in this document order**:
 
 **Thick entry (`?detail=thick`).** Identical to the §6.5 complete Book Detail entry (`<content type="xhtml">` with the sanitized description, `<calibre:series>`/`<calibre:series_index>` per series, `<category>` per genre, full-size cover `http://opds-spec.org/image` + thumbnail, author `rel="related"` links, series `rel="related"` links). Intended for desktop / other readers that do **not** follow the `alternate` link.
 
-**Propagation.** When `?detail=thick` is present, it MUST be preserved on the feed's pagination links (`first`/`next`/`previous`) so paging stays in thick mode. The single complete-entry endpoint `/opds/v1/books/<pk>/` (§6.5) is the `alternate` target and is unaffected by the param.
+**Propagation.** `?detail=thick` is a **sticky, catalog-wide preference**, not a per-feed flag. OPDS clients reach an acquisition feed only by *following links* from navigation feeds — they never synthesise URLs — so the param is useless unless it is threaded through the whole browse path. Therefore, when `?detail=thick` is present on a request it MUST be re-appended to **every link whose target is another browsable catalog feed**, so the preference survives navigation, search, and drill-down until the client reaches (and pages through) a book-listing acquisition feed. It is preserved on:
+
+- every **`subsection`** navigation link in every navigation feed (Root, Alphabet Tree — including the synthetic "all …" entry, Author/Genre/Series results & detail, Author Series);
+- the **search query-template link** (`rel="search"`, `type="application/atom+xml"`, the `…/search/?q={searchTerms}` link) so following or paging search results stays in thick mode;
+- **author/series `rel="related"`** links on thick book entries (they target the author/series navigation feeds);
+- the feed's own **`self`** and **`start`** links and its **pagination** links (`first`/`next`/`previous`).
+
+It is **omitted** from links that are not browsable catalog feeds or are always complete:
+
+- the **`rel="alternate"`** link — its target `/opds/v1/books/<pk>/` (§6.5) is the single complete entry, already thick by definition, and is unaffected by the param;
+- the **acquisition / download** link, the cover **`image`** and **`thumbnail`** links, and the non-book **logo thumbnail** link (not feeds);
+- the **OpenSearch *description* link** (`type="application/opensearchdescription+xml"`) — a static descriptor document, not a feed.
+
+The param changes **only** the verbosity of book entries in book-listing acquisition feeds; it has **no effect on the body** of a navigation feed — it only alters the links that feed emits. Implementation separates the two concerns:
+
+- **Link propagation is param-agnostic.** A single `_with_sticky_params(href, request)` helper re-appends every catalog-wide "sticky" preference — enumerated once in a `STICKY_QUERY_PARAMS` tuple (currently just `('detail',)`) — that is present on the request, respecting any existing query string (so template links like `…/search/?q={searchTerms}` keep their placeholder) and skipping params already on the href (so `self` links built from `request.build_absolute_uri()` are not duplicated). Navigation builders take no per-feature flag; adding a future sticky preference is one tuple entry, with **no serializer signature changes**.
+- **Entry verbosity is the one place that interprets the value.** A single `wants_thick_entries(request)` predicate (the sole reading of `detail == 'thick'`) is called only by the two book acquisition views and passed as the `thick` argument to `build_author_books_feed`, which branches on it to render thin vs complete entries.
+
+DRF's paginator already preserves the query string on `self`/pagination links.
 
 ### 6.6 Book Download (`/opds/v1/books/<pk>/download/`)
 
@@ -423,9 +441,9 @@ The count is rendered in the entry's `<content type="text">` element (e.g. `"42 
 
 Every entry **except book (acquisition) entries** MUST carry the application logo as its thumbnail image:
 
-- `<link rel="http://opds-spec.org/image/thumbnail" type="image/png" href="<abs>/static/png/Logo 64x64x8.png">`
+- `<link rel="http://opds-spec.org/image/thumbnail" type="image/png" href="<abs>/static/img/Logo 64x64x8.png">`
 
-This covers root-feed entries, author entries, series entries, genre entries, alphabet-tree nodes, and search-section entries — i.e. any entry that does **not** carry a `http://opds-spec.org/acquisition` link. Book entries are excluded: they use their own cover/thumbnail (§6.5, §6.5a). The href is an absolute URL built with `request.build_absolute_uri('/static/png/Logo 64x64x8.png')`.
+This covers root-feed entries, author entries, series entries, genre entries, alphabet-tree nodes, and search-section entries — i.e. any entry that does **not** carry a `http://opds-spec.org/acquisition` link. Book entries are excluded: they use their own cover/thumbnail (§6.5, §6.5a). The href is an absolute URL built with `request.build_absolute_uri('/static/img/Logo 64x64x8.png')`.
 
 ---
 
@@ -813,6 +831,25 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 
 ---
 
+#### `OPDSThickPropagationTest`
+
+**Fixture:** canonical dataset via `create_test_dataset()`. Verifies the §6.5a **Propagation** rule — that `?detail=thick` is a sticky preference threaded through every browsable-catalog link and omitted from non-feed / always-complete links. Uses the implemented Root + Author feeds; a specific author with books/series is found via `.filter()`. A small helper asserts presence/absence of `detail=thick` in a link's `href` by `rel`.
+
+| # | Test | Assertion |
+|---|------|-----------|
+| 1 | `test_root_subsection_links_preserve_detail` | GET `/opds/v1/?detail=thick`: every entry `<link rel="subsection">` href contains `detail=thick` (Authors, Genres, Series, Books) |
+| 2 | `test_root_search_query_link_preserves_detail` | The Search entry's `rel="search"` `type="application/atom+xml"` link (`…/search/?q={searchTerms}`) contains `detail=thick`; the `type="application/opensearchdescription+xml"` *description* link does **not** |
+| 3 | `test_root_self_and_start_links_preserve_detail` | GET `/opds/v1/?detail=thick`: the feed `<link rel="self">` and `<link rel="start">` hrefs both contain `detail=thick` |
+| 4 | `test_root_logo_thumbnail_link_omits_detail` | The non-book `rel="http://opds-spec.org/image/thumbnail">` logo link never carries `detail=thick` |
+| 5 | `test_author_tree_subsection_links_preserve_detail` | GET `/opds/v1/authors/tree/a/?detail=thick`: every child `subsection` link **and** the synthetic "all a" link href contains `detail=thick` |
+| 6 | `test_author_results_links_preserve_detail` | GET `/opds/v1/authors/?filter=b&detail=thick`: each author entry's detail-feed `subsection` link, plus the `next`/`first` pagination links, contain `detail=thick` |
+| 7 | `test_author_detail_subsection_links_preserve_detail` | GET `/opds/v1/authors/<pk>/?detail=thick`: the Books by Title / New Arrivals / Books by Series `subsection` links all contain `detail=thick` |
+| 8 | `test_author_series_links_preserve_detail` | GET `/opds/v1/authors/<pk>/series/?detail=thick`: the Standalone Books link and every per-series `subsection` link contain `detail=thick` |
+| 9 | `test_detail_survives_drilldown_to_acquisition_feed` | Following the `detail=thick`-bearing Books-by-Title link from the author detail feed lands on `/opds/v1/authors/<pk>/books/?detail=thick`, whose book entries are **complete** (thick) — proves the preference reaches the terminal acquisition feed by link-following alone |
+| 10 | `test_navigation_links_omit_detail_by_default` | Without `?detail=thick`: no `subsection`, search-query, `self`, `start`, or pagination link on any navigation feed carries a `detail` param |
+
+---
+
 #### `OPDSPaginationTest`
 
 **Fixture:** canonical dataset via `create_test_dataset()`. Uses the results endpoints `/opds/v1/authors/?filter=b` (B=58 authors — leaf node) and `/opds/v1/books/?filter=m` (M=43 books — leaf node); no extra data creation needed.
@@ -903,7 +940,7 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 | 7 | `test_book_detail_has_thumbnail_link` | `<link rel="http://opds-spec.org/image/thumbnail">` present |
 | 8 | `test_book_detail_has_series_related_link` | `<link rel="related">` pointing to `/opds/v1/series/<series_1.pk>/` present, with `title` equal to the **series name only** (`"Foundation"`) — **no** `#<sequence_number>` in the link title |
 | 8a | `test_book_detail_author_and_series_related_links_distinguishable` | When the book has both author and series `rel="related"` links, they are distinguishable: author links point to `/opds/v1/authors/<pk>/`, series links to `/opds/v1/series/<pk>/` (asserted by `href` prefix) |
-| 9 | `test_book_detail_no_cover_uses_no_cover_fallback` | book_2 (no cover) → `<link rel="http://opds-spec.org/image">` href ends in `/static/png/no_cover%20600x900.jpeg` and `<link rel="http://opds-spec.org/image/thumbnail">` href ends in `/static/png/no_cover%2040x60.jpeg` (image links are always present; cover-less books fall back to the placeholders, never omit the link) |
+| 9 | `test_book_detail_no_cover_uses_no_cover_fallback` | book_2 (no cover) → `<link rel="http://opds-spec.org/image">` href ends in `/static/img/no_cover%20600x900.jpeg` and `<link rel="http://opds-spec.org/image/thumbnail">` href ends in `/static/img/no_cover%2040x60.jpeg` (image links are always present; cover-less books fall back to the placeholders, never omit the link) |
 | 10 | `test_book_detail_no_acquisition_link_anon` | Anon user → no `<link rel="http://opds-spec.org/acquisition">` |
 | 11 | `test_book_detail_no_acquisition_link_user_no_perm` | `user_no_perm` → no acquisition link |
 | 12 | `test_book_detail_has_acquisition_link_user_with_perm` | `user_with_perm` → acquisition link present, `href="/opds/v1/books/<book_1.pk>/download/"` |
@@ -912,11 +949,11 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 
 #### `OPDSEntryImageTest`
 
-**Fixture:** canonical dataset via `create_test_dataset()`. Cross-cutting test of the "logo for every non-book entry" rule (§8 "Default entry image"). The logo lives at `/static/png/Logo 64x64x8.png`; assertions match the thumbnail link by `rel="http://opds-spec.org/image/thumbnail"` and an `href` ending in the URL-encoded logo path. Book (acquisition) entries are asserted **not** to carry the logo.
+**Fixture:** canonical dataset via `create_test_dataset()`. Cross-cutting test of the "logo for every non-book entry" rule (§8 "Default entry image"). The logo lives at `/static/img/Logo 64x64x8.png`; assertions match the thumbnail link by `rel="http://opds-spec.org/image/thumbnail"` and an `href` ending in the URL-encoded logo path. Book (acquisition) entries are asserted **not** to carry the logo.
 
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_root_feed_entries_have_logo_thumbnail` | Every `<entry>` in `/opds/v1/` has `<link rel="http://opds-spec.org/image/thumbnail" type="image/png">` whose `href` ends in `/static/png/Logo%2064x64x8.png` |
+| 1 | `test_root_feed_entries_have_logo_thumbnail` | Every `<entry>` in `/opds/v1/` has `<link rel="http://opds-spec.org/image/thumbnail" type="image/png">` whose `href` ends in `/static/img/Logo%2064x64x8.png` |
 | 2 | `test_author_list_entries_have_logo_thumbnail` | Every entry in `/opds/v1/authors/` (navigation) carries the logo thumbnail link |
 | 3 | `test_alphabet_tree_entries_have_logo_thumbnail` | Every entry in `/opds/v1/authors/tree/` carries the logo thumbnail link |
 | 4 | `test_genre_root_entries_have_logo_thumbnail` | Every entry in `/opds/v1/genres/` carries the logo thumbnail link |
