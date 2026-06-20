@@ -3,11 +3,13 @@ OPDS v1.2 catalog tests.
 """
 import io
 import xml.etree.ElementTree as ET
+from urllib.parse import quote
 
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.db.models import Exists, OuterRef
 from django.test import TestCase
+from parameterized import parameterized
 from PIL import Image
 
 from bookshelf.tests.base_test import BaseTestCase
@@ -356,16 +358,16 @@ class OPDSAuthorListFeedTest(OPDSThrottleResetMixin, TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_author_tree_sub_node_has_all_entry_first(self):
-        """GET opds:root/authors/tree/a/ → first entry is 'all a'."""
+        """GET opds:root/authors/tree/a/ → first entry is 'all A'."""
         response = self.client.get(f'{OPDS_BASE}authors/tree/a/')
         root = _parse(response)
         entries = root.findall('atom:entry', NS)
         self.assertGreater(len(entries), 0)
         first_title = entries[0].findtext('atom:title', namespaces=NS)
-        self.assertEqual(first_title, 'all a')
+        self.assertEqual(first_title, 'all A')
 
     def test_author_tree_sub_node_all_entry_links_to_filter(self):
-        """'all a' entry in opds:root/authors/tree/a/ links to ?filter=a."""
+        """'all A' entry in opds:root/authors/tree/a/ links to ?filter=a."""
         response = self.client.get(f'{OPDS_BASE}authors/tree/a/')
         root = _parse(response)
         entries = root.findall('atom:entry', NS)
@@ -1081,6 +1083,298 @@ class OPDSBookVerbosityTest(OPDSThrottleResetMixin, TestCase):
         self.assertNotIn('alert(1)', rendered)
 
 
+# ---------------------------------------------------------------------------
+# OPDSBookListFeedTest
+# ---------------------------------------------------------------------------
+
+class OPDSBookListFeedTest(OPDSThrottleResetMixin, TestCase):
+    """Tests for the book alphabet-tree and flat results endpoints.
+
+    Covers the three book browse endpoints:
+    - ``opds:root/books/`` — flat, paginated acquisition results
+    - ``opds:root/books/tree/`` — alphabet tree root (navigation)
+    - ``opds:root/books/tree/<name>/`` — alphabet sub-tree (navigation)
+
+    Fixture: canonical dataset (560 books: A=222, B=167, M=43, П=83,
+    0-9=14, Other=31; no book starts with Z).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        create_test_dataset()
+
+    # ------------------------------------------------------------------
+    # Tree root
+    # ------------------------------------------------------------------
+
+    @parameterized.expand([
+        ('root', 'books/tree/'),       # alphabet tree root
+        ('sub_node', 'books/tree/a/'),  # A=222 is expandable
+    ])
+    def test_book_tree_status_200(self, _name, path):
+        """GET opds:root/books/tree/ and an expandable sub-node → HTTP 200."""
+        response = self.client.get(f'{OPDS_BASE}{path}')
+        self.assertEqual(response.status_code, 200)
+
+    def test_book_tree_is_navigation_feed(self):
+        """GET opds:root/books/tree/ → Content-Type contains kind=navigation."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/')
+        self.assertIn('kind=navigation', response['Content-Type'])
+
+    def test_book_alphabet_root_has_a_entry(self):
+        """GET opds:root/books/tree/ → entry for 'A' with count 222."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/')
+        root = _parse(response)
+        entries = root.findall('atom:entry', NS)
+        a_entry = next(
+            (e for e in entries if e.findtext('atom:title', namespaces=NS) == 'A'),
+            None,
+        )
+        self.assertIsNotNone(a_entry, 'Expected an "A" root entry')
+        self.assertIn('222', a_entry.findtext('atom:content', namespaces=NS))
+
+    def test_book_alphabet_root_no_entry_for_missing_letter(self):
+        """GET opds:root/books/tree/ → no 'Z'/'z' root entry (no Z books)."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/')
+        titles = _get_entry_titles(_parse(response))
+        self.assertNotIn('Z', titles)
+        self.assertNotIn('z', titles)
+
+    def test_book_tree_entries_have_count_in_content(self):
+        """Every opds:root/books/tree/ entry carries its item count in content."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            content = entry.findtext('atom:content', namespaces=NS) or ''
+            self.assertRegex(content, r'\d+', f'Entry content {content!r} has no count')
+
+    # ------------------------------------------------------------------
+    # Tree sub-nodes
+    # ------------------------------------------------------------------
+
+    def test_book_a_is_expanded_subtree(self):
+        """GET opds:root/books/tree/a/ → nav sub-entries, not a flat list of 222."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/a/')
+        titles = set(_get_entry_titles(_parse(response)))
+        self.assertEqual(titles, {'all A', 'Al', 'An', 'Ar'})
+
+    def test_book_tree_al_sub_entries(self):
+        """GET opds:root/books/tree/al/ → entries Ali, All, all Al — no others."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/al/')
+        titles = set(_get_entry_titles(_parse(response)))
+        self.assertEqual(titles, {'all Al', 'Ali', 'All'})
+
+    @parameterized.expand([
+        ('leaf_node', 'm'),       # M=43 ≤ 50 is a leaf, never addressed by path
+        ('nonexistent_node', 'z'),  # no Z node at all
+    ])
+    def test_book_tree_node_returns_404(self, _name, segment):
+        """GET opds:root/books/tree/<leaf|missing>/ → HTTP 404."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/{segment}/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_book_tree_sub_node_has_all_entry_first(self):
+        """GET opds:root/books/tree/a/ → first entry is 'all A' with count 222."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/a/')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        self.assertEqual(entries[0].findtext('atom:title', namespaces=NS), 'all A')
+        self.assertIn('222', entries[0].findtext('atom:content', namespaces=NS))
+
+    def test_book_tree_sub_node_all_entry_links_to_filter(self):
+        """The 'all A' entry in opds:root/books/tree/a/ links to ?filter=a."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/a/')
+        all_entry = _parse(response).findall('atom:entry', NS)[0]
+        hrefs = _get_link_hrefs(all_entry, 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}books/?filter=a') for h in hrefs),
+            msg=f'Expected books/?filter=a in {hrefs}',
+        )
+
+    @parameterized.expand([
+        # Leaf child links to the flat ?filter= results.
+        ('leaf_filter', 'Ar', 'books/?filter=ar'),
+        # Expandable child links to its own sub-tree.
+        ('expandable_subtree', 'Al', 'books/tree/al/'),
+    ])
+    def test_book_tree_child_links_to(self, _name, child_title, href_suffix):
+        """Each child in opds:root/books/tree/a/ links to its proper target."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/a/')
+        entries = _parse(response).findall('atom:entry', NS)
+        child = next(
+            e for e in entries
+            if e.findtext('atom:title', namespaces=NS) == child_title
+        )
+        hrefs = _get_link_hrefs(child, 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}{href_suffix}') for h in hrefs),
+            msg=f'Expected {href_suffix} in {hrefs}',
+        )
+
+    def test_book_tree_root_has_other_entry_linking_to_subtree(self):
+        """GET opds:root/books/tree/ → 'Other' entry (count 31) links to tree/other/."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/')
+        entries = _parse(response).findall('atom:entry', NS)
+        other = next(
+            (e for e in entries if e.findtext('atom:title', namespaces=NS) == 'Other'),
+            None,
+        )
+        self.assertIsNotNone(other, 'Expected an "Other" root entry')
+        self.assertIn('31', other.findtext('atom:content', namespaces=NS))
+        hrefs = _get_link_hrefs(other, 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}books/tree/other/') for h in hrefs),
+            msg=f'Expected books/tree/other/ in {hrefs}',
+        )
+
+    def test_book_tree_other_subtree_all_entry_uses_regex(self):
+        """GET opds:root/books/tree/other/ → first entry 'all Other' links via ?regex=."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/other/')
+        self.assertEqual(response.status_code, 200)
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        self.assertEqual(entries[0].findtext('atom:title', namespaces=NS), 'all Other')
+        self.assertIn('31', entries[0].findtext('atom:content', namespaces=NS))
+        hrefs = _get_link_hrefs(entries[0], 'subsection')
+        self.assertTrue(
+            any(f'{OPDS_BASE}books/?regex=' in h for h in hrefs),
+            msg=f'Expected a books/?regex= results link in {hrefs}',
+        )
+
+    def test_book_tree_entries_have_logo_thumbnail(self):
+        """Every opds:root/books/tree/ entry carries the logo thumbnail link."""
+        response = self.client.get(f'{OPDS_BASE}books/tree/')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            hrefs = _get_link_hrefs(entry, THUMBNAIL_REL)
+            self.assertTrue(
+                any(h.endswith(LOGO_HREF_SUFFIX) for h in hrefs),
+                msg=f'Entry missing logo thumbnail: {hrefs}',
+            )
+
+    # ------------------------------------------------------------------
+    # Flat results
+    # ------------------------------------------------------------------
+
+    def test_book_results_is_acquisition_feed(self):
+        """GET opds:root/books/?filter=m → Content-Type contains kind=acquisition."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m')
+        self.assertIn('kind=acquisition', response['Content-Type'])
+
+    def test_book_results_by_filter_status_200(self):
+        """GET opds:root/books/?filter=m → HTTP 200 (M=43, leaf)."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m')
+        self.assertEqual(response.status_code, 200)
+
+    def test_book_results_has_correct_count(self):
+        """GET opds:root/books/?filter=m → 20 entries (page 1 of 43)."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertEqual(len(entries), 20)
+
+    @parameterized.expand([
+        # filter= matches a title prefix.
+        ('filter_m', 'books/?filter=m', 43),
+        # Cyrillic filter, percent-encoded exactly as a real OPDS client sends it.
+        ('cyrillic_filter', 'books/?filter=' + quote('п'), 83),
+        # regex= matches via a full regular expression.
+        ('digits_regex', 'books/?regex=^[0-9]', 14),
+        # regex= takes precedence over filter= when both are present.
+        ('regex_beats_filter', 'books/?filter=0-9&regex=^[0-9]', 14),
+    ])
+    def test_book_results_count_across_pages(self, _name, path, expected):
+        """GET opds:root/books/ with filter/regex → expected total across pages."""
+        total = _count_all_pages(self.client, f'{OPDS_BASE}{path}')
+        self.assertEqual(total, expected)
+
+    def test_book_results_excludes_other_letter(self):
+        """GET opds:root/books/?filter=m → no title starting with 'B'."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m')
+        titles = _get_entry_titles(_parse(response))
+        self.assertTrue(titles)
+        for title in titles:
+            self.assertFalse(
+                title.lower().startswith('b'),
+                msg=f'Unexpected non-M title {title!r} in filter=m results',
+            )
+
+    def test_book_results_sorted_by_title(self):
+        """Entries in opds:root/books/?filter=m are ordered by title ascending."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m')
+        titles = _get_entry_titles(_parse(response))
+        self.assertEqual(titles, sorted(titles, key=str.lower))
+
+    def test_book_results_empty_filter_returns_empty_feed(self):
+        """GET opds:root/books/?filter=z → HTTP 200 with zero entries."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=z')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(_parse(response).findall('atom:entry', NS)), 0)
+
+    def test_book_results_full_set_no_filter_paginated(self):
+        """GET opds:root/books/ (no params) → 200 with a full first page of 20."""
+        response = self.client.get(f'{OPDS_BASE}books/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(_parse(response).findall('atom:entry', NS)), 20)
+
+    def test_book_results_entry_links_to_book_detail(self):
+        """Each thin entry's rel=alternate link points to opds:root/books/<pk>/."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            entry_id = entry.findtext('atom:id', namespaces=NS) or ''
+            pk = entry_id.split(':')[-1]
+            alt = _links_by_rel(entry, 'alternate')
+            self.assertEqual(len(alt), 1)
+            self.assertTrue(alt[0].get('href', '').endswith(f'{OPDS_BASE}books/{pk}/'))
+
+    def test_book_results_acquisition_link_always_rendered(self):
+        """Every opds:root/books/ entry exposes exactly one acquisition link."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertEqual(len(_links_by_rel(entry, ACQUISITION_REL)), 1)
+
+    def test_book_results_entries_thin_by_default(self):
+        """GET opds:root/books/?filter=m → thin entries (no content/image/related)."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertIsNone(entry.find('atom:content', NS))
+            self.assertEqual(len(_links_by_rel(entry, IMAGE_REL)), 0)
+            self.assertEqual(len(_links_by_rel(entry, 'related')), 0)
+            self.assertEqual(len(_links_by_rel(entry, THUMBNAIL_REL)), 1)
+
+    def test_book_results_thick_param_makes_entries_complete(self):
+        """GET opds:root/books/?filter=m&detail=thick → complete entries."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m&detail=thick')
+        entries = _parse(response).findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertEqual(len(_links_by_rel(entry, IMAGE_REL)), 1)
+            self.assertEqual(len(_links_by_rel(entry, 'alternate')), 1)
+
+    def test_book_results_thick_param_propagates_to_pagination(self):
+        """GET opds:root/books/?filter=m&detail=thick → detail=thick on next link."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m&detail=thick')
+        next_links = _get_link_hrefs(_parse(response), 'next')
+        self.assertTrue(next_links, 'Expected a paginated feed with a next link')
+        for href in next_links:
+            self.assertIn('detail=thick', href)
+
+    def test_book_results_thin_pagination_links_have_no_detail(self):
+        """GET opds:root/books/?filter=m → pagination links carry no detail param."""
+        response = self.client.get(f'{OPDS_BASE}books/?filter=m')
+        next_links = _get_link_hrefs(_parse(response), 'next')
+        self.assertTrue(next_links, 'Expected a paginated feed with a next link')
+        for href in next_links:
+            self.assertNotIn('detail=', href)
+
+
 class OPDSThickPropagationTest(OPDSThrottleResetMixin, TestCase):
     """Tests the §6.5a Propagation rule for the sticky ``?detail=thick`` flag.
 
@@ -1174,7 +1468,7 @@ class OPDSThickPropagationTest(OPDSThrottleResetMixin, TestCase):
         """Every author-tree child and the synthetic "all" link carry detail=thick."""
         root = _parse(self.client.get(f'{OPDS_BASE}authors/tree/a/?detail=thick'))
         hrefs = self._subsection_hrefs(root)
-        self.assertGreater(len(hrefs), 1)  # synthetic "all a" + children
+        self.assertGreater(len(hrefs), 1)  # synthetic "all A" + children
         for href in hrefs:
             self.assertIn('detail=thick', href)
 

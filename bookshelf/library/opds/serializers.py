@@ -379,7 +379,7 @@ def build_author_tree_feed(node: AlphabetTree, request: Request) -> FeedDict:
 
     # For sub-tree nodes (not root), prepend synthetic "all <prefix>" entry.
     if node.name:
-        all_title = 'all Other' if node.name == 'other' else f'all {node.name}'
+        all_title = f'all {node}'
         if node.filter:
             all_href = opds_base + f'authors/?filter={node.filter}'
         else:
@@ -769,33 +769,161 @@ def _build_book_entry(
     return entry
 
 
-def build_author_books_feed(
+def _build_book_tree_child_href(
+    child: AlphabetTree, opds_base: str, base_url: str,
+) -> str:
+    """Return the link href for a book tree child entry.
+
+    Expandable nodes (have children) link to the sub-tree URL.
+    Leaf nodes with a filter link to the flat results with ?filter=.
+    Leaf nodes with only a regex link to the flat results with ?regex= (URL-encoded).
+
+    Args:
+        child: An AlphabetTree node.
+        opds_base: Absolute OPDS catalog base URL (see :func:`_opds_base`).
+        base_url: The path prefix for this tree (``'books'`` for the main book
+            tree, ``'genres/<pk>/books'`` for the genre-scoped tree).
+
+    Returns:
+        The href string for this child's navigation link.
+    """
+    if child.entries:
+        return opds_base + f'{base_url}/tree/{child.name}/'
+    elif child.filter:
+        return opds_base + f'{base_url}/?filter={child.filter}'
+    else:
+        return opds_base + f'{base_url}/?regex={_url_encode_regex(child.regex)}'
+
+
+def build_book_tree_feed(
+    node: AlphabetTree, request: Request, base_url: str = 'books',
+) -> FeedDict:
+    """Build a navigation alphabet-tree feed for books.
+
+    When ``node.name`` is ``''`` (the root AlphabetTree), renders its direct
+    children with no synthetic "all" entry.  When ``node.name`` is non-empty
+    (a named sub-tree node such as ``'a'`` or ``'other'``), prepends a
+    synthetic ``"all <name>"`` entry as the first child.
+
+    Args:
+        node: An AlphabetTree node — either the root or a named expandable node.
+        request: The current HTTP request.
+        base_url: The path prefix for this tree (``'books'`` for the main book
+            tree, ``'genres/<pk>/books'`` for the genre-scoped tree).  The same
+            builder serves both.
+
+    Returns:
+        A feed dict conforming to the feed dict contract.
+    """
+    opds_base = _opds_base(request)
+    start_link = _with_sticky_params(opds_base, request)
+
+    id_base = f'tag:bookshelf:{base_url.replace("/", ":")}'
+
+    if not node.name:
+        feed_id = id_base
+        feed_title = 'Books'
+        self_link = _with_sticky_params(opds_base + f'{base_url}/tree/', request)
+    else:
+        feed_id = f'{id_base}:tree:{node.name}'
+        feed_title = f'Books — {str(node)}'
+        self_link = _with_sticky_params(
+            opds_base + f'{base_url}/tree/{node.name}/', request
+        )
+
+    entries: list[EntryDict] = []
+
+    # For sub-tree nodes (not root), prepend synthetic "all <prefix>" entry.
+    if node.name:
+        all_title = f'all {node}'
+        if node.filter:
+            all_href = opds_base + f'{base_url}/?filter={node.filter}'
+        else:
+            all_href = opds_base + f'{base_url}/?regex={_url_encode_regex(node.regex)}'
+        all_href = _with_sticky_params(all_href, request)
+
+        entries.append({
+            'id': f'{id_base}:tree:{node.name}:all',
+            'title': all_title,
+            'updated': None,
+            'content': str(node.quantity),
+            'summary': None,
+            'authors': [],
+            'links': [
+                {
+                    'rel': 'subsection',
+                    'href': all_href,
+                    'type': NAV_TYPE,
+                    'title': None,
+                }
+            ],
+        })
+
+    # Render child entries.
+    for child in node.entries:
+        href = _with_sticky_params(
+            _build_book_tree_child_href(child, opds_base, base_url), request
+        )
+        entries.append({
+            'id': f'{id_base}:tree:{child.name}',
+            'title': str(child),
+            'updated': None,
+            'content': str(child.quantity),
+            'summary': None,
+            'authors': [],
+            'links': [
+                {
+                    'rel': 'subsection',
+                    'href': href,
+                    'type': NAV_TYPE,
+                    'title': None,
+                }
+            ],
+        })
+
+    for entry in entries:
+        entry['links'].append(_logo_thumbnail_link(request))
+
+    return {
+        'id': feed_id,
+        'title': feed_title,
+        'updated': now(),
+        'kind': 'navigation',
+        'self_link': self_link,
+        'start_link': start_link,
+        'pagination': None,
+        'entries': entries,
+    }
+
+
+def build_book_results_feed(
     books_page: list[Book],
     pagination: PaginationDict | None,
-    author: Author,
     request: Request,
-    feed_id: str | None = None,
-    feed_title: str | None = None,
+    feed_id: str = 'tag:bookshelf:books',
+    feed_title: str = 'Books',
     thick: bool = False,
 ) -> FeedDict:
-    """Build a paginated acquisition feed of an author's books.
+    """Build a paginated acquisition feed of books.
 
-    Used by both ``AuthorBooksFeedView`` (Books by Title) and
-    ``AuthorRecentBooksFeedView`` (New Arrivals).  Callers may override
-    ``feed_id`` and ``feed_title`` to distinguish the two feeds.
+    This is the single builder for every flat book listing in the catalog —
+    the top-level ``opds:root/books/`` results (with optional
+    ``?filter=``/``?regex=``) as well as the author-, series-, and
+    genre-scoped book lists.  Scoped callers pass ``feed_id``/``feed_title`` to
+    label their feed; the defaults cover the top-level books endpoint.
 
-    Book entries are thin by default; ``thick=True`` (driven by the
-    ``?detail=thick`` query param) renders the complete book shape inline.
-    Each entry always includes an acquisition link pointing to the book's
-    download endpoint.
+    Book entries are thin by default; ``thick=True`` (driven by
+    ``?detail=thick``) renders the complete book shape inline.  Per the
+    catalog-is-fully-browsable convention every entry carries the acquisition
+    link; download permission is enforced at the download endpoint.
 
     Args:
         books_page: A list of Book instances for the current page.
-        pagination: Pagination dict or None.
-        author: The Author model instance.
+        pagination: Pagination dict with 'first', 'next', 'previous' keys
+            (values are URLs or None), or None when there is no pagination.
         request: The current HTTP request.
-        feed_id: Override the default feed ``<id>`` tag URI.
-        feed_title: Override the default feed title.
+        feed_id: The feed ``<id>`` tag URI (defaults to the top-level books id).
+        feed_title: The feed title (defaults to ``'Books'``).
         thick: Render complete (thick) entries when True.
 
     Returns:
@@ -804,11 +932,6 @@ def build_author_books_feed(
     opds_base = _opds_base(request)
     self_link = _with_sticky_params(request.build_absolute_uri(), request)
     start_link = _with_sticky_params(opds_base, request)
-
-    if feed_id is None:
-        feed_id = f'tag:bookshelf:author:{author.pk}:books'
-    if feed_title is None:
-        feed_title = f'{author.full_name} — Books'
 
     entries: list[EntryDict] = [
         _build_book_entry(book, request, opds_base, thick)

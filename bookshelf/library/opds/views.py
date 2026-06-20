@@ -13,12 +13,13 @@ from library.services import find_alphabet_node_by_name, get_alphabet_tree
 
 from .renderers import OPDSRenderer
 from .serializers import (
-    build_author_books_feed,
     build_author_detail_feed,
     build_author_results_feed,
     build_author_series_feed,
     build_author_tree_feed,
     build_book_detail_feed,
+    build_book_results_feed,
+    build_book_tree_feed,
     build_root_feed,
     wants_thick_entries,
 )
@@ -221,8 +222,13 @@ class AuthorBooksFeedView(OPDSBaseView):
             queryset = queryset.filter(bookserieslink__isnull=True)
 
         page, pagination = self._paginate(queryset, request)
-        feed = build_author_books_feed(
-            page, pagination, author, request, thick=wants_thick_entries(request)
+        feed = build_book_results_feed(
+            page,
+            pagination,
+            request,
+            feed_id=f'tag:bookshelf:author:{author.pk}:books',
+            feed_title=f'{author.full_name} — Books',
+            thick=wants_thick_entries(request),
         )
         return Response(feed)
 
@@ -244,10 +250,9 @@ class AuthorRecentBooksFeedView(OPDSBaseView):
         )
 
         page, pagination = self._paginate(queryset, request)
-        feed = build_author_books_feed(
+        feed = build_book_results_feed(
             page,
             pagination,
-            author,
             request,
             feed_id=f'tag:bookshelf:author:{author.pk}:books:recent',
             feed_title=f'{author.full_name} — Recently Added',
@@ -259,6 +264,67 @@ class AuthorRecentBooksFeedView(OPDSBaseView):
 # ---------------------------------------------------------------------------
 # Book views
 # ---------------------------------------------------------------------------
+
+class BookListFeedView(OPDSBaseView):
+    """GET opds:root/books/ — flat, paginated book acquisition feed.
+
+    Supports optional ``?filter=<prefix>`` and ``?regex=<regex>`` query
+    params.  ``regex`` takes precedence when both are present (matching
+    ``BookListView.get_queryset``).  Without either param the full book set is
+    returned.  Entries are ordered by ``title`` and are thin by default;
+    ``?detail=thick`` renders the complete book shape inline (the preference is
+    preserved across pagination links).
+    """
+
+    def get(self, request):
+        queryset = (
+            Book.objects
+            .prefetch_related('authors', 'bookserieslink_set__series')
+            .order_by('title')
+        )
+
+        regex = request.query_params.get('regex', '')
+        filter_val = request.query_params.get('filter', '')
+
+        if regex:
+            queryset = queryset.filter(title__iregex=regex)
+        elif filter_val:
+            queryset = queryset.filter(title__istartswith=filter_val)
+
+        page, pagination = self._paginate(queryset, request)
+        feed = build_book_results_feed(
+            page, pagination, request, thick=wants_thick_entries(request)
+        )
+        return Response(feed)
+
+
+class BookTreeFeedView(OPDSBaseView):
+    """GET opds:root/books/tree/ and opds:root/books/tree/<str:name>/.
+
+    Serves the alphabet tree navigation feed for books.
+
+    Without a ``name`` segment: renders the root tree (top-level nodes only,
+    no synthetic "all" entry).
+
+    With a ``name`` segment: renders the ``name`` node's children with a
+    synthetic "all <name>" entry prepended.  Returns HTTP 404 when ``name``
+    does not resolve to an expandable node (leaf nodes are never addressed by
+    a path segment).
+    """
+
+    def get(self, request, name=None):
+        tree = get_alphabet_tree(Book.objects.all(), 'title')
+
+        if name is None:
+            node = tree
+        else:
+            node = find_alphabet_node_by_name(tree, name)
+            if node is None or not node.entries:
+                raise Http404
+
+        feed = build_book_tree_feed(node, request)
+        return Response(feed)
+
 
 class BookDetailFeedView(OPDSBaseView):
     """GET opds:root/books/<int:pk>/ — complete book-detail acquisition feed.
