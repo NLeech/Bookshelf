@@ -16,11 +16,10 @@ from .serializers import (
     build_author_detail_feed,
     build_author_results_feed,
     build_author_series_feed,
-    build_author_tree_feed,
     build_book_detail_feed,
     build_book_results_feed,
-    build_book_tree_feed,
     build_root_feed,
+    build_tree_feed,
     wants_thick_entries,
 )
 from .throttles import OPDSDayRateThrottle, OPDSMinuteRateThrottle
@@ -148,7 +147,7 @@ class AuthorTreeFeedView(OPDSBaseView):
             if node is None or not node.entries:
                 raise Http404
 
-        feed = build_author_tree_feed(node, request)
+        feed = build_tree_feed(node, request, base_url='authors', entity_label='Authors')
         return Response(feed)
 
 
@@ -322,7 +321,7 @@ class BookTreeFeedView(OPDSBaseView):
             if node is None or not node.entries:
                 raise Http404
 
-        feed = build_book_tree_feed(node, request)
+        feed = build_tree_feed(node, request)
         return Response(feed)
 
 

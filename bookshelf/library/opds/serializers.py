@@ -174,6 +174,53 @@ def _logo_thumbnail_link(request: Request) -> LinkDict:
     }
 
 
+def _nav_entry(
+    entry_id: str,
+    title: str,
+    href: str,
+    request: Request,
+    *,
+    link_type: str = NAV_TYPE,
+    content: str | None = None,
+    updated: datetime | None = None,
+) -> EntryDict:
+    """Build a navigation ``<entry>`` with one ``subsection`` link + logo thumbnail.
+
+    Centralizes the shape shared by every non-book navigation entry across the
+    catalog (root, alphabet trees, author results/detail/series): a single
+    ``rel="subsection"`` link followed by the application-logo thumbnail.
+
+    Args:
+        entry_id: The entry ``<id>`` tag URI.
+        title: The entry ``<title>``.
+        href: The (already sticky-annotated) subsection link href.
+        request: The current HTTP request (used to build the logo link).
+        link_type: The subsection link ``type`` (``NAV_TYPE`` or ``ACQ_TYPE``).
+        content: Optional ``<content>`` text.
+        updated: Optional ``<updated>`` timestamp.
+
+    Returns:
+        An entry dict conforming to the feed dict contract.
+    """
+    return {
+        'id': entry_id,
+        'title': title,
+        'updated': updated,
+        'content': content,
+        'summary': None,
+        'authors': [],
+        'links': [
+            {
+                'rel': 'subsection',
+                'href': href,
+                'type': link_type,
+                'title': None,
+            },
+            _logo_thumbnail_link(request),
+        ],
+    }
+
+
 def _book_thumbnail_url(book: Book, request: Request) -> str:
     """Return the absolute cover-thumbnail URL for a book.
 
@@ -213,70 +260,26 @@ def build_root_feed(request: Request) -> FeedDict:
     feed_updated = now()
 
     entries: list[EntryDict] = [
-        {
-            'id': 'tag:bookshelf:authors',
-            'title': 'Authors',
-            'updated': feed_updated,
-            'content': 'Browse by author',
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': _with_sticky_params(opds_base + 'authors/tree/', request),
-                    'type': NAV_TYPE,
-                    'title': None,
-                },
-            ],
-        },
-        {
-            'id': 'tag:bookshelf:genres',
-            'title': 'Genres',
-            'updated': feed_updated,
-            'content': 'Browse by genre',
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': _with_sticky_params(opds_base + 'genres/', request),
-                    'type': NAV_TYPE,
-                    'title': None,
-                },
-            ],
-        },
-        {
-            'id': 'tag:bookshelf:series',
-            'title': 'Series',
-            'updated': feed_updated,
-            'content': 'Browse by series',
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': _with_sticky_params(opds_base + 'series/tree/', request),
-                    'type': NAV_TYPE,
-                    'title': None,
-                },
-            ],
-        },
-        {
-            'id': 'tag:bookshelf:books',
-            'title': 'Books',
-            'updated': feed_updated,
-            'content': 'Browse by title',
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': _with_sticky_params(opds_base + 'books/tree/', request),
-                    'type': NAV_TYPE,
-                    'title': None,
-                },
-            ],
-        },
+        _nav_entry(
+            'tag:bookshelf:authors', 'Authors',
+            _with_sticky_params(opds_base + 'authors/tree/', request), request,
+            content='Browse by author', updated=feed_updated,
+        ),
+        _nav_entry(
+            'tag:bookshelf:genres', 'Genres',
+            _with_sticky_params(opds_base + 'genres/', request), request,
+            content='Browse by genre', updated=feed_updated,
+        ),
+        _nav_entry(
+            'tag:bookshelf:series', 'Series',
+            _with_sticky_params(opds_base + 'series/tree/', request), request,
+            content='Browse by series', updated=feed_updated,
+        ),
+        _nav_entry(
+            'tag:bookshelf:books', 'Books',
+            _with_sticky_params(opds_base + 'books/tree/', request), request,
+            content='Browse by title', updated=feed_updated,
+        ),
         {
             'id': 'tag:bookshelf:search',
             'title': 'Search',
@@ -297,12 +300,10 @@ def build_root_feed(request: Request) -> FeedDict:
                     'type': ATOM_TYPE,
                     'title': None,
                 },
+                _logo_thumbnail_link(request),
             ],
         },
     ]
-
-    for entry in entries:
-        entry['links'].append(_logo_thumbnail_link(request))
 
     return {
         'id': 'tag:bookshelf:root',
@@ -326,30 +327,59 @@ def _url_encode_regex(regex: str) -> str:
     return quote(regex, safe='')
 
 
-def _build_author_tree_child_href(child: AlphabetTree, opds_base: str) -> str:
-    """Return the link href for an author tree child entry.
+def _leaf_results_href(node: AlphabetTree, opds_base: str, base_url: str) -> str:
+    """Return the flat-results href for a leaf (or "all") alphabet node.
+
+    Nodes carrying a ``filter`` link to ``?filter=``; nodes with only a
+    ``regex`` link to ``?regex=`` (URL-encoded).  Shared by both the leaf
+    child entries and the synthetic "all <name>" entry of every alphabet tree.
+
+    Args:
+        node: An AlphabetTree leaf (or named sub-tree) node.
+        opds_base: Absolute OPDS catalog base URL (see :func:`_opds_base`).
+        base_url: The path prefix for this tree (e.g. ``'authors'``, ``'books'``).
+
+    Returns:
+        The flat-results href string for this node.
+    """
+    if node.filter:
+        return opds_base + f'{base_url}/?filter={node.filter}'
+    return opds_base + f'{base_url}/?regex={_url_encode_regex(node.regex)}'
+
+
+def _build_tree_child_href(
+    child: AlphabetTree, opds_base: str, base_url: str,
+) -> str:
+    """Return the link href for an alphabet tree child entry.
 
     Expandable nodes (have children) link to the sub-tree URL.
-    Leaf nodes with a filter link to the flat results with ?filter=.
-    Leaf nodes with only a regex link to the flat results with ?regex= (URL-encoded).
+    Leaf nodes link to the flat results via :func:`_leaf_results_href`.
 
     Args:
         child: An AlphabetTree node.
         opds_base: Absolute OPDS catalog base URL (see :func:`_opds_base`).
+        base_url: The path prefix for this tree (e.g. ``'authors'``, ``'books'``).
 
     Returns:
         The href string for this child's navigation link.
     """
     if child.entries:
-        return opds_base + f'authors/tree/{child.name}/'
-    elif child.filter:
-        return opds_base + f'authors/?filter={child.filter}'
-    else:
-        return opds_base + f'authors/?regex={_url_encode_regex(child.regex)}'
+        return opds_base + f'{base_url}/tree/{child.name}/'
+    return _leaf_results_href(child, opds_base, base_url)
 
 
-def build_author_tree_feed(node: AlphabetTree, request: Request) -> FeedDict:
-    """Build a navigation alphabet-tree feed for authors.
+def build_tree_feed(
+    node: AlphabetTree,
+    request: Request,
+    *,
+    base_url: str = 'books',
+    entity_label: str = 'Books',
+) -> FeedDict:
+    """Build a navigation alphabet-tree feed for any browsable entity.
+
+    The single builder for every alphabet tree in the catalog — authors
+    (``base_url='authors'``), the top-level book tree (``base_url='books'``),
+    and the genre-scoped book tree (``base_url='genres/<pk>/books'``).
 
     When ``node.name`` is ``''`` (the root AlphabetTree), renders its direct
     children with no synthetic "all" entry.  When ``node.name`` is non-empty
@@ -359,6 +389,10 @@ def build_author_tree_feed(node: AlphabetTree, request: Request) -> FeedDict:
     Args:
         node: An AlphabetTree node — either the root or a named expandable node.
         request: The current HTTP request.
+        base_url: The path prefix for this tree (e.g. ``'authors'``, ``'books'``,
+            ``'genres/<pk>/books'``).
+        entity_label: Human-readable label used in the feed title
+            (e.g. ``'Authors'``, ``'Books'``).
 
     Returns:
         A feed dict conforming to the feed dict contract.
@@ -366,65 +400,40 @@ def build_author_tree_feed(node: AlphabetTree, request: Request) -> FeedDict:
     opds_base = _opds_base(request)
     start_link = _with_sticky_params(opds_base, request)
 
+    id_base = f'tag:bookshelf:{base_url.replace("/", ":")}'
+
     if not node.name:
-        feed_id = 'tag:bookshelf:authors'
-        feed_title = 'Authors'
-        self_link = _with_sticky_params(opds_base + 'authors/tree/', request)
+        feed_id = id_base
+        feed_title = entity_label
+        self_link = _with_sticky_params(opds_base + f'{base_url}/tree/', request)
     else:
-        feed_id = f'tag:bookshelf:authors:tree:{node.name}'
-        feed_title = f'Authors — {str(node)}'
-        self_link = _with_sticky_params(opds_base + f'authors/tree/{node.name}/', request)
+        feed_id = f'{id_base}:tree:{node.name}'
+        feed_title = f'{entity_label} — {str(node)}'
+        self_link = _with_sticky_params(
+            opds_base + f'{base_url}/tree/{node.name}/', request
+        )
 
     entries: list[EntryDict] = []
 
     # For sub-tree nodes (not root), prepend synthetic "all <prefix>" entry.
     if node.name:
-        all_title = f'all {node}'
-        if node.filter:
-            all_href = opds_base + f'authors/?filter={node.filter}'
-        else:
-            all_href = opds_base + f'authors/?regex={_url_encode_regex(node.regex)}'
-        all_href = _with_sticky_params(all_href, request)
-
-        entries.append({
-            'id': f'tag:bookshelf:authors:tree:{node.name}:all',
-            'title': all_title,
-            'updated': None,
-            'content': str(node.quantity),
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': all_href,
-                    'type': NAV_TYPE,
-                    'title': None,
-                }
-            ],
-        })
+        all_href = _with_sticky_params(
+            _leaf_results_href(node, opds_base, base_url), request
+        )
+        entries.append(_nav_entry(
+            f'{id_base}:tree:{node.name}:all', f'all {node}', all_href, request,
+            content=str(node.quantity),
+        ))
 
     # Render child entries.
     for child in node.entries:
-        href = _with_sticky_params(_build_author_tree_child_href(child, opds_base), request)
-        entries.append({
-            'id': f'tag:bookshelf:authors:tree:{child.name}',
-            'title': str(child),
-            'updated': None,
-            'content': str(child.quantity),
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': href,
-                    'type': NAV_TYPE,
-                    'title': None,
-                }
-            ],
-        })
-
-    for entry in entries:
-        entry['links'].append(_logo_thumbnail_link(request))
+        href = _with_sticky_params(
+            _build_tree_child_href(child, opds_base, base_url), request
+        )
+        entries.append(_nav_entry(
+            f'{id_base}:tree:{child.name}', str(child), href, request,
+            content=str(child.quantity),
+        ))
 
     return {
         'id': feed_id,
@@ -462,23 +471,12 @@ def build_author_results_feed(
     start_link = _with_sticky_params(opds_base, request)
 
     entries: list[EntryDict] = [
-        {
-            'id': f'tag:bookshelf:author:{author.pk}',
-            'title': author.full_name,
-            'updated': author.updated_at,
-            'content': f'{getattr(author, "book_count", 0)} books',
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': _with_sticky_params(opds_base + f'authors/{author.pk}/', request),
-                    'type': NAV_TYPE,
-                    'title': None,
-                },
-                _logo_thumbnail_link(request),
-            ],
-        }
+        _nav_entry(
+            f'tag:bookshelf:author:{author.pk}', author.full_name,
+            _with_sticky_params(opds_base + f'authors/{author.pk}/', request), request,
+            content=f'{getattr(author, "book_count", 0)} books',
+            updated=author.updated_at,
+        )
         for author in authors_page
     ]
 
@@ -514,57 +512,27 @@ def build_author_detail_feed(author: Author, request: Request) -> FeedDict:
     start_link = _with_sticky_params(opds_base, request)
 
     entries: list[EntryDict] = [
-        {
-            'id': f'tag:bookshelf:author:{author.pk}:books',
-            'title': 'Books by Title',
-            'updated': author.updated_at,
-            'content': 'All books by this author, sorted alphabetically',
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': _with_sticky_params(opds_base + f'authors/{author.pk}/books/', request),
-                    'type': ACQ_TYPE,
-                    'title': None,
-                },
-                _logo_thumbnail_link(request),
-            ],
-        },
-        {
-            'id': f'tag:bookshelf:author:{author.pk}:books:recent',
-            'title': 'New Arrivals',
-            'updated': author.updated_at,
-            'content': 'Recently added books by this author',
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': _with_sticky_params(opds_base + f'authors/{author.pk}/books/recent/', request),
-                    'type': ACQ_TYPE,
-                    'title': None,
-                },
-                _logo_thumbnail_link(request),
-            ],
-        },
-        {
-            'id': f'tag:bookshelf:author:{author.pk}:series',
-            'title': 'Books by Series',
-            'updated': author.updated_at,
-            'content': "Browse this author's books by series",
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': _with_sticky_params(opds_base + f'authors/{author.pk}/series/', request),
-                    'type': NAV_TYPE,
-                    'title': None,
-                },
-                _logo_thumbnail_link(request),
-            ],
-        },
+        _nav_entry(
+            f'tag:bookshelf:author:{author.pk}:books', 'Books by Title',
+            _with_sticky_params(opds_base + f'authors/{author.pk}/books/', request),
+            request, link_type=ACQ_TYPE,
+            content='All books by this author, sorted alphabetically',
+            updated=author.updated_at,
+        ),
+        _nav_entry(
+            f'tag:bookshelf:author:{author.pk}:books:recent', 'New Arrivals',
+            _with_sticky_params(opds_base + f'authors/{author.pk}/books/recent/', request),
+            request, link_type=ACQ_TYPE,
+            content='Recently added books by this author',
+            updated=author.updated_at,
+        ),
+        _nav_entry(
+            f'tag:bookshelf:author:{author.pk}:series', 'Books by Series',
+            _with_sticky_params(opds_base + f'authors/{author.pk}/series/', request),
+            request,
+            content="Browse this author's books by series",
+            updated=author.updated_at,
+        ),
     ]
 
     return {
@@ -609,43 +577,22 @@ def build_author_series_feed(
     entries: list[EntryDict] = []
 
     if standalone_count > 0:
-        entries.append({
-            'id': f'tag:bookshelf:author:{author.pk}:standalone',
-            'title': 'Standalone Books',
-            'updated': author.updated_at,
-            'content': f'{standalone_count} standalone book(s)',
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': _with_sticky_params(opds_base + f'authors/{author.pk}/books/?series=none', request),
-                    'type': ACQ_TYPE,
-                    'title': None,
-                },
-                _logo_thumbnail_link(request),
-            ],
-        })
+        entries.append(_nav_entry(
+            f'tag:bookshelf:author:{author.pk}:standalone', 'Standalone Books',
+            _with_sticky_params(opds_base + f'authors/{author.pk}/books/?series=none', request),
+            request, link_type=ACQ_TYPE,
+            content=f'{standalone_count} standalone book(s)',
+            updated=author.updated_at,
+        ))
 
     for series in series_with_counts:
         count = getattr(series, 'author_book_count', 0)
-        entries.append({
-            'id': f'tag:bookshelf:series:{series.pk}',
-            'title': series.name,
-            'updated': series.updated_at,
-            'content': f'{count} book(s) in this series',
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': _with_sticky_params(opds_base + f'series/{series.pk}/', request),
-                    'type': NAV_TYPE,
-                    'title': None,
-                },
-                _logo_thumbnail_link(request),
-            ],
-        })
+        entries.append(_nav_entry(
+            f'tag:bookshelf:series:{series.pk}', series.name,
+            _with_sticky_params(opds_base + f'series/{series.pk}/', request), request,
+            content=f'{count} book(s) in this series',
+            updated=series.updated_at,
+        ))
 
     return {
         'id': f'tag:bookshelf:author:{author.pk}:series',
@@ -767,133 +714,6 @@ def _build_book_entry(
         entry['content_type'] = 'xhtml'
 
     return entry
-
-
-def _build_book_tree_child_href(
-    child: AlphabetTree, opds_base: str, base_url: str,
-) -> str:
-    """Return the link href for a book tree child entry.
-
-    Expandable nodes (have children) link to the sub-tree URL.
-    Leaf nodes with a filter link to the flat results with ?filter=.
-    Leaf nodes with only a regex link to the flat results with ?regex= (URL-encoded).
-
-    Args:
-        child: An AlphabetTree node.
-        opds_base: Absolute OPDS catalog base URL (see :func:`_opds_base`).
-        base_url: The path prefix for this tree (``'books'`` for the main book
-            tree, ``'genres/<pk>/books'`` for the genre-scoped tree).
-
-    Returns:
-        The href string for this child's navigation link.
-    """
-    if child.entries:
-        return opds_base + f'{base_url}/tree/{child.name}/'
-    elif child.filter:
-        return opds_base + f'{base_url}/?filter={child.filter}'
-    else:
-        return opds_base + f'{base_url}/?regex={_url_encode_regex(child.regex)}'
-
-
-def build_book_tree_feed(
-    node: AlphabetTree, request: Request, base_url: str = 'books',
-) -> FeedDict:
-    """Build a navigation alphabet-tree feed for books.
-
-    When ``node.name`` is ``''`` (the root AlphabetTree), renders its direct
-    children with no synthetic "all" entry.  When ``node.name`` is non-empty
-    (a named sub-tree node such as ``'a'`` or ``'other'``), prepends a
-    synthetic ``"all <name>"`` entry as the first child.
-
-    Args:
-        node: An AlphabetTree node — either the root or a named expandable node.
-        request: The current HTTP request.
-        base_url: The path prefix for this tree (``'books'`` for the main book
-            tree, ``'genres/<pk>/books'`` for the genre-scoped tree).  The same
-            builder serves both.
-
-    Returns:
-        A feed dict conforming to the feed dict contract.
-    """
-    opds_base = _opds_base(request)
-    start_link = _with_sticky_params(opds_base, request)
-
-    id_base = f'tag:bookshelf:{base_url.replace("/", ":")}'
-
-    if not node.name:
-        feed_id = id_base
-        feed_title = 'Books'
-        self_link = _with_sticky_params(opds_base + f'{base_url}/tree/', request)
-    else:
-        feed_id = f'{id_base}:tree:{node.name}'
-        feed_title = f'Books — {str(node)}'
-        self_link = _with_sticky_params(
-            opds_base + f'{base_url}/tree/{node.name}/', request
-        )
-
-    entries: list[EntryDict] = []
-
-    # For sub-tree nodes (not root), prepend synthetic "all <prefix>" entry.
-    if node.name:
-        all_title = f'all {node}'
-        if node.filter:
-            all_href = opds_base + f'{base_url}/?filter={node.filter}'
-        else:
-            all_href = opds_base + f'{base_url}/?regex={_url_encode_regex(node.regex)}'
-        all_href = _with_sticky_params(all_href, request)
-
-        entries.append({
-            'id': f'{id_base}:tree:{node.name}:all',
-            'title': all_title,
-            'updated': None,
-            'content': str(node.quantity),
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': all_href,
-                    'type': NAV_TYPE,
-                    'title': None,
-                }
-            ],
-        })
-
-    # Render child entries.
-    for child in node.entries:
-        href = _with_sticky_params(
-            _build_book_tree_child_href(child, opds_base, base_url), request
-        )
-        entries.append({
-            'id': f'{id_base}:tree:{child.name}',
-            'title': str(child),
-            'updated': None,
-            'content': str(child.quantity),
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'subsection',
-                    'href': href,
-                    'type': NAV_TYPE,
-                    'title': None,
-                }
-            ],
-        })
-
-    for entry in entries:
-        entry['links'].append(_logo_thumbnail_link(request))
-
-    return {
-        'id': feed_id,
-        'title': feed_title,
-        'updated': now(),
-        'kind': 'navigation',
-        'self_link': self_link,
-        'start_link': start_link,
-        'pagination': None,
-        'entries': entries,
-    }
 
 
 def build_book_results_feed(
