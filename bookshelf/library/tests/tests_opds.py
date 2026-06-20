@@ -117,37 +117,19 @@ class OPDSRootFeedTest(OPDSThrottleResetMixin, TestCase):
         self.assertEqual(titles, {'Authors', 'Genres', 'Series', 'Books', 'Search'})
 
     # ------------------------------------------------------------------
-    # 5. Self link
+    # 5./6. Self and start links
     # ------------------------------------------------------------------
 
-    def test_root_feed_self_link(self):
+    @parameterized.expand(['self', 'start'])
+    def test_root_feed_navigation_link(self, rel):
+        """Feed has exactly one <link rel="self"|"start"> ending with opds:root/."""
         _, root = self._get_root()
-        links = root.findall('atom:link', NS)
-        self_links = [
-            lnk for lnk in links if lnk.get('rel') == 'self'
-        ]
-        self.assertEqual(len(self_links), 1, 'Expected exactly one <link rel="self">')
-        href = self_links[0].get('href', '')
+        links = [lnk for lnk in root.findall('atom:link', NS) if lnk.get('rel') == rel]
+        self.assertEqual(len(links), 1, f'Expected exactly one <link rel="{rel}">')
+        href = links[0].get('href', '')
         self.assertTrue(
             href.endswith(OPDS_BASE),
-            msg=f'Self link href {href!r} does not end with {OPDS_BASE}',
-        )
-
-    # ------------------------------------------------------------------
-    # 6. Start link
-    # ------------------------------------------------------------------
-
-    def test_root_feed_start_link(self):
-        _, root = self._get_root()
-        links = root.findall('atom:link', NS)
-        start_links = [
-            lnk for lnk in links if lnk.get('rel') == 'start'
-        ]
-        self.assertEqual(len(start_links), 1, 'Expected exactly one <link rel="start">')
-        href = start_links[0].get('href', '')
-        self.assertTrue(
-            href.endswith(OPDS_BASE),
-            msg=f'Start link href {href!r} does not end with {OPDS_BASE}',
+            msg=f'{rel} link href {href!r} does not end with {OPDS_BASE}',
         )
 
     # ------------------------------------------------------------------
@@ -234,28 +216,19 @@ class OPDSAuthorListFeedTest(OPDSThrottleResetMixin, TestCase):
     def setUpTestData(cls):
         create_test_dataset()
 
-    def test_author_alphabet_root_has_a_entry(self):
-        """GET opds:root/authors/tree/ → feed contains entry for 'A' with count 137."""
+    @parameterized.expand([
+        ('A', '137'),  # A=137 authors
+        ('B', '58'),   # B=58 authors
+    ])
+    def test_author_alphabet_root_has_letter_entry(self, letter, count):
+        """GET opds:root/authors/tree/ → feed contains entry for letter with its count."""
         response = self.client.get(f'{OPDS_BASE}authors/tree/')
         self.assertEqual(response.status_code, 200)
-        root = _parse(response)
-        entries = root.findall('atom:entry', NS)
+        entries = _parse(response).findall('atom:entry', NS)
         titles = [e.findtext('atom:title', namespaces=NS) for e in entries]
-        self.assertIn('A', titles)
-        a_entry = next(e for e in entries if e.findtext('atom:title', namespaces=NS) == 'A')
-        content = a_entry.findtext('atom:content', namespaces=NS)
-        self.assertIn('137', content)
-
-    def test_author_alphabet_root_has_b_entry(self):
-        """GET opds:root/authors/tree/ → feed contains entry for 'B' with count 58."""
-        response = self.client.get(f'{OPDS_BASE}authors/tree/')
-        root = _parse(response)
-        entries = root.findall('atom:entry', NS)
-        titles = [e.findtext('atom:title', namespaces=NS) for e in entries]
-        self.assertIn('B', titles)
-        b_entry = next(e for e in entries if e.findtext('atom:title', namespaces=NS) == 'B')
-        content = b_entry.findtext('atom:content', namespaces=NS)
-        self.assertIn('58', content)
+        self.assertIn(letter, titles)
+        entry = next(e for e in entries if e.findtext('atom:title', namespaces=NS) == letter)
+        self.assertIn(count, entry.findtext('atom:content', namespaces=NS))
 
     def test_author_alphabet_root_no_entry_for_missing_letter(self):
         """GET opds:root/authors/tree/ → feed does NOT contain a 'Z' or 'z' root entry.
@@ -331,14 +304,13 @@ class OPDSAuthorListFeedTest(OPDSThrottleResetMixin, TestCase):
             content = entry.findtext('atom:content', namespaces=NS) or ''
             self.assertEqual(content, f'{expected} books')
 
-    def test_author_list_is_navigation_feed(self):
-        """GET opds:root/authors/?filter=b → Content-Type contains kind=navigation."""
-        response = self.client.get(f'{OPDS_BASE}authors/?filter=b')
-        self.assertIn('kind=navigation', response['Content-Type'])
-
-    def test_author_tree_is_navigation_feed(self):
-        """GET opds:root/authors/tree/ → Content-Type contains kind=navigation."""
-        response = self.client.get(f'{OPDS_BASE}authors/tree/')
+    @parameterized.expand([
+        ('list', 'authors/?filter=b'),  # flat author list
+        ('tree', 'authors/tree/'),       # alphabet tree root
+    ])
+    def test_author_feed_is_navigation(self, _name, path):
+        """Flat list and tree root Content-Type both contain kind=navigation."""
+        response = self.client.get(f'{OPDS_BASE}{path}')
         self.assertIn('kind=navigation', response['Content-Type'])
 
     def test_author_tree_node_status_200(self):
@@ -493,9 +465,14 @@ class OPDSAuthorDetailTest(OPDSThrottleResetMixin, TestCase):
     # opds:root/authors/<pk>/books/
     # ------------------------------------------------------------------
 
-    def test_author_detail_sub_feed_books_alpha_status_200(self):
-        """GET opds:root/authors/<pk>/books/ → HTTP 200."""
-        response = self.client.get(f'{OPDS_BASE}authors/{self.any_author.pk}/books/')
+    @parameterized.expand([
+        ('books_alpha', 'books/'),     # opds:root/authors/<pk>/books/
+        ('books_recent', 'books/recent/'),  # opds:root/authors/<pk>/books/recent/
+        ('series', 'series/'),          # opds:root/authors/<pk>/series/
+    ])
+    def test_author_detail_sub_feed_status_200(self, _name, suffix):
+        """GET each author sub-feed endpoint → HTTP 200."""
+        response = self.client.get(f'{OPDS_BASE}authors/{self.any_author.pk}/{suffix}')
         self.assertEqual(response.status_code, 200)
 
     def test_author_detail_sub_feed_books_alpha_is_acquisition(self):
@@ -553,11 +530,6 @@ class OPDSAuthorDetailTest(OPDSThrottleResetMixin, TestCase):
     # opds:root/authors/<pk>/books/recent/
     # ------------------------------------------------------------------
 
-    def test_author_detail_sub_feed_books_recent_status_200(self):
-        """GET opds:root/authors/<pk>/books/recent/ → HTTP 200."""
-        response = self.client.get(f'{OPDS_BASE}authors/{self.any_author.pk}/books/recent/')
-        self.assertEqual(response.status_code, 200)
-
     def test_author_detail_sub_feed_books_recent_sorted_by_date(self):
         """First entry <updated> >= second entry <updated> in recent books feed."""
         response = self.client.get(f'{OPDS_BASE}authors/{self.any_author.pk}/books/recent/')
@@ -572,11 +544,6 @@ class OPDSAuthorDetailTest(OPDSThrottleResetMixin, TestCase):
     # ------------------------------------------------------------------
     # opds:root/authors/<pk>/series/
     # ------------------------------------------------------------------
-
-    def test_author_detail_sub_feed_series_status_200(self):
-        """GET opds:root/authors/<pk>/series/ → HTTP 200."""
-        response = self.client.get(f'{OPDS_BASE}authors/{self.any_author.pk}/series/')
-        self.assertEqual(response.status_code, 200)
 
     def test_author_detail_sub_feed_series_is_navigation(self):
         """Author series feed Content-Type contains kind=navigation."""
@@ -827,33 +794,16 @@ class OPDSEntryImageTest(OPDSThrottleResetMixin, TestCase):
             )
             self.assertEqual(logo_links[0].get('type'), 'image/png')
 
-    def test_root_feed_entries_have_logo_thumbnail(self):
-        """Every entry in opds:root carries the logo thumbnail link."""
-        self._assert_all_entries_have_logo(_parse(self.client.get(OPDS_BASE)))
-
-    def test_author_tree_entries_have_logo_thumbnail(self):
-        """Every entry in opds:root/authors/tree/ carries the logo thumbnail."""
-        self._assert_all_entries_have_logo(
-            _parse(self.client.get(f'{OPDS_BASE}authors/tree/'))
-        )
-
-    def test_author_results_entries_have_logo_thumbnail(self):
-        """Every entry in opds:root/authors/?filter=b carries the logo thumbnail."""
-        self._assert_all_entries_have_logo(
-            _parse(self.client.get(f'{OPDS_BASE}authors/?filter=b'))
-        )
-
-    def test_author_detail_entries_have_logo_thumbnail(self):
-        """Every sub-feed entry in the author detail feed carries the logo."""
-        self._assert_all_entries_have_logo(
-            _parse(self.client.get(f'{OPDS_BASE}authors/{self.author_with_books.pk}/'))
-        )
-
-    def test_author_series_entries_have_logo_thumbnail(self):
-        """Every entry in the author series feed carries the logo thumbnail."""
-        self._assert_all_entries_have_logo(
-            _parse(self.client.get(f'{OPDS_BASE}authors/{self.author_with_series.pk}/series/'))
-        )
+    @parameterized.expand([
+        ('root', lambda self: OPDS_BASE),
+        ('author_tree', lambda self: f'{OPDS_BASE}authors/tree/'),
+        ('author_results', lambda self: f'{OPDS_BASE}authors/?filter=b'),
+        ('author_detail', lambda self: f'{OPDS_BASE}authors/{self.author_with_books.pk}/'),
+        ('author_series', lambda self: f'{OPDS_BASE}authors/{self.author_with_series.pk}/series/'),
+    ])
+    def test_entries_have_logo_thumbnail(self, _name, url_fn):
+        """Every entry in each navigation feed carries the logo thumbnail link."""
+        self._assert_all_entries_have_logo(_parse(self.client.get(url_fn(self))))
 
     def test_logo_thumbnail_href_is_absolute_url(self):
         """The logo thumbnail href is an absolute URL (starts with http)."""

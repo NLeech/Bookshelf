@@ -233,8 +233,7 @@ No database content required; the feed is purely structural (uses plain TestCase
 2. **test_root_feed_content_type**: Response `Content-Type` starts with `application/atom+xml`.
 3. **test_root_feed_has_five_catalog_entries**: Feed XML contains exactly 5 `<entry>` elements.
 4. **test_root_feed_entry_titles**: The 5 entry titles are exactly `{Authors, Genres, Series, Books, Search}`.
-5. **test_root_feed_self_link**: Feed contains `<link rel="self">` whose `href` ends with `opds:root/`.
-6. **test_root_feed_start_link**: Feed contains `<link rel="start">` whose `href` ends with `opds:root/`.
+5. **test_root_feed_navigation_link** *(parameterized: self, start)*: Feed contains exactly one `<link rel="self">` and one `<link rel="start">`, each `href` ending with `opds:root/`.
 7. **test_root_feed_search_entry_has_opensearch_link**: The Search entry has exactly one `<link type="application/opensearchdescription+xml">`.
 8. **test_root_feed_is_pretty_printed**: Raw response body contains `\n` (newlines) and `  <` (indentation).
 
@@ -252,8 +251,7 @@ No database content required; the feed is purely structural (uses plain TestCase
 
 Canonical dataset (255 authors: A=137, B=58, C=19, Ш=15, 0-9=12, Other=14).
 
-1. **test_author_alphabet_root_has_a_entry**: GET `opds:root/authors/tree/` returns an entry for 'A' with count 137 in the content.
-2. **test_author_alphabet_root_has_b_entry**: GET `opds:root/authors/tree/` returns an entry for 'B' with count 58 in the content.
+1. **test_author_alphabet_root_has_letter_entry** *(parameterized: A=137, B=58)*: GET `opds:root/authors/tree/` returns an entry for the letter with its book count in the content.
 3. **test_author_alphabet_root_no_entry_for_missing_letter**: GET `opds:root/authors/tree/` does NOT contain a 'Z' or 'z' entry (demoted to Other).
 4. **test_author_results_by_filter_status_200**: GET `opds:root/authors/?filter=b` returns HTTP 200.
 5. **test_author_results_by_filter_has_correct_count**: GET `opds:root/authors/?filter=b` returns exactly 20 entries on page 1 of 58 total.
@@ -262,8 +260,7 @@ Canonical dataset (255 authors: A=137, B=58, C=19, Ш=15, 0-9=12, Other=14).
 8. **test_author_results_sorted_alphabetically**: Entries in the flat list are in ascending last_name order.
 9. **test_author_digits_node_list**: GET `opds:root/authors/?regex=^[0-9]` returns exactly 12 entries.
 9a. **test_author_results_entry_content_has_book_count**: Each flat-list entry `<content type="text">` is `"<n> books"` matching that author's book count.
-10. **test_author_list_is_navigation_feed**: Flat author list response Content-Type contains `kind=navigation`.
-11. **test_author_tree_is_navigation_feed**: Tree root response Content-Type contains `kind=navigation`.
+10. **test_author_feed_is_navigation** *(parameterized: list, tree)*: Flat author list (`?filter=b`) and tree root response Content-Type both contain `kind=navigation`.
 12. **test_author_tree_node_status_200**: GET `opds:root/authors/tree/a/` returns HTTP 200 (expandable node).
 13. **test_author_tree_leaf_node_returns_404**: GET `opds:root/authors/tree/c/` returns HTTP 404 (C=19 is a leaf with no children).
 14. **test_author_tree_nonexistent_node_returns_404**: GET `opds:root/authors/tree/z/` returns HTTP 404 (no Z node at root).
@@ -313,14 +310,12 @@ Canonical dataset.
 3. **test_author_detail_has_three_sub_feeds**: Author detail feed has exactly 3 entries titled 'Books by Title', 'New Arrivals', 'Books by Series'.
 3a. **test_author_detail_sub_feed_titles_match**: Sub-feed titles are exactly `['Books by Title', 'New Arrivals', 'Books by Series']` in order; legacy labels ('All Books (A–Z)', 'Recently Added') are absent.
 4. **test_author_detail_is_navigation_feed**: Author detail response Content-Type contains `kind=navigation`.
-5. **test_author_detail_sub_feed_books_alpha_status_200**: GET `opds:root/authors/<pk>/books/` returns HTTP 200.
+5. **test_author_detail_sub_feed_status_200** *(parameterized: books_alpha, books_recent, series)*: GET each author sub-feed endpoint (`books/`, `books/recent/`, `series/`) returns HTTP 200.
 6. **test_author_detail_sub_feed_books_alpha_is_acquisition**: Author books feed Content-Type contains `kind=acquisition`.
 7. **test_author_detail_sub_feed_books_alpha_contains_author_books**: Total entry count across all pages equals `author.books.count()`.
 8. **test_author_detail_sub_feed_books_alpha_excludes_other_author**: Author books feed does not contain a book belonging only to a different author.
 9. **test_author_detail_sub_feed_books_alpha_sorted**: First page entries are sorted by title ascending.
-10. **test_author_detail_sub_feed_books_recent_status_200**: GET `opds:root/authors/<pk>/books/recent/` returns HTTP 200.
 11. **test_author_detail_sub_feed_books_recent_sorted_by_date**: First entry `<updated>` >= second entry `<updated>` (descending date order).
-12. **test_author_detail_sub_feed_series_status_200**: GET `opds:root/authors/<pk>/series/` returns HTTP 200.
 13. **test_author_detail_sub_feed_series_is_navigation**: Author series feed Content-Type contains `kind=navigation`.
 14. **test_author_detail_sub_feed_series_has_series**: For `author_with_series`, the series feed has at least one entry linking to `opds:root/series/<pk>/`.
 15. **test_author_detail_sub_feed_series_entry_has_book_count**: Each series entry `<content>` contains a positive integer (book count).
@@ -337,11 +332,7 @@ Canonical dataset.
 
 Canonical dataset. Verifies the §8 "logo for every non-book entry" rule.
 
-1. **test_root_feed_entries_have_logo_thumbnail**: Every entry in `opds:root/` carries one `<link rel="http://opds-spec.org/image/thumbnail" type="image/png">` whose href ends in `/static/img/Logo%2064x64x8.png`.
-2. **test_author_tree_entries_have_logo_thumbnail**: Every entry in `opds:root/authors/tree/` carries the logo thumbnail link.
-3. **test_author_results_entries_have_logo_thumbnail**: Every entry in `opds:root/authors/?filter=b` carries the logo thumbnail link.
-4. **test_author_detail_entries_have_logo_thumbnail**: Every sub-feed entry in the author detail feed carries the logo thumbnail link.
-5. **test_author_series_entries_have_logo_thumbnail**: Every entry in the author series feed carries the logo thumbnail link.
+1. **test_entries_have_logo_thumbnail** *(parameterized: root, author_tree, author_results, author_detail, author_series)*: Every entry in each navigation feed carries one `<link rel="http://opds-spec.org/image/thumbnail" type="image/png">` whose href ends in `/static/img/Logo%2064x64x8.png`.
 6. **test_logo_thumbnail_href_is_absolute_url**: The logo thumbnail href is an absolute URL (starts with `http`).
 7. **test_book_entries_do_not_use_logo**: Book (acquisition) entries never carry the logo thumbnail link.
 
