@@ -21,7 +21,10 @@ from library.services import AlphabetTree, get_content_type
 NAV_TYPE = 'application/atom+xml;profile=opds-catalog;kind=navigation'
 ACQ_TYPE = 'application/atom+xml;profile=opds-catalog;kind=acquisition'
 OPENSEARCH_TYPE = 'application/opensearchdescription+xml'
-ATOM_TYPE = 'application/atom+xml'
+
+# Plain Atom type used on the feed-level templated search link.  Readers
+# synthesize an inline "Search" catalog entry from this link.
+SEARCH_ATOM_TYPE = 'application/atom+xml'
 
 # Type advertised by the mandatory ``rel="alternate"`` link on thin book
 # entries — it points at the complete catalog entry.
@@ -110,6 +113,8 @@ class FeedDict(TypedDict):
     start_link: str
     pagination: PaginationDict | None
     entries: list[EntryDict]
+    feed_links: NotRequired[list[LinkDict]]
+    icon: NotRequired[str]
 
 
 def wants_thick_entries(request: Request) -> bool:
@@ -280,28 +285,32 @@ def build_root_feed(request: Request) -> FeedDict:
             _with_sticky_params(opds_base + 'books/tree/', request), request,
             content='Browse by title', updated=feed_updated,
         ),
+    ]
+
+    # OPDS readers discover search by scanning feed-level <link rel="search">
+    # elements (direct children of <feed>), not entry links — so the OpenSearch
+    # discovery link is advertised at feed level.  Kept sticky so detail=thick
+    # propagates, exactly as the OpenSearch description link already does.
+    feed_links: list[LinkDict] = [
         {
-            'id': 'tag:bookshelf:search',
-            'title': 'Search',
-            'updated': feed_updated,
-            'content': 'Search the catalog',
-            'summary': None,
-            'authors': [],
-            'links': [
-                {
-                    'rel': 'search',
-                    'href': opds_base + 'search/description.xml',
-                    'type': OPENSEARCH_TYPE,
-                    'title': None,
-                },
-                {
-                    'rel': 'search',
-                    'href': _with_sticky_params(opds_base + 'search/?q={searchTerms}', request),
-                    'type': ATOM_TYPE,
-                    'title': None,
-                },
-                _logo_thumbnail_link(request),
-            ],
+            'rel': 'search',
+            'href': _with_sticky_params(
+                opds_base + 'search/description.xml', request
+            ),
+            'type': OPENSEARCH_TYPE,
+            'title': None,
+        },
+        # Templated query link.  Readers render an inline
+        # "Search" catalog entry from this and substitute {searchTerms}.  At
+        # feed level with rel="search" the literal braces are treated as a
+        # template, not a URL to resolve, so strict readers do not choke.
+        {
+            'rel': 'search',
+            'href': _with_sticky_params(
+                opds_base + 'search/?q={searchTerms}', request
+            ),
+            'type': SEARCH_ATOM_TYPE,
+            'title': None,
         },
     ]
 
@@ -315,6 +324,7 @@ def build_root_feed(request: Request) -> FeedDict:
         'start_link': self_link,
         'pagination': None,
         'entries': entries,
+        'feed_links': feed_links,
     }
 
 
@@ -451,17 +461,24 @@ def build_author_results_feed(
     authors_page: list[Author],
     pagination: PaginationDict | None,
     request: Request,
+    feed_id: str = 'tag:bookshelf:authors',
+    feed_title: str = 'Authors',
 ) -> FeedDict:
     """Build a flat, paginated navigation feed of authors.
 
-    Each entry links to the author's detail feed at
-    ``opds:root/authors/<pk>/``.
+    This is the single builder for every flat author listing — the top-level
+    ``opds:root/authors/`` results as well as the search-authors sub-feed.
+    Scoped callers pass ``feed_id``/``feed_title`` to label their feed; the
+    defaults cover the top-level authors endpoint.  Each entry links to the
+    author's detail feed at ``opds:root/authors/<pk>/``.
 
     Args:
         authors_page: A list of Author instances for the current page.
         pagination: Pagination dict with 'first', 'next', 'previous' keys
             (values are URLs or None), or None when there is no pagination.
         request: The current HTTP request.
+        feed_id: The feed ``<id>`` tag URI (defaults to the top-level authors id).
+        feed_title: The feed title (defaults to ``'Authors'``).
 
     Returns:
         A feed dict conforming to the feed dict contract.
@@ -481,8 +498,8 @@ def build_author_results_feed(
     ]
 
     return {
-        'id': 'tag:bookshelf:authors',
-        'title': 'Authors',
+        'id': feed_id,
+        'title': feed_title,
         'updated': now(),
         'kind': 'navigation',
         'self_link': self_link,
@@ -814,11 +831,17 @@ def build_series_results_feed(
     series_page: list[BookSeries],
     pagination: PaginationDict | None,
     request: Request,
+    feed_id: str = 'tag:bookshelf:series',
+    feed_title: str = 'Series',
 ) -> FeedDict:
     """Build a flat, paginated navigation feed of series.
 
-    Each entry links to the series detail feed at ``opds:root/series/<pk>/``
-    and carries the series' total book count in ``<content type="text">``.
+    This is the single builder for every flat series listing — the top-level
+    ``opds:root/series/`` results as well as the search-series sub-feed.  Scoped
+    callers pass ``feed_id``/``feed_title`` to label their feed; the defaults
+    cover the top-level series endpoint.  Each entry links to the series detail
+    feed at ``opds:root/series/<pk>/`` and carries the series' total book count
+    in ``<content type="text">``.
 
     Args:
         series_page: A list of BookSeries instances for the current page,
@@ -826,6 +849,8 @@ def build_series_results_feed(
         pagination: Pagination dict with 'first', 'next', 'previous' keys
             (values are URLs or None), or None when there is no pagination.
         request: The current HTTP request.
+        feed_id: The feed ``<id>`` tag URI (defaults to the top-level series id).
+        feed_title: The feed title (defaults to ``'Series'``).
 
     Returns:
         A feed dict conforming to the feed dict contract.
@@ -845,8 +870,8 @@ def build_series_results_feed(
     ]
 
     return {
-        'id': 'tag:bookshelf:series',
-        'title': 'Series',
+        'id': feed_id,
+        'title': feed_title,
         'updated': now(),
         'kind': 'navigation',
         'self_link': self_link,
@@ -1017,4 +1042,103 @@ def build_genre_detail_feed(
         'start_link': start_link,
         'pagination': None,
         'entries': entries,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Search serializers
+# ---------------------------------------------------------------------------
+
+def build_search_root_feed(
+    query: str,
+    counts: dict[str, int],
+    request: Request,
+) -> FeedDict:
+    """Build the search root navigation feed (section index).
+
+    Emits up to three section entries — Authors, Series, and Books — one per
+    non-empty result set, each linking to its own independently paginated
+    sub-feed (``search/authors|series|books/?q=<query>``).  A section is omitted
+    entirely when its count is 0, so an empty/missing query or a no-match query
+    yields a feed with zero entries.  The feed is never paginated.
+
+    Args:
+        query: The raw search term (``?q=``).
+        counts: A mapping with ``authors_count``, ``series_count``, and
+            ``books_count`` keys (as returned by ``search_entities``).
+        request: The current HTTP request.
+
+    Returns:
+        A feed dict conforming to the feed dict contract.
+    """
+    opds_base = _opds_base(request)
+    self_link = _with_sticky_params(request.build_absolute_uri(), request)
+    start_link = _with_sticky_params(opds_base, request)
+
+    q_param = f'?q={quote(query, safe="")}'
+    sections = [
+        ('authors', 'Authors', counts.get('authors_count', 0), NAV_TYPE),
+        ('series', 'Series', counts.get('series_count', 0), NAV_TYPE),
+        ('books', 'Books', counts.get('books_count', 0), ACQ_TYPE),
+    ]
+
+    entries: list[EntryDict] = []
+    for section, label, count, link_type in sections:
+        if count <= 0:
+            continue
+        href = _with_sticky_params(
+            opds_base + f'search/{section}/{q_param}', request
+        )
+        entries.append(_nav_entry(
+            f'tag:bookshelf:search:{section}', f'{label} ({count} found)',
+            href, request, link_type=link_type,
+            content=f'{count} found',
+        ))
+
+    return {
+        'id': 'tag:bookshelf:search',
+        'title': 'Search',
+        'updated': now(),
+        'kind': 'navigation',
+        'self_link': self_link,
+        'start_link': start_link,
+        'pagination': None,
+        'entries': entries,
+    }
+
+
+def build_opensearch_description(request: Request) -> dict[str, str]:
+    """Build the OpenSearch description document dict.
+
+    Consumed by :class:`library.opds.renderers.OpenSearchRenderer`.  The ``Url``
+    template is an absolute URL (built with ``request.build_absolute_uri``) so it
+    is valid in any deployment, with the literal ``{searchTerms}`` placeholder
+    left un-encoded for the OpenSearch client to substitute.
+
+    The ``detail`` sticky preference rides here: when the request carries
+    ``?detail=thick`` the template becomes ``…?q={searchTerms}&detail=thick`` so
+    the client's substituted search URL inherits the preference.  The
+    ``{searchTerms}`` braces are never percent-encoded.
+
+    Args:
+        request: The current HTTP request.
+
+    Returns:
+        A flat dict with ``short_name``, ``description``, ``template``,
+        ``url_type``, and ``language`` keys.
+    """
+    # OPDS 1.2 requires the OpenSearch <Url> to use the OPDS Catalog media type
+    # and the template to resolve to a catalog feed.  We point it at the search
+    # *root* so a reader's search lands on the Authors/Series/Books chooser
+    # (a navigation feed); the user drills into whichever category they want.
+    search_url = request.build_absolute_uri(reverse('opds:search'))
+    template = f'{search_url}?q={{searchTerms}}'
+    if wants_thick_entries(request):
+        template += f'&detail={quote("thick", safe="")}'
+    return {
+        'short_name': 'Bookshelf',
+        'description': 'Search the Bookshelf catalog',
+        'template': template,
+        'url_type': NAV_TYPE,
+        'language': '*',
     }

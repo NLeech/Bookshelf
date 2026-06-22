@@ -98,13 +98,13 @@ class OPDSRootFeedTest(OPDSThrottleResetMixin, TestCase):
         )
 
     # ------------------------------------------------------------------
-    # 3. Exactly five catalog entries
+    # 3. Exactly four catalog entries
     # ------------------------------------------------------------------
 
-    def test_root_feed_has_five_catalog_entries(self):
+    def test_root_feed_has_four_catalog_entries(self):
         _, root = self._get_root()
         entries = root.findall('atom:entry', NS)
-        self.assertEqual(len(entries), 5)
+        self.assertEqual(len(entries), 4)
 
     # ------------------------------------------------------------------
     # 4. Entry titles
@@ -114,7 +114,7 @@ class OPDSRootFeedTest(OPDSThrottleResetMixin, TestCase):
         _, root = self._get_root()
         entries = root.findall('atom:entry', NS)
         titles = {e.findtext('atom:title', namespaces=NS) for e in entries}
-        self.assertEqual(titles, {'Authors', 'Genres', 'Series', 'Books', 'Search'})
+        self.assertEqual(titles, {'Authors', 'Genres', 'Series', 'Books'})
 
     # ------------------------------------------------------------------
     # 5./6. Self and start links
@@ -133,31 +133,59 @@ class OPDSRootFeedTest(OPDSThrottleResetMixin, TestCase):
         )
 
     # ------------------------------------------------------------------
-    # 7. Search entry has OpenSearch description link
+    # 7. Search is advertised via a feed-level OpenSearch link
     # ------------------------------------------------------------------
 
-    def test_root_feed_search_entry_has_opensearch_link(self):
+    def test_root_feed_search_link_at_feed_level(self):
+        """Exactly one feed-level <link rel="search"> OpenSearch link exists,
+        and there is no longer a 'Search' navigation <entry>."""
         _, root = self._get_root()
-        entries = root.findall('atom:entry', NS)
 
-        search_entry = None
-        for entry in entries:
-            if entry.findtext('atom:title', namespaces=NS) == 'Search':
-                search_entry = entry
-                break
-
-        self.assertIsNotNone(search_entry, 'No Search entry found in root feed')
-
-        links = search_entry.findall('atom:link', NS)
-        opensearch_links = [
-            lnk for lnk in links
-            if lnk.get('type') == 'application/opensearchdescription+xml'
+        feed_search_links = [
+            lnk for lnk in root.findall('atom:link', NS)
+            if lnk.get('rel') == 'search'
+            and lnk.get('type') == 'application/opensearchdescription+xml'
         ]
         self.assertEqual(
-            len(opensearch_links), 1,
-            'Search entry must have exactly one '
-            '<link type="application/opensearchdescription+xml">',
+            len(feed_search_links), 1,
+            'Root feed must have exactly one feed-level '
+            '<link rel="search" type="application/opensearchdescription+xml">',
         )
+        self.assertTrue(
+            feed_search_links[0].get('href', '').endswith('search/description.xml')
+            or 'search/description.xml' in feed_search_links[0].get('href', ''),
+            msg=feed_search_links[0].get('href', ''),
+        )
+
+        # The Search navigation entry must be gone.
+        titles = {
+            e.findtext('atom:title', namespaces=NS)
+            for e in root.findall('atom:entry', NS)
+        }
+        self.assertNotIn('Search', titles)
+        ids = {
+            e.findtext('atom:id', namespaces=NS)
+            for e in root.findall('atom:entry', NS)
+        }
+        self.assertNotIn('tag:bookshelf:search', ids)
+
+    def test_root_feed_has_templated_atom_search_link(self):
+        """A feed-level templated rel="search" type="application/atom+xml"
+        link carrying {searchTerms} is advertised (mirrors Flibusta).  Readers
+        synthesize an inline "Search" catalog entry from it."""
+        _, root = self._get_root()
+        atom_search_links = [
+            lnk for lnk in root.findall('atom:link', NS)
+            if lnk.get('rel') == 'search'
+            and lnk.get('type') == 'application/atom+xml'
+        ]
+        self.assertEqual(
+            len(atom_search_links), 1,
+            'Root feed must emit exactly one templated atom+xml '
+            'rel="search" link',
+        )
+        self.assertIn('{searchTerms}', atom_search_links[0].get('href', ''))
+        self.assertIn('search/?q=', atom_search_links[0].get('href', ''))
 
     # ------------------------------------------------------------------
     # 8. Pretty-printed XML (human-readable output)
@@ -1373,23 +1401,26 @@ class OPDSThickPropagationTest(OPDSThrottleResetMixin, TestCase):
         for href in hrefs:
             self.assertIn('detail=thick', href)
 
-    def test_root_search_query_link_preserves_detail(self):
-        """The atom search-query link carries detail=thick; description does not."""
+    def test_root_search_links_preserve_detail(self):
+        """Both feed-level search links carry detail=thick under thick mode."""
         root = _parse(self.client.get(f'{OPDS_BASE}?detail=thick'))
-        search_entry = next(
-            e for e in root.findall('atom:entry', NS)
-            if e.findtext('atom:title', namespaces=NS) == 'Search'
-        )
-        query_link = next(
-            lnk for lnk in _links_by_rel(search_entry, 'search')
-            if lnk.get('type') == 'application/atom+xml'
-        )
+        search_links = [
+            lnk for lnk in root.findall('atom:link', NS)
+            if lnk.get('rel') == 'search'
+        ]
         description_link = next(
-            lnk for lnk in _links_by_rel(search_entry, 'search')
+            lnk for lnk in search_links
             if lnk.get('type') == 'application/opensearchdescription+xml'
         )
-        self.assertIn('detail=thick', query_link.get('href', ''))
-        self.assertNotIn('detail=thick', description_link.get('href', ''))
+        self.assertIn('detail=thick', description_link.get('href', ''))
+        atom_link = next(
+            lnk for lnk in search_links
+            if lnk.get('type') == 'application/atom+xml'
+        )
+        # The templated link keeps its {searchTerms} placeholder *and* gains
+        # the sticky detail=thick preference.
+        self.assertIn('{searchTerms}', atom_link.get('href', ''))
+        self.assertIn('detail=thick', atom_link.get('href', ''))
 
     def test_root_self_and_start_links_preserve_detail(self):
         """The feed self and start links carry detail=thick."""
@@ -2510,3 +2541,364 @@ class OPDSGenreFeedCountsTest(OPDSThrottleResetMixin, TestCase):
             f'{OPDS_BASE}genres/{self.dystopia.pk}/books/?filter={filter_value}',
         )
         self.assertEqual(total, expected)
+
+
+# ---------------------------------------------------------------------------
+# OPDSSearchTest
+# ---------------------------------------------------------------------------
+
+def _find_section_entry(root_el, label_prefix):
+    """Return the first <entry> whose <title> starts with *label_prefix*."""
+    for entry in root_el.findall('atom:entry', NS):
+        title = entry.findtext('atom:title', namespaces=NS) or ''
+        if title.startswith(label_prefix):
+            return entry
+    return None
+
+
+class OPDSSearchTest(OPDSThrottleResetMixin, TestCase):
+    """Tests the search root feed and the three paginated search sub-feeds.
+
+    Fixture: canonical dataset.  Query prefixes are chosen to exist in the
+    dataset — ``Abak`` matches authors, ``Ch`` matches series, ``Alid`` matches
+    book titles.  A unique ``Zap`` prefix (absent from the dataset) drives the
+    pagination assertions via 25 fresh books created per-test in ``setUp``.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        create_test_dataset()
+        cls.lang = Language.objects.first()
+
+    def setUp(self):
+        super().setUp()
+        # 25 fresh "Zap…" books per test to exercise pagination (page_size=20).
+        Book.objects.bulk_create([
+            Book(title=f'Zap Book {i:02d}', language=self.lang)
+            for i in range(25)
+        ])
+
+    # ---- search root feed ----
+
+    def test_search_root_returns_200(self):
+        """GET opds:root/search/?q=Abak → 200."""
+        response = self.client.get(f'{OPDS_BASE}search/?q=Abak')
+        self.assertEqual(response.status_code, 200)
+
+    @parameterized.expand([
+        ('books', 'Alid', 'Books ('),   # matches books only
+        ('series', 'Ch', 'Series ('),   # matches series only
+        ('authors', 'Abak', 'Authors ('),  # matches authors only
+    ])
+    def test_search_root_has_section_entry(self, section, query, label):
+        """?q=<query> → a '<label>N found)' entry linking to search/<section>/?q=<query>."""
+        response = self.client.get(f'{OPDS_BASE}search/?q={query}')
+        entry = _find_section_entry(_parse(response), label)
+        self.assertIsNotNone(entry)
+        hrefs = _get_link_hrefs(entry, 'subsection')
+        self.assertTrue(
+            any(h.endswith(f'{OPDS_BASE}search/{section}/?q={query}') for h in hrefs),
+            msg=hrefs,
+        )
+
+    def test_search_root_section_omitted_when_empty(self):
+        """?q=Abak → no 'Books' and no 'Series' section entry (authors only)."""
+        root = _parse(self.client.get(f'{OPDS_BASE}search/?q=Abak'))
+        self.assertIsNone(_find_section_entry(root, 'Books ('))
+        self.assertIsNone(_find_section_entry(root, 'Series ('))
+
+    def test_search_root_section_count_reflects_match_total(self):
+        """?q=Abak → the Authors section label reports the real match count (21)."""
+        root = _parse(self.client.get(f'{OPDS_BASE}search/?q=Abak'))
+        title = _find_section_entry(root, 'Authors (').findtext('atom:title', namespaces=NS)
+        self.assertEqual(title, 'Authors (21 found)')
+
+    @parameterized.expand([
+        ('whitespace_query', 'search/?q=%20%20%20'),  # q stripped to empty
+        ('empty_query', 'search/'),                    # no q at all
+        ('no_results', 'search/?q=xyzzyunmatchable'),  # q matches nothing
+    ])
+    def test_search_root_returns_empty_feed(self, _name, path):
+        """An empty/blank/no-match query → 200 with 0 entries (never an error)."""
+        response = self.client.get(f'{OPDS_BASE}{path}')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(_parse(response).findall('atom:entry', NS)), 0)
+
+    def test_search_root_is_navigation_feed(self):
+        """The search root feed advertises kind=navigation."""
+        response = self.client.get(f'{OPDS_BASE}search/?q=Abak')
+        self.assertIn('kind=navigation', response['Content-Type'])
+
+    def test_search_section_entries_have_logo(self):
+        """Search section entries carry the logo thumbnail link."""
+        root = _parse(self.client.get(f'{OPDS_BASE}search/?q=Abak'))
+        entry = _find_section_entry(root, 'Authors (')
+        thumbs = _get_link_hrefs(entry, THUMBNAIL_REL)
+        self.assertTrue(any(h.endswith(LOGO_HREF_SUFFIX) for h in thumbs), msg=thumbs)
+
+    # ---- author / series sub-feeds ----
+
+    def test_search_authors_subfeed_entries_link_to_author(self):
+        """search/authors/?q=Abak → each entry links to opds:root/authors/<pk>/."""
+        root = _parse(self.client.get(f'{OPDS_BASE}search/authors/?q=Abak'))
+        entries = root.findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            hrefs = _get_link_hrefs(entry, 'subsection')
+            self.assertTrue(
+                any(f'{OPDS_BASE}authors/' in h for h in hrefs), msg=hrefs
+            )
+
+    def test_search_authors_subfeed_is_navigation(self):
+        """The search-authors sub-feed advertises kind=navigation."""
+        response = self.client.get(f'{OPDS_BASE}search/authors/?q=Abak')
+        self.assertIn('kind=navigation', response['Content-Type'])
+
+    def test_search_series_subfeed_entries_link_to_series(self):
+        """search/series/?q=Ch → each entry links to opds:root/series/<pk>/."""
+        root = _parse(self.client.get(f'{OPDS_BASE}search/series/?q=Ch'))
+        entries = root.findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            hrefs = _get_link_hrefs(entry, 'subsection')
+            self.assertTrue(
+                any(f'{OPDS_BASE}series/' in h for h in hrefs), msg=hrefs
+            )
+
+    # ---- book sub-feed ----
+
+    def test_search_books_subfeed_is_acquisition(self):
+        """The search-books sub-feed advertises kind=acquisition."""
+        response = self.client.get(f'{OPDS_BASE}search/books/?q=Alid')
+        self.assertIn('kind=acquisition', response['Content-Type'])
+
+    def test_search_books_subfeed_acquisition_link_always_rendered(self):
+        """Book entries always carry the acquisition link (catalog is public)."""
+        root = _parse(self.client.get(f'{OPDS_BASE}search/books/?q=Alid'))
+        entries = root.findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertEqual(len(_links_by_rel(entry, ACQUISITION_REL)), 1)
+
+    def test_search_books_subfeed_is_case_insensitive(self):
+        """A lowercase q matches mixed-case titles (icontains): alid → 23 books."""
+        total = _count_all_pages(self.client, f'{OPDS_BASE}search/books/?q=alid')
+        self.assertEqual(total, 23)
+
+    def test_search_books_subfeed_matches_substring(self):
+        """Matching is substring, not prefix: q=lid still finds the Alid* titles."""
+        total = _count_all_pages(self.client, f'{OPDS_BASE}search/books/?q=lid')
+        self.assertEqual(total, 23)
+
+    def test_search_books_subfeed_excludes_non_matching(self):
+        """Every returned entry actually matches q; non-matching titles are absent."""
+        titles = []
+        for url in (f'{OPDS_BASE}search/books/?q=Alid',
+                    f'{OPDS_BASE}search/books/?q=Alid&page=2'):
+            root = _parse(self.client.get(url))
+            titles += [e.findtext('atom:title', namespaces=NS) for e in root.findall('atom:entry', NS)]
+        self.assertEqual(len(titles), 23)
+        self.assertTrue(all('Alid' in t for t in titles), msg=titles)
+
+    def test_search_books_subfeed_thin_by_default(self):
+        """search/books/?q=Alid → thin entries (no content / full image)."""
+        root = _parse(self.client.get(f'{OPDS_BASE}search/books/?q=Alid'))
+        entries = root.findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertIsNone(entry.find('atom:content', NS))
+            self.assertEqual(len(_links_by_rel(entry, IMAGE_REL)), 0)
+            self.assertEqual(len(_links_by_rel(entry, 'alternate')), 1)
+
+    def test_search_books_subfeed_thick_param(self):
+        """search/books/?q=Alid&detail=thick → complete (thick) entries."""
+        root = _parse(self.client.get(f'{OPDS_BASE}search/books/?q=Alid&detail=thick'))
+        entries = root.findall('atom:entry', NS)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            self.assertEqual(len(_links_by_rel(entry, IMAGE_REL)), 1)
+
+    def test_search_books_subfeed_pagination(self):
+        """search/books/?q=Zap page 1 has 20 entries with a next link."""
+        root = _parse(self.client.get(f'{OPDS_BASE}search/books/?q=Zap'))
+        self.assertEqual(len(root.findall('atom:entry', NS)), 20)
+        self.assertTrue(_get_link_hrefs(root, 'next'))
+
+    def test_search_books_subfeed_total_matches_count(self):
+        """search/books/?q=Zap returns all 25 created books across pages."""
+        total = _count_all_pages(self.client, f'{OPDS_BASE}search/books/?q=Zap')
+        self.assertEqual(total, 25)
+
+    # ---- cross-cutting sub-feed behavior ----
+
+    @parameterized.expand([
+        ('authors', 'search/authors/?q=Aban', 'Aban'),  # 39 matching authors
+        ('series', 'search/series/?q=Ch', 'Ch'),         # 36 matching series
+        ('books', 'search/books/?q=Zap', 'Zap'),         # 25 matching books
+    ])
+    def test_search_subfeed_pagination_preserves_q(self, _name, path, query):
+        """Every paginated sub-feed's next link preserves both q and page=2."""
+        root = _parse(self.client.get(f'{OPDS_BASE}{path}'))
+        next_href = _get_link_hrefs(root, 'next')[0]
+        self.assertIn(f'q={query}', next_href)
+        self.assertIn('page=2', next_href)
+
+    def test_search_subfeed_empty_query_returns_empty_feed(self):
+        """GET search/books/ (no q) → 200 with 0 entries."""
+        response = self.client.get(f'{OPDS_BASE}search/books/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(_parse(response).findall('atom:entry', NS)), 0)
+
+    # ---- end-to-end: all three sections + drill-down ----
+
+    def test_search_all_sections_present_and_drilldown(self):
+        """A query matching all entity types lists every section, then each
+        ``search/<section>/`` sub-feed resolves to the matching element.
+
+        One author, one series, and one book share the unique token ``Quokka``,
+        so the root feed must surface ``Authors (1 found)``, ``Series (1 found)``
+        and ``Books (1 found)`` together — and following each section link must
+        yield a feed whose entry is the exact object that matched.
+        """
+        # Arrange — one match per entity type, sharing a unique token.
+        author = Author.objects.create(first_name='Sam', last_name='Quokka')
+        series = BookSeries.objects.create(name='Quokka Saga')
+        book = Book.objects.create(title='Quokka Tales', language=self.lang)
+
+        # Act / Assert — root lists all three sections with the right counts + links.
+        root = _parse(self.client.get(f'{OPDS_BASE}search/?q=Quokka'))
+        expected = {
+            'Authors (1 found)': f'{OPDS_BASE}search/authors/?q=Quokka',
+            'Series (1 found)': f'{OPDS_BASE}search/series/?q=Quokka',
+            'Books (1 found)': f'{OPDS_BASE}search/books/?q=Quokka',
+        }
+        for label, sub_url in expected.items():
+            entry = _find_section_entry(root, label)
+            self.assertIsNotNone(entry, msg=f'missing section {label!r}')
+            hrefs = _get_link_hrefs(entry, 'subsection')
+            self.assertTrue(any(h.endswith(sub_url) for h in hrefs), msg=hrefs)
+
+        # Assert — drilling into the authors sub-feed yields exactly the author.
+        authors_feed = _parse(self.client.get(f'{OPDS_BASE}search/authors/?q=Quokka'))
+        author_entries = authors_feed.findall('atom:entry', NS)
+        self.assertEqual(len(author_entries), 1)
+        self.assertEqual(author_entries[0].findtext('atom:title', namespaces=NS), author.full_name)
+        self.assertTrue(any(
+            h.endswith(f'{OPDS_BASE}authors/{author.pk}/')
+            for h in _get_link_hrefs(author_entries[0], 'subsection')
+        ))
+
+        # Assert — drilling into the series sub-feed yields exactly the series.
+        series_feed = _parse(self.client.get(f'{OPDS_BASE}search/series/?q=Quokka'))
+        series_entries = series_feed.findall('atom:entry', NS)
+        self.assertEqual(len(series_entries), 1)
+        self.assertTrue(any(
+            h.endswith(f'{OPDS_BASE}series/{series.pk}/')
+            for h in _get_link_hrefs(series_entries[0], 'subsection')
+        ))
+
+        # Assert — drilling into the books sub-feed yields exactly the book,
+        # carrying its acquisition link.
+        books_feed = _parse(self.client.get(f'{OPDS_BASE}search/books/?q=Quokka'))
+        book_entries = books_feed.findall('atom:entry', NS)
+        self.assertEqual(len(book_entries), 1)
+        self.assertEqual(book_entries[0].findtext('atom:title', namespaces=NS), book.title)
+        self.assertEqual(len(_links_by_rel(book_entries[0], ACQUISITION_REL)), 1)
+
+
+# ---------------------------------------------------------------------------
+# OPDSOpenSearchDescriptionTest
+# ---------------------------------------------------------------------------
+
+class OPDSOpenSearchDescriptionTest(OPDSThrottleResetMixin, TestCase):
+    """Tests the OpenSearch description document endpoint (no DB required)."""
+
+    def test_opensearch_description_status_200(self):
+        """GET opds:root/search/description.xml → 200."""
+        response = self.client.get(f'{OPDS_BASE}search/description.xml')
+        self.assertEqual(response.status_code, 200)
+
+    def test_opensearch_description_content_type(self):
+        """Content-Type is application/opensearchdescription+xml."""
+        response = self.client.get(f'{OPDS_BASE}search/description.xml')
+        self.assertTrue(
+            response['Content-Type'].startswith(
+                'application/opensearchdescription+xml'
+            ),
+            msg=response['Content-Type'],
+        )
+
+    def test_opensearch_description_has_shortname(self):
+        """The document's <ShortName> element text is 'Bookshelf'."""
+        response = self.client.get(f'{OPDS_BASE}search/description.xml')
+        ns = {'os': 'http://a9.com/-/spec/opensearch/1.1/'}
+        root = ET.fromstring(response.content)
+        self.assertEqual(root.findtext('os:ShortName', namespaces=ns), 'Bookshelf')
+
+    def test_opensearch_description_has_url_template(self):
+        """The <Url> template points at the search root (chooser feed)."""
+        response = self.client.get(f'{OPDS_BASE}search/description.xml')
+        ns = {'os': 'http://a9.com/-/spec/opensearch/1.1/'}
+        url_el = ET.fromstring(response.content).find('os:Url', ns)
+        self.assertIsNotNone(url_el)
+        self.assertIn(
+            f'{OPDS_BASE}search/?q={{searchTerms}}',
+            url_el.get('template', ''),
+        )
+        # Must not collapse onto a sub-feed (e.g. books-only).
+        self.assertNotIn('search/books/', url_el.get('template', ''))
+
+    def test_opensearch_description_url_type_is_opds_catalog(self):
+        """OPDS 1.2: the <Url> type must be the OPDS Catalog media type.
+
+        Plain ``application/atom+xml`` is rejected by spec-compliant readers,
+        which then surface no search.  The search root is a navigation feed.
+        """
+        response = self.client.get(f'{OPDS_BASE}search/description.xml')
+        ns = {'os': 'http://a9.com/-/spec/opensearch/1.1/'}
+        url_el = ET.fromstring(response.content).find('os:Url', ns)
+        self.assertEqual(
+            url_el.get('type'),
+            'application/atom+xml;profile=opds-catalog;kind=navigation',
+        )
+
+    def test_opensearch_description_template_is_absolute_url(self):
+        """The Url template is an absolute http(s) URL."""
+        response = self.client.get(f'{OPDS_BASE}search/description.xml')
+        ns = {'os': 'http://a9.com/-/spec/opensearch/1.1/'}
+        url_el = ET.fromstring(response.content).find('os:Url', ns)
+        self.assertTrue(url_el.get('template', '').startswith('http'))
+
+    def test_opensearch_description_template_bakes_detail_thick(self):
+        """With ?detail=thick the Url template carries q={searchTerms} and detail=thick."""
+        response = self.client.get(f'{OPDS_BASE}search/description.xml?detail=thick')
+        ns = {'os': 'http://a9.com/-/spec/opensearch/1.1/'}
+        url_el = ET.fromstring(response.content).find('os:Url', ns)
+        template = url_el.get('template', '')
+        self.assertIn('q={searchTerms}', template)
+        self.assertIn('detail=thick', template)
+
+    def test_opensearch_description_template_omits_detail_by_default(self):
+        """Without ?detail=thick the Url template has no detail parameter."""
+        response = self.client.get(f'{OPDS_BASE}search/description.xml')
+        ns = {'os': 'http://a9.com/-/spec/opensearch/1.1/'}
+        url_el = ET.fromstring(response.content).find('os:Url', ns)
+        self.assertNotIn('detail', url_el.get('template', ''))
+
+    def test_opensearch_description_uses_default_namespace(self):
+        """Tags are unprefixed under a default xmlns (spec/Flibusta form).
+
+        Some OPDS readers naively string-match for an unprefixed
+        ``<Url template>`` and fail to discover search when the elements
+        carry an ``opensearch:`` prefix.
+        """
+        response = self.client.get(f'{OPDS_BASE}search/description.xml')
+        body = response.content.decode()
+        self.assertIn(
+            '<OpenSearchDescription xmlns='
+            '"http://a9.com/-/spec/opensearch/1.1/"',
+            body,
+        )
+        self.assertIn('<Url ', body)
+        self.assertNotIn('opensearch:', body)
+        self.assertNotIn('ns0:', body)

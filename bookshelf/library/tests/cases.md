@@ -231,11 +231,12 @@ No database content required; the feed is purely structural (uses plain TestCase
 
 1. **test_root_feed_status_200**: GET `opds:root/` returns HTTP 200.
 2. **test_root_feed_content_type**: Response `Content-Type` starts with `application/atom+xml`.
-3. **test_root_feed_has_five_catalog_entries**: Feed XML contains exactly 5 `<entry>` elements.
-4. **test_root_feed_entry_titles**: The 5 entry titles are exactly `{Authors, Genres, Series, Books, Search}`.
+3. **test_root_feed_has_four_catalog_entries**: Feed XML contains exactly 4 `<entry>` elements.
+4. **test_root_feed_entry_titles**: The 4 entry titles are exactly `{Authors, Genres, Series, Books}`.
 5. **test_root_feed_navigation_link** *(parameterized: self, start)*: Feed contains exactly one `<link rel="self">` and one `<link rel="start">`, each `href` ending with `opds:root/`.
-7. **test_root_feed_search_entry_has_opensearch_link**: The Search entry has exactly one `<link type="application/opensearchdescription+xml">`.
-8. **test_root_feed_is_pretty_printed**: Raw response body contains `\n` (newlines) and `  <` (indentation).
+7. **test_root_feed_search_link_at_feed_level**: The feed has exactly one feed-level `<link rel="search" type="application/opensearchdescription+xml">` and no `Search` navigation `<entry>` (no `tag:bookshelf:search` id).
+8. **test_root_feed_has_templated_atom_search_link**: The feed emits exactly one feed-level templated `<link rel="search" type="application/atom+xml">` whose href contains `search/?q={searchTerms}` (mirrors Flibusta; readers synthesize an inline "Search" row from it).
+9. **test_root_feed_is_pretty_printed**: Raw response body contains `\n` (newlines) and `  <` (indentation).
 
 ## Access Control (test_access_control.py)
 1. **test_book_detail_unauthenticated**: Verify that unauthenticated users are redirected to login.
@@ -437,7 +438,7 @@ Canonical dataset plus an inline described author/book (with `<script>`/`<iframe
 Canonical dataset. Verifies the §6.5a Propagation rule — `?detail=thick` is a sticky, catalog-wide preference threaded through every browsable-catalog link and omitted from non-feed / always-complete links. Uses the implemented Root + Author feeds; a series+standalone author is found via `.filter()`.
 
 1. **test_root_subsection_links_preserve_detail**: Every root entry `rel="subsection"` link (Authors, Genres, Series, Books) carries `detail=thick`.
-2. **test_root_search_query_link_preserves_detail**: The Search entry's `application/atom+xml` query-template link carries `detail=thick`, while the `application/opensearchdescription+xml` description link does not.
+2. **test_root_search_links_preserve_detail**: Both feed-level search links carry `detail=thick` — the `application/opensearchdescription+xml` descriptor link and the templated `application/atom+xml` link (which also keeps its `{searchTerms}` placeholder).
 3. **test_root_self_and_start_links_preserve_detail**: The feed `rel="self"` and `rel="start"` links both carry `detail=thick`.
 4. **test_root_logo_thumbnail_link_omits_detail**: The non-book logo thumbnail links never carry a `detail` param.
 5. **test_author_tree_subsection_links_preserve_detail**: Every author-tree child `subsection` link and the synthetic "all" link carry `detail=thick`.
@@ -475,3 +476,44 @@ Canonical dataset. Verifies the §6.5a Propagation rule — `?detail=thick` is a
 22. **test_book_detail_author_and_series_related_links_distinguishable**: Author related links target `/authors/<pk>/`; series related links target `/series/<pk>/`.
 23. **test_book_detail_acquisition_link_always_rendered**: The acquisition link is always present and points to `opds:root/books/<pk>/download/`.
 24. **test_book_detail_has_no_alternate_link**: The detail feed (being the alternate target) carries no `rel="alternate"` link.
+
+## OPDS Search Feeds (tests_opds.py — OPDSSearchTest)
+
+Canonical dataset. Query prefixes `Abak` (authors), `Ch` (series), `Alid` (book titles) exist in the dataset; a unique `Zap` prefix with 25 fresh per-test books (created in `setUp`) drives pagination. Per the catalog-is-fully-browsable convention the acquisition link is always rendered, so there is no permission-gating case for the book sub-feed.
+
+1. **test_search_root_returns_200**: GET `opds:root/search/?q=Abak` returns 200.
+2. **test_search_root_has_section_entry** *(parameterized: books/series/authors)*: A single-entity query yields the matching `<Section> (N found)` entry linking to `opds:root/search/<section>/?q=<query>` (`Alid`→books, `Ch`→series, `Abak`→authors).
+3. **test_search_root_section_omitted_when_empty**: `?q=Abak` (authors-only matches) yields no `Books` and no `Series` section entry.
+4. **test_search_root_section_count_reflects_match_total**: `?q=Abak` labels the Authors section with the real match count (`Authors (21 found)`).
+5. **test_search_root_returns_empty_feed** *(parameterized: whitespace/empty/no-match)*: A whitespace-only `q`, a missing `q`, and an unmatchable `q` each return 200 with zero entries.
+6. **test_search_root_is_navigation_feed**: The search root feed advertises `kind=navigation`.
+7. **test_search_section_entries_have_logo**: Search section entries carry the logo thumbnail link.
+8. **test_search_authors_subfeed_entries_link_to_author**: `search/authors/?q=Abak` entries link to `opds:root/authors/<pk>/`.
+9. **test_search_authors_subfeed_is_navigation**: The search-authors sub-feed advertises `kind=navigation`.
+10. **test_search_series_subfeed_entries_link_to_series**: `search/series/?q=Ch` entries link to `opds:root/series/<pk>/`.
+11. **test_search_books_subfeed_is_acquisition**: The search-books sub-feed advertises `kind=acquisition`.
+12. **test_search_books_subfeed_acquisition_link_always_rendered**: Every search book entry carries exactly one acquisition link.
+13. **test_search_books_subfeed_is_case_insensitive**: A lowercase `q=alid` matches the mixed-case `Alid*` titles (23 books) — `icontains`.
+14. **test_search_books_subfeed_matches_substring**: `q=lid` matches the `Alid*` titles (23), proving substring (not prefix) matching.
+15. **test_search_books_subfeed_excludes_non_matching**: Every returned entry's title contains the query; non-matching titles are absent (`?q=Alid` → exactly 23, all containing `Alid`).
+16. **test_search_books_subfeed_thin_by_default**: `search/books/?q=Alid` entries are thin (no `<content>`, no full image, one `rel="alternate"`).
+17. **test_search_books_subfeed_thick_param**: `search/books/?q=Alid&detail=thick` entries are complete (carry the full-size image link).
+18. **test_search_books_subfeed_pagination**: `search/books/?q=Zap` page 1 has exactly 20 entries and a `rel="next"` link.
+19. **test_search_books_subfeed_total_matches_count**: `search/books/?q=Zap` returns all 25 matching books across pages.
+20. **test_search_subfeed_pagination_preserves_q** *(parameterized: authors/series/books)*: Every paginated sub-feed's `next` link preserves both `q` and `page=2` (`authors?q=Aban`, `series?q=Ch`, `books?q=Zap`).
+21. **test_search_subfeed_empty_query_returns_empty_feed**: GET `opds:root/search/books/` (no `q`) returns 200 with zero entries.
+22. **test_search_all_sections_present_and_drilldown**: A query (`Quokka`) matching one author, one series and one book surfaces all three `(1 found)` sections together, and drilling into each `search/<section>/` sub-feed resolves to exactly the matching author / series / book element.
+
+## OPDS OpenSearch Description (tests_opds.py — OPDSOpenSearchDescriptionTest)
+
+No database content required. Verifies the OpenSearch description document at `GET opds:root/search/description.xml`.
+
+1. **test_opensearch_description_status_200**: GET `opds:root/search/description.xml` returns 200.
+2. **test_opensearch_description_content_type**: The `Content-Type` starts with `application/opensearchdescription+xml`.
+3. **test_opensearch_description_has_shortname**: The `<ShortName>` element text is `Bookshelf`.
+4. **test_opensearch_description_has_url_template**: The `<Url>` `template` attribute contains `/opds/v1/search/?q={searchTerms}` (search resolves to the root Authors/Series/Books chooser, not a sub-feed).
+5. **test_opensearch_description_template_is_absolute_url**: The `<Url>` `template` is an absolute `http(s)` URL.
+6. **test_opensearch_description_template_bakes_detail_thick**: With `?detail=thick` the `<Url>` `template` contains both `q={searchTerms}` and `detail=thick`.
+7. **test_opensearch_description_template_omits_detail_by_default**: Without `?detail=thick` the `<Url>` `template` carries no `detail` parameter.
+8. **test_opensearch_description_uses_default_namespace**: The document uses the default OpenSearch namespace with unprefixed tags (`<OpenSearchDescription xmlns="…">`, `<Url …>`) — no `opensearch:`/`ns0:` prefixes — so readers that string-match for a bare `<Url template>` discover search.
+9. **test_opensearch_description_url_type_is_opds_catalog**: The `<Url type>` is `application/atom+xml;profile=opds-catalog;kind=navigation` (OPDS 1.2 requires the OPDS Catalog media type; plain `application/atom+xml` is rejected by spec-compliant readers).

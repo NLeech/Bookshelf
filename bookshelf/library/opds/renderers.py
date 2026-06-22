@@ -149,6 +149,20 @@ class OPDSRenderer(BaseRenderer):
             el.set('href', start_link)
             el.set('type', NAV_CONTENT_TYPE)
 
+        # Arbitrary feed-level links (e.g. the OpenSearch rel="search" discovery
+        # link).  Emitted as direct children of <feed>; same attribute handling
+        # as per-entry links.
+        for link in data.get('feed_links', []):
+            link_el = ET.SubElement(feed, f'{{{ATOM_NS}}}link')
+            link_el.set('rel', link.get('rel', ''))
+            link_el.set('href', link.get('href', ''))
+            link_type = link.get('type')
+            if link_type:
+                link_el.set('type', link_type)
+            link_title = link.get('title')
+            if link_title:
+                link_el.set('title', link_title)
+
         # Pagination links.
         pagination = data.get('pagination')
         if pagination:
@@ -230,19 +244,30 @@ class OpenSearchRenderer(BaseRenderer):
         if data is None:
             return b''
 
-        ns = OPENSEARCH_NS
-        root = ET.Element(f'{{{ns}}}OpenSearchDescription')
+        # Build with unprefixed tags and a literal default-namespace xmlns on
+        # the root (<OpenSearchDescription xmlns="…">, <Url>, …) to match the
+        # OpenSearch 1.1 spec.
+        root = ET.Element('OpenSearchDescription')
+        root.set('xmlns', OPENSEARCH_NS)
 
-        ET.SubElement(root, f'{{{ns}}}ShortName').text = data.get('short_name', '')
-        ET.SubElement(root, f'{{{ns}}}Description').text = data.get('description', '')
+        ET.SubElement(root, 'ShortName').text = data.get('short_name', '')
+        ET.SubElement(root, 'Description').text = data.get('description', '')
 
-        url_el = ET.SubElement(root, f'{{{ns}}}Url')
-        url_el.set('type', 'application/atom+xml')
+        url_el = ET.SubElement(root, 'Url')
+        # OPDS 1.2 mandates the OPDS Catalog media type here (not plain
+        # application/atom+xml) so spec-compliant readers accept the <Url>.
+        url_el.set(
+            'type',
+            data.get(
+                'url_type',
+                'application/atom+xml;profile=opds-catalog;kind=acquisition',
+            ),
+        )
         url_el.set('template', data.get('template', ''))
 
-        ET.SubElement(root, f'{{{ns}}}Language').text = data.get('language', '*')
-        ET.SubElement(root, f'{{{ns}}}OutputEncoding').text = 'UTF-8'
-        ET.SubElement(root, f'{{{ns}}}InputEncoding').text = 'UTF-8'
+        ET.SubElement(root, 'Language').text = data.get('language', '*')
+        ET.SubElement(root, 'OutputEncoding').text = 'UTF-8'
+        ET.SubElement(root, 'InputEncoding').text = 'UTF-8'
 
         ET.indent(root, space='  ')
         xml_bytes = ET.tostring(root, encoding='unicode').encode('utf-8')

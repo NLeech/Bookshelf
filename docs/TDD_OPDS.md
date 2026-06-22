@@ -176,6 +176,8 @@ Navigation feed. Fixed set of five entries:
   <updated>...</updated>
   <link rel="self" href="/opds/v1/" type="application/atom+xml;...;kind=navigation"/>
   <link rel="start" href="/opds/v1/" type="application/atom+xml;...;kind=navigation"/>
+  <link rel="search" type="application/opensearchdescription+xml" href="/opds/v1/search/description.xml"/>
+  <link rel="search" type="application/atom+xml" href="/opds/v1/search/?q={searchTerms}"/>
 
   <entry>
     <title>Authors</title>
@@ -196,17 +198,10 @@ Navigation feed. Fixed set of five entries:
     <title>Books</title>
     ...
   </entry>
-  <entry>
-    <title>Search</title>
-    <id>tag:bookshelf:search</id>
-    <link rel="search" type="application/opensearchdescription+xml" href="/opds/v1/search/description.xml"/>
-    <link rel="search" type="application/atom+xml" href="/opds/v1/search/?q={searchTerms}"/>
-    <content type="text">Search the catalog</content>
-  </entry>
 </feed>
 ```
 
-> The `Series`, `Books`, and `Search` entries follow the same shape: `Series` → `/opds/v1/series/tree/`, `Books` → `/opds/v1/books/tree/`, `Genres` → `/opds/v1/genres/`, `Search` → the OpenSearch links shown above. All four "browse" entries point at navigation roots, never at the flat results endpoints.
+> Search is **not** a navigation entry: it is advertised by two feed-level `<link rel="search">` elements (direct children of `<feed>`, mirroring Flibusta), because OPDS readers discover search by scanning feed-level links, not entry links. The `application/opensearchdescription+xml` link points at the OpenSearch descriptor (used by Calibre/KOReader auto-discovery and the reader's search box); the templated `application/atom+xml` `…/search/?q={searchTerms}` link is what readers turn into an inline "Search" catalog row. At feed level with `rel="search"` the literal `{searchTerms}` braces are treated as a template, not a URL to resolve, so strict `java.net.URI`-based readers do not choke on them. The `Series`, `Books`, and `Genres` entries follow the same shape as `Authors`: `Series` → `/opds/v1/series/tree/`, `Books` → `/opds/v1/books/tree/`, `Genres` → `/opds/v1/genres/`. All four "browse" entries point at navigation roots, never at the flat results endpoints.
 
 ### 6.2 Alphabet Tree Feeds (Authors, Books, Series)
 
@@ -302,15 +297,14 @@ Acquisition feed entry containing, **in this document order**:
 **Propagation.** `?detail=thick` is a **sticky, catalog-wide preference**, not a per-feed flag. OPDS clients reach an acquisition feed only by *following links* from navigation feeds — they never synthesise URLs — so the param is useless unless it is threaded through the whole browse path. Therefore, when `?detail=thick` is present on a request it MUST be re-appended to **every link whose target is another browsable catalog feed**, so the preference survives navigation, search, and drill-down until the client reaches (and pages through) a book-listing acquisition feed. It is preserved on:
 
 - every **`subsection`** navigation link in every navigation feed (Root, Alphabet Tree — including the synthetic "all …" entry, Author/Genre/Series results & detail, Author Series);
-- the **search query-template link** (`rel="search"`, `type="application/atom+xml"`, the `…/search/?q={searchTerms}` link) so following or paging search results stays in thick mode;
+- both **feed-level `rel="search"` links**: `detail=thick` rides on the `application/opensearchdescription+xml` descriptor link (and is baked into the description document's `<Url template>`, becoming `…/search/?q={searchTerms}&detail=thick`) **and** is appended to the templated `application/atom+xml` `…/search/?q={searchTerms}` link (becoming `…/search/?q={searchTerms}&detail=thick`), so search results stay in thick mode whichever link the reader follows. The templated `{searchTerms}` placeholder is preserved verbatim;
 - **author/series `rel="related"`** links on thick book entries (they target the author/series navigation feeds);
 - the feed's own **`self`** and **`start`** links and its **pagination** links (`first`/`next`/`previous`).
 
 It is **omitted** from links that are not browsable catalog feeds or are always complete:
 
 - the **`rel="alternate"`** link — its target `/opds/v1/books/<pk>/` (§6.5) is the single complete entry, already thick by definition, and is unaffected by the param;
-- the **acquisition / download** link, the cover **`image`** and **`thumbnail`** links, and the non-book **logo thumbnail** link (not feeds);
-- the **OpenSearch *description* link** (`type="application/opensearchdescription+xml"`) — a static descriptor document, not a feed.
+- the **acquisition / download** link, the cover **`image`** and **`thumbnail`** links, and the non-book **logo thumbnail** link (not feeds).
 
 The param changes **only** the verbosity of book entries in book-listing acquisition feeds; it has **no effect on the body** of a navigation feed — it only alters the links that feed emits. Implementation separates the two concerns:
 
@@ -348,14 +342,14 @@ Each section sub-feed is paginated **independently** with `OPDSPageNumberPaginat
 
 **`/opds/v1/search/description.xml` — `OpenSearchDescriptionView`**
 
-Returns the OpenSearch Description Document as `application/opensearchdescription+xml`. This is the endpoint referenced by `<link rel="search" type="application/opensearchdescription+xml">` in the root feed. Required for Calibre and KOreader auto-discovery.
+Returns the OpenSearch Description Document as `application/opensearchdescription+xml`, serialized with the **default** OpenSearch namespace and unprefixed tags (`<OpenSearchDescription xmlns="…">`, `<Url>`) — some readers string-match for a bare `<Url>` and ignore prefixed elements. This is the endpoint referenced by the sticky `<link rel="search" type="application/opensearchdescription+xml">` in the root feed, and is the spec-mandated search mechanism (OPDS 1.2 places the `{searchTerms}` template **only** here, not in the feed). Required for Calibre and KOreader auto-discovery. Per OPDS 1.2 the `<Url type>` **must** be the OPDS Catalog media type — plain `application/atom+xml` is rejected by spec-compliant readers. The template resolves to the search **root** (a navigation feed), so a reader's search lands on the Authors/Series/Books chooser and the user drills into a category; the type is therefore `application/atom+xml;profile=opds-catalog;kind=navigation`. When the request carries `?detail=thick`, the preference is baked into the `<Url template>` (which becomes `…/search/?q={searchTerms}&detail=thick`) so the client's substituted search URL inherits thick mode; the `{searchTerms}` braces are never percent-encoded.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
   <ShortName>Bookshelf</ShortName>
   <Description>Search the Bookshelf catalog</Description>
-  <Url type="application/atom+xml"
+  <Url type="application/atom+xml;profile=opds-catalog;kind=navigation"
        template="https://{host}/opds/v1/search/?q={searchTerms}"/>
   <Language>*</Language>
   <OutputEncoding>UTF-8</OutputEncoding>
@@ -364,6 +358,16 @@ Returns the OpenSearch Description Document as `application/opensearchdescriptio
 ```
 
 The `template` URL is built using `request.build_absolute_uri` so it works in any deployment environment.
+
+### OPDS reader compatibility (search) — hard requirements
+
+Each item is a MUST; violating any one makes search silently disappear in a strict reader:
+
+1. **Advertise search at *feed level*, not inside an `<entry>`.** The root feed emits the `rel="search"` links as direct children of `<feed>` (via the feed dict's `feed_links`). A search link buried in a navigation `<entry>` is treated by the reader as a navigable URL — it is never recognised as search and, when templated, throws `illegal character in query` on the literal `{`.
+2. **Serialize the OpenSearch document in the *default* namespace.** Tags must be unprefixed (`<OpenSearchDescription xmlns="…">`, `<Url>`), not `opensearch:`-prefixed — readers string-match a bare `<Url>`. The renderer sets a literal `xmlns` on the root rather than namespacing element tags (ElementTree's `default_namespace=` cannot be used because the `<Url>` carries unqualified attributes).
+3. **The `<Url type>` must be the OPDS Catalog media type** (`application/atom+xml;profile=opds-catalog;kind=navigation`), never plain `application/atom+xml` — spec-compliant readers filter `<Url>` by this type and ignore a plain one.
+4. **The `<Url template>` resolves to the search *root*** (`…/search/?q={searchTerms}`), so a search lands on the Authors/Series/Books chooser; it must not collapse onto a single sub-feed (e.g. books-only).
+5. The root feed also carries a second feed-level templated link (`rel="search"`, `type="application/atom+xml"`, `…/search/?q={searchTerms}`).
 
 ---
 
@@ -550,12 +554,13 @@ No database content required (structure-only). Uses plain `TestCase`.
 |---|------|-----------|
 | 1 | `test_root_feed_status_200` | GET `/opds/v1/` → 200 |
 | 2 | `test_root_feed_content_type` | Response `Content-Type` starts with `application/atom+xml` |
-| 3 | `test_root_feed_has_five_catalog_entries` | Feed contains exactly 5 `<entry>` elements (Authors, Genres, Series, Books, Search) |
+| 3 | `test_root_feed_has_four_catalog_entries` | Feed contains exactly 4 `<entry>` elements (Authors, Genres, Series, Books) |
 | 4 | `test_root_feed_entry_titles` | Each entry has the expected `<title>` text |
 | 5 | `test_root_feed_self_link` | Feed contains `<link rel="self" href="/opds/v1/">` |
 | 6 | `test_root_feed_start_link` | Feed contains `<link rel="start" href="/opds/v1/">` |
-| 7 | `test_root_feed_search_entry_has_opensearch_link` | Search entry has `<link type="application/opensearchdescription+xml">` |
-| 8 | `test_root_feed_is_pretty_printed` | Raw XML response body contains newlines and indentation (human-readable check) |
+| 7 | `test_root_feed_search_link_at_feed_level` | Feed has exactly one feed-level `<link rel="search" type="application/opensearchdescription+xml">` and no `Search` `<entry>` |
+| 8 | `test_root_feed_has_templated_atom_search_link` | Feed emits exactly one feed-level templated `<link rel="search" type="application/atom+xml">` whose href contains `search/?q={searchTerms}` |
+| 9 | `test_root_feed_is_pretty_printed` | Raw XML response body contains newlines and indentation (human-readable check) |
 
 ---
 
@@ -838,7 +843,7 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 | # | Test | Assertion |
 |---|------|-----------|
 | 1 | `test_root_subsection_links_preserve_detail` | GET `/opds/v1/?detail=thick`: every entry `<link rel="subsection">` href contains `detail=thick` (Authors, Genres, Series, Books) |
-| 2 | `test_root_search_query_link_preserves_detail` | The Search entry's `rel="search"` `type="application/atom+xml"` link (`…/search/?q={searchTerms}`) contains `detail=thick`; the `type="application/opensearchdescription+xml"` *description* link does **not** |
+| 2 | `test_root_search_links_preserve_detail` | Both feed-level search links carry `detail=thick`: the `opensearchdescription+xml` descriptor link, and the templated `atom+xml` link (which also keeps its `{searchTerms}` placeholder) |
 | 3 | `test_root_self_and_start_links_preserve_detail` | GET `/opds/v1/?detail=thick`: the feed `<link rel="self">` and `<link rel="start">` hrefs both contain `detail=thick` |
 | 4 | `test_root_logo_thumbnail_link_omits_detail` | The non-book `rel="http://opds-spec.org/image/thumbnail">` logo link never carries `detail=thick` |
 | 5 | `test_author_tree_subsection_links_preserve_detail` | GET `/opds/v1/authors/tree/a/?detail=thick`: every child `subsection` link **and** the synthetic "all a" link href contains `detail=thick` |
@@ -1006,8 +1011,12 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 | 1 | `test_opensearch_description_status_200` | GET `/opds/v1/search/description.xml` → 200 |
 | 2 | `test_opensearch_description_content_type` | `Content-Type` is `application/opensearchdescription+xml` |
 | 3 | `test_opensearch_description_has_shortname` | XML contains `<ShortName>Bookshelf</ShortName>` |
-| 4 | `test_opensearch_description_has_url_template` | XML contains `<Url>` element with `template` attribute containing `/opds/v1/search/?q={searchTerms}` |
+| 4 | `test_opensearch_description_has_url_template` | XML contains `<Url>` element with `template` attribute containing `/opds/v1/search/?q={searchTerms}` (search root chooser, not a sub-feed) |
 | 5 | `test_opensearch_description_template_is_absolute_url` | `template` attribute value starts with `http` (absolute URL) |
+| 6 | `test_opensearch_description_template_bakes_detail_thick` | GET `…/description.xml?detail=thick`: `template` contains both `q={searchTerms}` and `detail=thick` |
+| 7 | `test_opensearch_description_template_omits_detail_by_default` | Without `?detail=thick`: `template` carries no `detail` parameter |
+| 8 | `test_opensearch_description_uses_default_namespace` | Tags are unprefixed under a default `xmlns` (no `opensearch:`/`ns0:`) |
+| 9 | `test_opensearch_description_url_type_is_opds_catalog` | `<Url type>` is `application/atom+xml;profile=opds-catalog;kind=navigation` (OPDS 1.2 requires the OPDS Catalog media type) |
 
 ---
 

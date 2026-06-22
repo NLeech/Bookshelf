@@ -13,9 +13,10 @@ from library.services import (
     find_alphabet_node_by_name,
     get_alphabet_tree,
     get_descendants,
+    search_entities,
 )
 
-from .renderers import OPDSRenderer
+from .renderers import OPDSRenderer, OpenSearchRenderer
 from .serializers import (
     build_author_detail_feed,
     build_author_results_feed,
@@ -24,7 +25,9 @@ from .serializers import (
     build_book_results_feed,
     build_genre_detail_feed,
     build_genre_root_feed,
+    build_opensearch_description,
     build_root_feed,
+    build_search_root_feed,
     build_series_detail_feed,
     build_series_results_feed,
     build_tree_feed,
@@ -583,3 +586,116 @@ class BookDetailFeedView(OPDSBaseView):
         )
         feed = build_book_detail_feed(book, request)
         return Response(feed)
+
+
+# ---------------------------------------------------------------------------
+# Search views
+# ---------------------------------------------------------------------------
+
+class SearchRootFeedView(OPDSBaseView):
+    """GET opds:root/search/?q=<query> — search section-index navigation feed.
+
+    Searches authors, series, and books via ``library.services.search_entities``
+    and emits up to three section entries (one per non-empty result set), each
+    linking to its own independently paginated sub-feed.  The root feed itself
+    is never paginated.  An empty or missing ``q`` (or a no-match query) yields
+    a valid feed with zero entries — never an error.
+    """
+
+    def get(self, request):
+        query = request.query_params.get('q', '').strip()
+        results = search_entities(query)
+        feed = build_search_root_feed(query, results, request)
+        return Response(feed)
+
+
+class SearchAuthorsFeedView(OPDSBaseView):
+    """GET opds:root/search/authors/?q=<query> — paginated author search feed.
+
+    A navigation feed of authors matching ``q``; each entry links to the author
+    detail feed at ``opds:root/authors/<pk>/``.  The ``q`` param is preserved on
+    pagination links.
+    """
+
+    def get(self, request):
+        query = request.query_params.get('q', '').strip()
+        queryset = (
+            search_entities(query)['authors']
+            .annotate(book_count=Count('books', distinct=True))
+        )
+        page, pagination = self._paginate(queryset, request)
+        feed = build_author_results_feed(
+            page,
+            pagination,
+            request,
+            feed_id='tag:bookshelf:search:authors',
+            feed_title=f'Search “{query}” — Authors',
+        )
+        return Response(feed)
+
+
+class SearchSeriesFeedView(OPDSBaseView):
+    """GET opds:root/search/series/?q=<query> — paginated series search feed.
+
+    A navigation feed of series matching ``q``; each entry links to the series
+    detail feed at ``opds:root/series/<pk>/``.  The ``q`` param is preserved on
+    pagination links.
+    """
+
+    def get(self, request):
+        query = request.query_params.get('q', '').strip()
+        queryset = (
+            search_entities(query)['series']
+            .annotate(book_count=Count('books', distinct=True))
+        )
+        page, pagination = self._paginate(queryset, request)
+        feed = build_series_results_feed(
+            page,
+            pagination,
+            request,
+            feed_id='tag:bookshelf:search:series',
+            feed_title=f'Search “{query}” — Series',
+        )
+        return Response(feed)
+
+
+class SearchBooksFeedView(OPDSBaseView):
+    """GET opds:root/search/books/?q=<query> — paginated book search feed.
+
+    An acquisition feed of books matching ``q``.  Entries are thin by default;
+    ``?detail=thick`` renders the complete book shape inline (the preference is
+    preserved across pagination links, alongside ``q``).
+    """
+
+    def get(self, request):
+        query = request.query_params.get('q', '').strip()
+        queryset = (
+            search_entities(query)['books']
+            .prefetch_related('authors', 'bookserieslink_set__series')
+        )
+        page, pagination = self._paginate(queryset, request)
+        feed = build_book_results_feed(
+            page,
+            pagination,
+            request,
+            feed_id='tag:bookshelf:search:books',
+            feed_title=f'Search “{query}” — Books',
+            thick=wants_thick_entries(request),
+        )
+        return Response(feed)
+
+
+class OpenSearchDescriptionView(OPDSBaseView):
+    """GET opds:root/search/description.xml — OpenSearch description document.
+
+    Returns the OpenSearch Description Document as
+    ``application/opensearchdescription+xml`` (via ``OpenSearchRenderer``).  This
+    is the descriptor referenced by ``<link rel="search"
+    type="application/opensearchdescription+xml">`` in the root feed, required
+    for Calibre / KOreader search auto-discovery.
+    """
+
+    renderer_classes = [OpenSearchRenderer]
+
+    def get(self, request):
+        return Response(build_opensearch_description(request))

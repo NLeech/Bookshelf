@@ -34,4 +34,11 @@ urlpatterns = [
     path('books/tree/', views.BookTreeFeedView.as_view(), name='book_tree'),
     path('books/tree/<str:name>/', views.BookTreeFeedView.as_view(), name='book_tree_node'),
     path('books/<int:pk>/', views.BookDetailFeedView.as_view(), name='book_detail'),
+
+    # Search endpoints.
+    path('search/', views.SearchRootFeedView.as_view(), name='search'),
+    path('search/authors/', views.SearchAuthorsFeedView.as_view(), name='search_authors'),
+    path('search/series/', views.SearchSeriesFeedView.as_view(), name='search_series'),
+    path('search/books/', views.SearchBooksFeedView.as_view(), name='search_books'),
+    path('search/description.xml', views.OpenSearchDescriptionView.as_view(), name='opensearch_description'),
 ]
