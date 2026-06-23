@@ -4,8 +4,11 @@ OPDS v1.2 catalog tests.
 import base64
 import io
 import xml.etree.ElementTree as ET
+import zipfile
 from urllib.parse import quote
 
+import pyzipper
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.cache import cache
@@ -18,6 +21,7 @@ from PIL import Image
 from bookshelf.tests.base_test import BaseTestCase
 from library.models import Author, Book, BookSeries, BookSeriesLink, Genre, Language
 from library.tests.epub_test_utils import create_epub_one_author
+from library.tests.fb2_test_utils import create_fb2_one_author
 from library.tests.test_data_factory import create_test_dataset
 
 User = get_user_model()
@@ -59,7 +63,7 @@ OPDS_BASE = '/opds/v1/'
 LOGO_HREF_SUFFIX = '/static/img/Logo%2064x64x8.png'
 THUMBNAIL_REL = 'http://opds-spec.org/image/thumbnail'
 IMAGE_REL = 'http://opds-spec.org/image'
-ACQUISITION_REL = 'http://opds-spec.org/acquisition'
+ACQUISITION_REL = 'http://opds-spec.org/acquisition/open-access'
 
 
 def _entry_link_rels(entry):
@@ -772,7 +776,7 @@ class OPDSAuthorDetailTest(OPDSThrottleResetMixin, TestCase):
         for entry in entries:
             acq_links = [
                 lnk for lnk in entry.findall('atom:link', NS)
-                if lnk.get('rel') == 'http://opds-spec.org/acquisition'
+                if lnk.get('rel') == ACQUISITION_REL
             ]
             self.assertEqual(len(acq_links), 1, 'Every entry should expose an acquisition link')
             self.assertTrue(acq_links[0].get('href', '').endswith('/download/'))
@@ -792,7 +796,7 @@ class OPDSAuthorDetailTest(OPDSThrottleResetMixin, TestCase):
             book.save(update_fields=['file_type'])
             expected_type = (
                 'application/epub+zip' if file_type == 'epub'
-                else 'application/x-fictionbook+xml'
+                else 'application/fb2+zip'
             )
             expected[f'tag:bookshelf:book:{book.pk}'] = expected_type
 
@@ -804,7 +808,7 @@ class OPDSAuthorDetailTest(OPDSThrottleResetMixin, TestCase):
             entry_id = entry.findtext('atom:id', namespaces=NS)
             acq_link = next(
                 lnk for lnk in entry.findall('atom:link', NS)
-                if lnk.get('rel') == 'http://opds-spec.org/acquisition'
+                if lnk.get('rel') == ACQUISITION_REL
             )
             self.assertEqual(acq_link.get('type'), expected[entry_id])
 
@@ -817,7 +821,7 @@ class OPDSAuthorDetailTest(OPDSThrottleResetMixin, TestCase):
         for entry in entries:
             acq_link = next(
                 lnk for lnk in entry.findall('atom:link', NS)
-                if lnk.get('rel') == 'http://opds-spec.org/acquisition'
+                if lnk.get('rel') == ACQUISITION_REL
             )
             self.assertEqual(acq_link.get('type'), 'application/octet-stream')
 
@@ -3016,6 +3020,21 @@ class OPDSBookDownloadTest(OPDSThrottleResetMixin, BaseTestCase):
             'test.epub', ContentFile(create_epub_one_author().read())
         )
 
+        # FB2 book stored as an encrypted ZIP; delivered as application/fb2+zip.
+        cls.fb2_book = Book.objects.create(
+            title='Test FB2', language=cls.lang_en, file_type='fb2',
+        )
+        cls.fb2_book.authors.add(cls.author)
+        cls.fb2_content = create_fb2_one_author().read()
+        zip_buffer = io.BytesIO()
+        with pyzipper.AESZipFile(
+            zip_buffer, 'w',
+            compression=pyzipper.ZIP_DEFLATED, encryption=pyzipper.WZ_AES,
+        ) as zf:
+            zf.setpassword(settings.BOOK_PWD)
+            zf.writestr('inner.fb2', cls.fb2_content)
+        cls.fb2_book.file.save('test.fb2.zip', ContentFile(zip_buffer.getvalue()))
+
         cls.no_file_book = Book.objects.create(
             title='No File', language=cls.lang_en,
         )
@@ -3042,6 +3061,18 @@ class OPDSBookDownloadTest(OPDSThrottleResetMixin, BaseTestCase):
             msg=response.get('WWW-Authenticate'),
         )
 
+    def test_download_401_has_empty_body(self):
+        """The 401 challenge body is empty so readers don't write it to the file.
+
+        Simple OPDS readers persist the challenge body to the download target
+        before retrying with credentials; a non-empty body corrupts the saved
+        book file.  The WWW-Authenticate header must still be preserved.
+        """
+        response = self.client.get(self._download_url(self.book))
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.content, b'')
+        self.assertTrue(response['WWW-Authenticate'].startswith('Basic'))
+
     def test_download_user_no_perm_returns_403(self):
         """An authenticated user lacking the permission → 403."""
         response = self.client.get(
@@ -3049,6 +3080,15 @@ class OPDSBookDownloadTest(OPDSThrottleResetMixin, BaseTestCase):
             HTTP_AUTHORIZATION=_basic('plain', 'pass'),
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_download_403_has_empty_body(self):
+        """The 403 (no-permission) response also has an empty body."""
+        response = self.client.get(
+            self._download_url(self.book),
+            HTTP_AUTHORIZATION=_basic('plain', 'pass'),
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.content, b'')
 
     def test_download_user_with_perm_epub_returns_200(self):
         """A permitted user downloads the EPUB → 200 attachment, non-empty body."""
@@ -3068,6 +3108,19 @@ class OPDSBookDownloadTest(OPDSThrottleResetMixin, BaseTestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+    def test_download_invalid_pk_returns_404(self):
+        """A non-existent book pk → 404, passing through the empty-body override.
+
+        The ``handle_exception`` override only rewrites 401/403; other statuses
+        (here a 404 from ``get_object_or_404``) are returned unchanged.
+        """
+        invalid_pk = Book.objects.order_by('-pk').first().pk + 1000
+        response = self.client.get(
+            f'{OPDS_BASE}books/{invalid_pk}/download/',
+            HTTP_AUTHORIZATION=_basic('perm', 'pass'),
+        )
+        self.assertEqual(response.status_code, 404)
+
     def test_download_non_ascii_filename_uses_rfc6266(self):
         """A Cyrillic title yields an RFC 6266 ``filename*=utf-8''`` header."""
         author = Author.objects.create(first_name='Степан', last_name='Бандера')
@@ -3083,3 +3136,23 @@ class OPDSBookDownloadTest(OPDSThrottleResetMixin, BaseTestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertIn("filename*=utf-8''", response['Content-Disposition'])
+
+    def test_download_fb2_delivered_as_zip(self):
+        """An FB2 download is a valid ZIP served as application/fb2+zip.
+
+        The body must be a well-formed archive (central directory present) whose
+        single entry holds the original FB2 bytes, and the filename ends ``.zip``.
+        """
+        response = self.client.get(
+            self._download_url(self.fb2_book),
+            HTTP_AUTHORIZATION=_basic('perm', 'pass'),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/fb2+zip')
+        self.assertIn('.fb2.zip"', response['Content-Disposition'])
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+            names = zf.namelist()
+            self.assertEqual(len(names), 1)
+            self.assertTrue(names[0].endswith('.fb2'))
+            self.assertEqual(zf.read(names[0]), self.fb2_content)

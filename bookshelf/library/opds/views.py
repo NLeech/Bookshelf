@@ -637,6 +637,17 @@ class OPDSBookDownloadView(OPDSBaseView):
     permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
+    # return a 401/403 with an empty body (no OPDS feed) so readers don't try to parse it
+    def handle_exception(self, exc): 
+        response = super().handle_exception(exc) 
+        if response.status_code in (401, 403):
+            empty = HttpResponse(status=response.status_code)
+            www_authenticate = response.get('WWW-Authenticate')
+            if www_authenticate:
+                empty['WWW-Authenticate'] = www_authenticate
+            return empty
+        return response
+
     def get(self, request, pk):
         book = get_object_or_404(Book, pk=pk)
 

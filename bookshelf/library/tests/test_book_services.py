@@ -1,4 +1,5 @@
 import io
+import zipfile
 import pyzipper
 from unittest import mock
 from django.conf import settings
@@ -178,14 +179,19 @@ class BookServicesTest(BaseTestCase):
         self.assertEqual(sanitize_filename(input_str), expected)
 
     @parameterized.expand([
-        ("epub_direct", "EPUB Direct", "epub", "application/epub+zip", False, True),
-        ("fb2_direct", "FB2 Direct", "fb2", "application/x-fictionbook+xml", False, True),
-        ("epub_zipped", "EPUB Zipped", "epub", "application/epub+zip", True, True),
-        ("fb2_zipped", "FB2 Zipped", "fb2", "application/x-fictionbook+xml", True, True),
-        ("no_authors", "No Author", "epub", "application/epub+zip", False, False),
+        ("epub_direct", "EPUB Direct", "epub", "application/epub+zip", False, True, False),
+        ("fb2_direct", "FB2 Direct", "fb2", "application/fb2+zip", False, True, True),
+        ("epub_zipped", "EPUB Zipped", "epub", "application/epub+zip", True, True, False),
+        ("fb2_zipped", "FB2 Zipped", "fb2", "application/fb2+zip", True, True, True),
+        ("no_authors", "No Author", "epub", "application/epub+zip", False, False, False),
     ])
-    def test_get_book_file_content_parameterized(self, name, title, ext, expected_type, is_zipped, has_author):
-        """Test get_book_file_content with various scenarios using parameterization."""
+    def test_get_book_file_content_parameterized(self, name, title, ext, expected_type, is_zipped, has_author, delivered_zipped):
+        """Test get_book_file_content with various scenarios using parameterization.
+
+        FB2 content is delivered zip-wrapped (``application/fb2+zip``): the
+        returned filename gains a ``.zip`` suffix and the bytes are a plain ZIP
+        whose single entry holds the original content.
+        """
         book = Book.objects.create(title=title, language=self.language)
         if has_author:
             author = Author.objects.create(first_name='John', last_name='Doe')
@@ -205,12 +211,18 @@ class BookServicesTest(BaseTestCase):
             book.file.save(f"test.{ext}", ContentFile(content))
 
         filename, result_content, content_type = get_book_file_content(book)
-        
-        expected_filename = f"{expected_author_part}_-_{title.replace(' ', '_')}.{ext}"
-        self.assertEqual(filename, expected_filename)
-        self.assertEqual(result_content, content)
+
+        base_name = f"{expected_author_part}_-_{title.replace(' ', '_')}.{ext}"
         self.assertEqual(content_type, expected_type)
-        
+        if delivered_zipped:
+            self.assertEqual(filename, f"{base_name}.zip")
+            with zipfile.ZipFile(io.BytesIO(result_content)) as zf:
+                self.assertEqual(zf.namelist(), [base_name])
+                self.assertEqual(zf.read(base_name), content)
+        else:
+            self.assertEqual(filename, base_name)
+            self.assertEqual(result_content, content)
+
         if book.file:
             book.file.close()
 
@@ -228,20 +240,20 @@ class BookServicesTest(BaseTestCase):
                 get_book_file_content(book)
                 # Verify that add_type was called for both .epub and .fb2
                 mock_add.assert_any_call('application/epub+zip', '.epub')
-                mock_add.assert_any_call('application/x-fictionbook+xml', '.fb2')
+                mock_add.assert_any_call('application/fb2+zip', '.fb2')
 
         if book.file:
             book.file.close()
 
     @parameterized.expand([
         ("filename_epub", "book.epub", "application/epub+zip"),
-        ("filename_fb2", "book.fb2", "application/x-fictionbook+xml"),
+        ("filename_fb2", "book.fb2", "application/fb2+zip"),
         ("ext_with_dot_epub", ".epub", "application/epub+zip"),
-        ("ext_with_dot_fb2", ".fb2", "application/x-fictionbook+xml"),
+        ("ext_with_dot_fb2", ".fb2", "application/fb2+zip"),
         ("bare_format_epub", "epub", "application/epub+zip"),
-        ("bare_format_fb2", "fb2", "application/x-fictionbook+xml"),
-        ("uppercase_format", "FB2", "application/x-fictionbook+xml"),
-        ("path_fb2", "books/inner.fb2", "application/x-fictionbook+xml"),
+        ("bare_format_fb2", "fb2", "application/fb2+zip"),
+        ("uppercase_format", "FB2", "application/fb2+zip"),
+        ("path_fb2", "books/inner.fb2", "application/fb2+zip"),
         ("unknown_format", "zzqq", "application/octet-stream"),
         ("empty_string", "", "application/octet-stream"),
     ])
@@ -255,7 +267,7 @@ class BookServicesTest(BaseTestCase):
             with mock.patch('mimetypes.add_type') as mock_add:
                 get_content_type('fb2')
                 mock_add.assert_any_call('application/epub+zip', '.epub')
-                mock_add.assert_any_call('application/x-fictionbook+xml', '.fb2')
+                mock_add.assert_any_call('application/fb2+zip', '.fb2')
 
     def test_get_book_file_content_missing_file(self):
         """Test get_book_file_content with book.file = None."""

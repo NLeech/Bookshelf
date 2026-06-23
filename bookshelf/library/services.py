@@ -3,6 +3,7 @@ import io
 import mimetypes
 import re
 import unicodedata
+import zipfile
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,8 +24,11 @@ from .book_utils.book_file import BookFile
 # Keyed by the canonical extension (leading dot, lowercase).
 CUSTOM_MIME_TYPES = {
     '.epub': 'application/epub+zip',
-    '.fb2': 'application/x-fictionbook+xml',
+    '.fb2': 'application/fb2+zip',
 }
+
+# MIME types for book formats that should be delivered zipped
+ZIPPED_MIME_TYPES = ('application/fb2+zip',)
 
 DEFAULT_CONTENT_TYPE = 'application/octet-stream'
 
@@ -634,19 +638,27 @@ def get_book_file_content(book: 'Book') -> tuple[str | None, bytes | None, str |
                 ext = Path(inner_filename).suffix
                 sanitized_filename = sanitize_filename(filename_base) + ext.lower()
 
-                return sanitized_filename, content, content_type
         except Exception as e:
             logging.getLogger(__name__).error(f'Failed to extract book from ZIP {book.file.name}: {e}')
             return None, None, None
     else:
-        # Not a zip, just return the file data
+        # Not a zip, just use the file data
+        content = file_data
         content_type = get_content_type(file_name)
 
         # Use extension from original file, lowercase it
         ext = Path(file_name).suffix
         sanitized_filename = sanitize_filename(filename_base) + ext.lower()
 
-        return sanitized_filename, file_data, content_type
+    if content_type in ZIPPED_MIME_TYPES:
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(sanitized_filename, content)
+
+        content = buffer.getvalue()
+        sanitized_filename = f'{sanitized_filename}.zip'
+
+    return sanitized_filename, content, content_type
 
 
 def search_entities(query: str) -> dict[str, Any]:

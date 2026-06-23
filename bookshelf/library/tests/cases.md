@@ -115,11 +115,11 @@
 6. **test_get_book_extractor_empty_zip**: Test with empty ZIP file. Returns `None`.
 7. **test_flatten_chapters_nested**: Test flattening of nested chapters and verify `flat_index` assignment.
 8. **test_sanitize_filename**: Parameterized test verifying `sanitize_filename` utility (ASCII only, no spaces, colons to ` - `, collapses underscores, strips edges, support for Cyrillic).
-9. **test_get_book_file_content_parameterized**: Verifies that `get_book_file_content` returns a standardized and sanitized filename (`Author_-_Title.ext`), correct bytes, and content type for both direct and zipped EPUB/FB2 files.
+9. **test_get_book_file_content_parameterized**: Verifies that `get_book_file_content` returns a standardized sanitized filename and correct content type for direct/zipped EPUB and FB2 files, and that FB2 is delivered zip-wrapped (`application/fb2+zip`, `.fb2.zip` filename, archive entry holding the original bytes).
 10. **test_get_book_file_content_mimetype_registration**: Verifies that custom mimetypes for EPUB and FB2 are registered if not already present.
 11. **test_get_book_file_content_missing_file**: Verifies that `get_book_file_content` returns `None` values if the book has no file.
-12. **test_get_content_type**: Parameterized test verifying `get_content_type` maps filenames, extensions (`.fb2`), bare format tags (`fb2`, `FB2`), and paths to the correct MIME type, falling back to `application/octet-stream` for unknown/empty input.
-13. **test_get_content_type_registers_custom_types**: Verifies `get_content_type` registers the custom EPUB/FB2 mimetypes when absent from the mime database.
+12. **test_get_content_type**: Parameterized test verifying `get_content_type` maps filenames, extensions (`.fb2`), bare format tags (`fb2`, `FB2`), and paths to the correct MIME type (`.fb2` → `application/fb2+zip`), falling back to `application/octet-stream` for unknown/empty input.
+13. **test_get_content_type_registers_custom_types**: Verifies `get_content_type` registers the custom EPUB (`application/epub+zip`) and FB2 (`application/fb2+zip`) mimetypes when absent from the mime database.
 14. **test_get_book_file_content_zip_empty_list**: Verifies that `get_book_file_content` returns `None` if the ZIP file is empty.
 15. **test_get_book_file_content_zip_exception**: Verifies that ZIP extraction errors are caught and logged, returning `None`.
 16. **test_get_book_file_content_read_exception**: Verifies that file read errors are caught and logged, returning `None`.
@@ -190,7 +190,7 @@ Verifies `library.services.can_view_book(user, book)`; each call passes a `book`
 3. **test_book_sidebar_multiple_authors**: Verify that multiple authors are displayed if present.
 
 ## Book Download View (BookDownloadViewTests)
-1. **test_book_download_filename**: Parameterized test verifying downloading books with various titles and authors (including Cyrillic, direct and zipped files), ensuring correct `Content-Type` and `Content-Disposition` (with RFC 6266 for non-ASCII).
+1. **test_book_download_filename**: Parameterized test verifying downloading books with various titles and authors (including Cyrillic), ensuring correct `Content-Type` and `Content-Disposition` (RFC 6266 for non-ASCII); FB2 is delivered zip-wrapped (`application/fb2+zip`, `.fb2.zip`) with the original bytes inside the archive, EPUB is delivered as-is.
 2. **test_book_download_multiple_authors**: Verify filename format for multiple authors: `FirstAuthor_et_al_-_Title`.
 3. **test_book_download_404_no_file**: Verify 404 if the book has no file.
 4. **test_book_download_404_invalid_id**: Verify 404 for non-existent book ID.
@@ -417,7 +417,7 @@ Canonical dataset.
 19. **test_author_detail_sub_feed_series_standalone_entry_has_count**: 'Standalone Books' entry `<content>` contains the correct standalone book count.
 20. **test_author_books_series_none_filter_only_standalone**: GET with `?series=none` returns only standalone books (count verified across all pages).
 21. **test_author_books_acquisition_link_always_rendered**: GET `opds:root/authors/<pk>/books/` returns entries each containing exactly one acquisition link pointing to a `/download/` URL, regardless of authentication.
-22. **test_author_books_acquisition_type_matches_file_type**: Each entry's acquisition link `type` reflects the book's `file_type` (`epub` → `application/epub+zip`, `fb2` → `application/x-fictionbook+xml`).
+22. **test_author_books_acquisition_type_matches_file_type**: Each entry's acquisition link `type` reflects the book's `file_type` (`epub` → `application/epub+zip`, `fb2` → `application/fb2+zip`).
 23. **test_author_books_acquisition_type_defaults_for_unknown_format**: Blank/unknown `file_type` falls back to `application/octet-stream` on the acquisition link.
 
 ## OPDS Entry Image / Logo (tests_opds.py — OPDSEntryImageTest)
@@ -541,7 +541,11 @@ Verifies `GET opds:login/` — the Basic credential challenge / redirect view.
 Verifies `GET opds:book_download` — the authenticated download endpoint (real EPUB file via `BaseTestCase`; `user_with_perm` in `Book access`, `user_no_perm` plain; Basic creds via `HTTP_AUTHORIZATION`).
 
 1. **test_download_anon_returns_401**: Anonymous download returns 401 with `WWW-Authenticate` starting `Basic`.
-2. **test_download_user_no_perm_returns_403**: An authenticated user lacking the permission returns 403 (via `can_view_book`).
-3. **test_download_user_with_perm_epub_returns_200**: A permitted user downloads the EPUB → 200, `Content-Disposition` contains `attachment`, body non-empty.
-4. **test_download_no_file_returns_404**: A permitted user requesting a book with no file returns 404.
-5. **test_download_non_ascii_filename_uses_rfc6266**: A Cyrillic title yields an RFC 6266 `filename*=utf-8''` `Content-Disposition` header.
+2. **test_download_401_has_empty_body**: The 401 challenge body is empty (so readers don't persist it into the saved file) while the `WWW-Authenticate: Basic` header is preserved.
+3. **test_download_user_no_perm_returns_403**: An authenticated user lacking the permission returns 403 (via `can_view_book`).
+4. **test_download_403_has_empty_body**: The 403 no-permission response also has an empty body.
+5. **test_download_user_with_perm_epub_returns_200**: A permitted user downloads the EPUB → 200, `Content-Disposition` contains `attachment`, body non-empty.
+6. **test_download_no_file_returns_404**: A permitted user requesting a book with no file returns 404.
+7. **test_download_invalid_pk_returns_404**: A non-existent book pk returns 404, confirming the empty-body override passes non-401/403 responses through unchanged.
+8. **test_download_non_ascii_filename_uses_rfc6266**: A Cyrillic title yields an RFC 6266 `filename*=utf-8''` `Content-Disposition` header.
+9. **test_download_fb2_delivered_as_zip**: A permitted FB2 download is served as `application/fb2+zip` with a `.fb2.zip` filename and a well-formed ZIP body whose single entry holds the original FB2 bytes.

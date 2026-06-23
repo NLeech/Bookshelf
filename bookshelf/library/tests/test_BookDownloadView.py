@@ -1,4 +1,5 @@
 import io
+import zipfile
 import pyzipper
 from django.urls import reverse
 from django.core.files.base import ContentFile
@@ -37,14 +38,17 @@ class BookDownloadViewTests(BaseTestCase):
         self.client.login(username='testuser', password='password')
 
     @parameterized.expand([
-        ("epub", "Test EPUB", "epub", create_epub_nested_chapters, 'application/epub+zip', 'Doe_John_-_Test_EPUB.epub', False),
-        ("fb2_zipped", "Test FB2 Zipped", "fb2", create_fb2_nested_chapters, 'application/x-fictionbook+xml', 'Doe_John_-_Test_FB2_Zipped.fb2', True),
-        ("cyrillic_epub", "З москалями нема спільної мови", "epub", create_epub_nested_chapters, 'application/epub+zip', 'Бандера_Степан_Андрійович_-_З_москалями_нема_спільної_мови.epub', False, "Бандера, Степан, Андрійович"),
-        ("cyrillic_fb2_zipped", "З москалями нема спільної мови", "fb2", create_fb2_nested_chapters, 'application/x-fictionbook+xml', 'Бандера_Степан_Андрійович_-_З_москалями_нема_спільної_мови.fb2', True, "Бандера, Степан, Андрійович"),
+        ("epub", "Test EPUB", "epub", create_epub_nested_chapters, 'application/epub+zip', 'Doe_John_-_Test_EPUB.epub', False, False),
+        ("fb2_zipped", "Test FB2 Zipped", "fb2", create_fb2_nested_chapters, 'application/fb2+zip', 'Doe_John_-_Test_FB2_Zipped.fb2.zip', True, True),
+        ("cyrillic_epub", "З москалями нема спільної мови", "epub", create_epub_nested_chapters, 'application/epub+zip', 'Бандера_Степан_Андрійович_-_З_москалями_нема_спільної_мови.epub', False, False, "Бандера, Степан, Андрійович"),
+        ("cyrillic_fb2_zipped", "З москалями нема спільної мови", "fb2", create_fb2_nested_chapters, 'application/fb2+zip', 'Бандера_Степан_Андрійович_-_З_москалями_нема_спільної_мови.fb2.zip', True, True, "Бандера, Степан, Андрійович"),
     ])
-    def test_book_download_filename(self, name, title, file_type, create_func, expected_content_type, expected_filename, is_zipped, author_name=None):
+    def test_book_download_filename(self, name, title, file_type, create_func, expected_content_type, expected_filename, is_zipped, delivered_zipped, author_name=None):
         """
         Verify downloading books with various titles and authors (including Cyrillic).
+
+        FB2 books are delivered zip-wrapped (``application/fb2+zip``); the body is
+        a plain ZIP whose single entry holds the original FB2 bytes.
         """
         if author_name:
             # Assuming format: "Last, First, Middle"
@@ -86,7 +90,15 @@ class BookDownloadViewTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], expected_content_type)
         self.assertEqual(response['Content-Disposition'], expected_header)
-        self.assertEqual(b"".join(response.streaming_content), content)
+
+        body = b"".join(response.streaming_content)
+        if delivered_zipped:
+            inner_name = expected_filename[:-len('.zip')]
+            with zipfile.ZipFile(io.BytesIO(body)) as zf:
+                self.assertEqual(zf.namelist(), [inner_name])
+                self.assertEqual(zf.read(inner_name), content)
+        else:
+            self.assertEqual(body, content)
 
     def test_book_download_multiple_authors(self):
         """

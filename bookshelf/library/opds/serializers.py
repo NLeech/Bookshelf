@@ -671,7 +671,7 @@ def _build_book_entry(
     """
     links: list[LinkDict] = [
         {
-            'rel': 'http://opds-spec.org/acquisition',
+            'rel': 'http://opds-spec.org/acquisition/open-access',
             'href': opds_base + f'books/{book.pk}/download/',
             'type': get_content_type(book.file_type),
             'title': None,
