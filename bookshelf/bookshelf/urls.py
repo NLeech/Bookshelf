@@ -24,6 +24,7 @@ urlpatterns = [
     path('', include('library.urls')),
     path('accounts/', include('allauth.urls')),
     path('admin/', admin.site.urls),
+    path('opds/v1/', include(('library.opds.urls', 'library'), namespace='opds')),
 ]
 
 if settings.DEBUG:

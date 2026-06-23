@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'imagekit',
     'django_celery_beat',
     'django_celery_results',
+    'rest_framework',
 ]
 
 if DEBUG:
@@ -310,6 +311,15 @@ FLIBUSTA_BASE_URL = 'https://flibusta.is'
 BOOK_PWD = os.environ.get('BOOK_PWD', default='1booKshelf23').encode('utf-8')
 
 PAGINATE_BY = 50
+
+OPDS_PAGE_SIZE = 20
+
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_RATES': {
+        'opds_anon': '60/min',
+        'opds_anon_daily': '1000/day',
+    }
+}
 
 STORAGES = {
     "default": {

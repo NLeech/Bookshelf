@@ -1,8 +1,12 @@
 import io
+import zipfile
 import pyzipper
 from unittest import mock
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser, Group
 from django.core.files.base import ContentFile
+from django.test import TestCase
 from parameterized import parameterized
 
 from bookshelf.tests.base_test import BaseTestCase
@@ -12,11 +16,15 @@ from library.services import (
     flatten_chapters,
     sanitize_filename,
     get_book_file_content,
+    get_content_type,
     get_languages,
     get_genres_tree,
     search_entities,
-    get_descendants
+    get_descendants,
+    can_view_book
 )
+
+User = get_user_model()
 from library.book_utils import EpubBookFile, Fb2BookFile
 from library.tests.epub_test_utils import create_epub_one_author
 from library.tests.fb2_test_utils import create_fb2_one_author
@@ -171,14 +179,19 @@ class BookServicesTest(BaseTestCase):
         self.assertEqual(sanitize_filename(input_str), expected)
 
     @parameterized.expand([
-        ("epub_direct", "EPUB Direct", "epub", "application/epub+zip", False, True),
-        ("fb2_direct", "FB2 Direct", "fb2", "application/x-fictionbook+xml", False, True),
-        ("epub_zipped", "EPUB Zipped", "epub", "application/epub+zip", True, True),
-        ("fb2_zipped", "FB2 Zipped", "fb2", "application/x-fictionbook+xml", True, True),
-        ("no_authors", "No Author", "epub", "application/epub+zip", False, False),
+        ("epub_direct", "EPUB Direct", "epub", "application/epub+zip", False, True, False),
+        ("fb2_direct", "FB2 Direct", "fb2", "application/fb2+zip", False, True, True),
+        ("epub_zipped", "EPUB Zipped", "epub", "application/epub+zip", True, True, False),
+        ("fb2_zipped", "FB2 Zipped", "fb2", "application/fb2+zip", True, True, True),
+        ("no_authors", "No Author", "epub", "application/epub+zip", False, False, False),
     ])
-    def test_get_book_file_content_parameterized(self, name, title, ext, expected_type, is_zipped, has_author):
-        """Test get_book_file_content with various scenarios using parameterization."""
+    def test_get_book_file_content_parameterized(self, name, title, ext, expected_type, is_zipped, has_author, delivered_zipped):
+        """Test get_book_file_content with various scenarios using parameterization.
+
+        FB2 content is delivered zip-wrapped (``application/fb2+zip``): the
+        returned filename gains a ``.zip`` suffix and the bytes are a plain ZIP
+        whose single entry holds the original content.
+        """
         book = Book.objects.create(title=title, language=self.language)
         if has_author:
             author = Author.objects.create(first_name='John', last_name='Doe')
@@ -198,12 +211,18 @@ class BookServicesTest(BaseTestCase):
             book.file.save(f"test.{ext}", ContentFile(content))
 
         filename, result_content, content_type = get_book_file_content(book)
-        
-        expected_filename = f"{expected_author_part}_-_{title.replace(' ', '_')}.{ext}"
-        self.assertEqual(filename, expected_filename)
-        self.assertEqual(result_content, content)
+
+        base_name = f"{expected_author_part}_-_{title.replace(' ', '_')}.{ext}"
         self.assertEqual(content_type, expected_type)
-        
+        if delivered_zipped:
+            self.assertEqual(filename, f"{base_name}.zip")
+            with zipfile.ZipFile(io.BytesIO(result_content)) as zf:
+                self.assertEqual(zf.namelist(), [base_name])
+                self.assertEqual(zf.read(base_name), content)
+        else:
+            self.assertEqual(filename, base_name)
+            self.assertEqual(result_content, content)
+
         if book.file:
             book.file.close()
 
@@ -221,10 +240,34 @@ class BookServicesTest(BaseTestCase):
                 get_book_file_content(book)
                 # Verify that add_type was called for both .epub and .fb2
                 mock_add.assert_any_call('application/epub+zip', '.epub')
-                mock_add.assert_any_call('application/x-fictionbook+xml', '.fb2')
+                mock_add.assert_any_call('application/fb2+zip', '.fb2')
 
         if book.file:
             book.file.close()
+
+    @parameterized.expand([
+        ("filename_epub", "book.epub", "application/epub+zip"),
+        ("filename_fb2", "book.fb2", "application/fb2+zip"),
+        ("ext_with_dot_epub", ".epub", "application/epub+zip"),
+        ("ext_with_dot_fb2", ".fb2", "application/fb2+zip"),
+        ("bare_format_epub", "epub", "application/epub+zip"),
+        ("bare_format_fb2", "fb2", "application/fb2+zip"),
+        ("uppercase_format", "FB2", "application/fb2+zip"),
+        ("path_fb2", "books/inner.fb2", "application/fb2+zip"),
+        ("unknown_format", "zzqq", "application/octet-stream"),
+        ("empty_string", "", "application/octet-stream"),
+    ])
+    def test_get_content_type(self, name, value, expected):
+        """get_content_type maps filenames, extensions, and format tags to MIME types."""
+        self.assertEqual(get_content_type(value), expected)
+
+    def test_get_content_type_registers_custom_types(self):
+        """get_content_type registers .epub/.fb2 when absent from the mime database."""
+        with mock.patch('mimetypes.types_map', {}):
+            with mock.patch('mimetypes.add_type') as mock_add:
+                get_content_type('fb2')
+                mock_add.assert_any_call('application/epub+zip', '.epub')
+                mock_add.assert_any_call('application/fb2+zip', '.fb2')
 
     def test_get_book_file_content_missing_file(self):
         """Test get_book_file_content with book.file = None."""
@@ -416,3 +459,35 @@ class GenreServicesTest(BaseTestCase):
         expected_ids = expected_ids_func()
         result = get_descendants(input_ids)
         self.assertEqual(result, expected_ids)
+
+
+class CanViewBookTest(TestCase):
+    """Tests for ``library.services.can_view_book(user, book)``.
+
+    The helper currently gates on the ``library.view_book`` permission while
+    accepting the ``book`` for forthcoming per-book rules.  Each call passes a
+    ``book`` instance.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.lang_en = Language.objects.create(code='en', name='English')
+        cls.book = Book.objects.create(title='Sample', language=cls.lang_en)
+
+    def test_can_view_book_true_with_perm(self):
+        """A user in the 'Book access' group may view the book."""
+        user = User.objects.create_user(username='perm', email='perm@example.com', password='pass')
+        group, _ = Group.objects.get_or_create(name='Book access')
+        user.groups.add(group)
+        # Re-fetch to reset the cached permission set on the user instance.
+        user = User.objects.get(pk=user.pk)
+        self.assertTrue(can_view_book(user, self.book))
+
+    def test_can_view_book_false_without_perm(self):
+        """A plain authenticated user may not view the book."""
+        user = User.objects.create_user(username='plain', email='plain@example.com', password='pass')
+        self.assertFalse(can_view_book(user, self.book))
+
+    def test_can_view_book_false_for_anonymous(self):
+        """An anonymous user may not view the book and raises no exception."""
+        self.assertFalse(can_view_book(AnonymousUser(), self.book))
