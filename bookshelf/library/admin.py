@@ -107,11 +107,11 @@ class BookSeriesLinkInline(admin.TabularInline):
 
 class BookAdmin(admin.ModelAdmin):
     cover_thumbnail = AdminThumbnail(image_field='cover_preview')
-    list_display = ('title', 'language')
+    list_display = ('title', 'language', 'file_type')
     readonly_fields = ('cover_thumbnail',)
     autocomplete_fields = ('authors', 'genres')
     inlines = [BookSeriesLinkInline]
-    search_fields = ('title', 'isbn')
+    search_fields = ('title', 'isbn', 'file_type'   )
 
 
 admin.site.register(Language)
