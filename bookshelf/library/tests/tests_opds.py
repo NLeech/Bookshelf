@@ -2341,6 +2341,15 @@ class OPDSGenreFeedTest(OPDSThrottleResetMixin, TestCase):
             response['Location'].endswith(f'{OPDS_BASE}genres/{genre.pk}/books/tree/')
         )
 
+    def test_genre_detail_redirect_preserves_detail_thick(self):
+        """A leaf-genre 302 carries ?detail=thick over to the books/tree/ URL."""
+        response = self.client.get(f'{OPDS_BASE}genres/{self.dystopia.pk}/?detail=thick')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response['Location'],
+            f'{OPDS_BASE}genres/{self.dystopia.pk}/books/tree/?detail=thick',
+        )
+
     # ------------------------------------------------------------------
     # Genre book tree (navigation)
     # ------------------------------------------------------------------
@@ -3001,6 +3010,19 @@ class OPDSLoginViewTest(OPDSThrottleResetMixin, TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(
             response['Location'].endswith(OPDS_BASE),
+            msg=response.get('Location'),
+        )
+
+    def test_login_redirect_preserves_detail_thick(self):
+        """Valid creds with ?detail=thick → 302 carrying detail=thick to the root."""
+        response = self.client.get(
+            f'{self.LOGIN_URL}?detail=thick',
+            HTTP_AUTHORIZATION=_basic('reader', 'pass'),
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            response['Location'].endswith(f'{OPDS_BASE}?detail=thick'),
             msg=response.get('Location'),
         )
 
