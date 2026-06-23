@@ -622,22 +622,31 @@ class OPDSAuthorDetailTest(OPDSThrottleResetMixin, TestCase):
         response = self.client.get(f'{OPDS_BASE}authors/{self.any_author.pk}/series/')
         self.assertIn('kind=navigation', response['Content-Type'])
 
+    def _author_series_entries(self, root, author):
+        """Return the per-series entries (author-scoped ?series=<pk> links).
+
+        A series entry links to ``authors/<pk>/books/?series=<digit>``; the
+        "Standalone Books" entry (``?series=none``) is excluded.
+        """
+        prefix = f'{OPDS_BASE}authors/{author.pk}/books/?series='
+        return [
+            e for e in root.findall('atom:entry', NS)
+            if any(
+                prefix in lnk.get('href', '')
+                and 'series=none' not in lnk.get('href', '')
+                for lnk in e.findall('atom:link', NS)
+            )
+        ]
+
     def test_author_detail_sub_feed_series_has_series(self):
-        """For author_with_series: series feed has at least one entry linking to opds:root/series/<pk>/."""
+        """For author_with_series: series feed has at least one author-scoped series entry."""
         self.assertIsNotNone(
             self.author_with_series,
             'Canonical dataset should contain an author with series books',
         )
         response = self.client.get(f'{OPDS_BASE}authors/{self.author_with_series.pk}/series/')
         root = _parse(response)
-        entries = root.findall('atom:entry', NS)
-        series_entries = [
-            e for e in entries
-            if any(
-                f'{OPDS_BASE}series/' in lnk.get('href', '')
-                for lnk in e.findall('atom:link', NS)
-            )
-        ]
+        series_entries = self._author_series_entries(root, self.author_with_series)
         self.assertGreater(len(series_entries), 0)
 
     def test_author_detail_sub_feed_series_entry_has_book_count(self):
@@ -645,13 +654,7 @@ class OPDSAuthorDetailTest(OPDSThrottleResetMixin, TestCase):
         self.assertIsNotNone(self.author_with_series)
         response = self.client.get(f'{OPDS_BASE}authors/{self.author_with_series.pk}/series/')
         root = _parse(response)
-        series_entries = [
-            e for e in root.findall('atom:entry', NS)
-            if any(
-                f'{OPDS_BASE}series/' in lnk.get('href', '')
-                for lnk in e.findall('atom:link', NS)
-            )
-        ]
+        series_entries = self._author_series_entries(root, self.author_with_series)
         self.assertGreater(len(series_entries), 0)
         for entry in series_entries:
             content = entry.findtext('atom:content', namespaces=NS) or ''
@@ -1588,6 +1591,96 @@ class OPDSThickPropagationTest(OPDSThrottleResetMixin, TestCase):
             for entry in root.findall('atom:entry', NS):
                 for lnk in entry.findall('atom:link', NS):
                     self.assertNotIn('detail=', lnk.get('href', ''))
+
+
+# ---------------------------------------------------------------------------
+# OPDSAuthorScopedSeriesTest
+# ---------------------------------------------------------------------------
+
+class OPDSAuthorScopedSeriesTest(OPDSThrottleResetMixin, TestCase):
+    """Author→series navigation is scoped to the author's books.
+
+    Controlled dataset: one series shared by two authors.  Following a series
+    entry from an author feed must list only *that author's* books in the
+    series (``authors/<pk>/books/?series=<pk>``), while the full series (all
+    authors) stays reachable at ``series/<pk>/``.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.lang = Language.objects.create(code='en', name='English')
+        cls.asimov = Author.objects.create(first_name='Isaac', last_name='Asimov')
+        cls.bradbury = Author.objects.create(first_name='Ray', last_name='Bradbury')
+        cls.series = BookSeries.objects.create(name='Shared Series')
+
+        # Asimov: two books in the series.
+        for seq, title in enumerate(['A One', 'A Two'], start=1):
+            book = Book.objects.create(title=title, language=cls.lang, file_type='epub')
+            book.authors.add(cls.asimov)
+            BookSeriesLink.objects.create(book=book, series=cls.series, sequence_number=seq)
+
+        # Bradbury: one book in the SAME series — must never appear in Asimov's view.
+        b_book = Book.objects.create(title='B One', language=cls.lang, file_type='epub')
+        b_book.authors.add(cls.bradbury)
+        BookSeriesLink.objects.create(book=b_book, series=cls.series, sequence_number=3)
+
+        # Asimov standalone book (no series) — must not appear under ?series=<pk>.
+        solo = Book.objects.create(title='A Solo', language=cls.lang, file_type='epub')
+        solo.authors.add(cls.asimov)
+
+    def _series_entry(self, author):
+        """Return the per-series <entry> from *author*'s series feed."""
+        root = _parse(self.client.get(f'{OPDS_BASE}authors/{author.pk}/series/'))
+        prefix = f'{OPDS_BASE}authors/{author.pk}/books/?series='
+        for entry in root.findall('atom:entry', NS):
+            for lnk in entry.findall('atom:link', NS):
+                href = lnk.get('href', '')
+                if prefix in href and 'series=none' not in href:
+                    return entry, lnk
+        self.fail('No author-scoped series entry found')
+
+    def test_author_series_entry_links_to_author_scoped_books(self):
+        """The series entry links to authors/<pk>/books/?series=<pk> as an acquisition link."""
+        _entry, link = self._series_entry(self.asimov)
+        self.assertTrue(
+            link.get('href', '').endswith(
+                f'authors/{self.asimov.pk}/books/?series={self.series.pk}'
+            ),
+            msg=link.get('href'),
+        )
+        self.assertIn('kind=acquisition', link.get('type', ''))
+
+    def test_author_series_entry_count_is_author_scoped(self):
+        """Series entry <content> reports the author's count (2), not the series total (3)."""
+        entry, _link = self._series_entry(self.asimov)
+        content = entry.findtext('atom:content', namespaces=NS) or ''
+        self.assertIn('2', content)
+        self.assertNotIn('3', content)
+
+    def test_author_scoped_series_lists_only_authors_books(self):
+        """?series=<pk> returns only this author's books in the series (2 of 3)."""
+        url = f'{OPDS_BASE}authors/{self.asimov.pk}/books/?series={self.series.pk}'
+        root = _parse(self.client.get(url))
+        titles = {e.findtext('atom:title', namespaces=NS) for e in root.findall('atom:entry', NS)}
+        self.assertEqual(titles, {'A One', 'A Two'})
+
+    def test_author_scoped_series_excludes_standalone(self):
+        """The standalone book ('A Solo') is absent from the ?series=<pk> view."""
+        url = f'{OPDS_BASE}authors/{self.asimov.pk}/books/?series={self.series.pk}'
+        total = _count_all_pages(self.client, url)
+        self.assertEqual(total, 2)
+
+    def test_full_series_lists_all_authors_books(self):
+        """series/<pk>/ still lists every author's books in the series (requirement #2)."""
+        total = _count_all_pages(self.client, f'{OPDS_BASE}series/{self.series.pk}/')
+        self.assertEqual(total, 3)
+
+    def test_non_integer_series_param_ignored(self):
+        """?series=abc is ignored → all of the author's books are returned (3)."""
+        total = _count_all_pages(
+            self.client, f'{OPDS_BASE}authors/{self.asimov.pk}/books/?series=abc'
+        )
+        self.assertEqual(total, 3)
 
 
 # ---------------------------------------------------------------------------

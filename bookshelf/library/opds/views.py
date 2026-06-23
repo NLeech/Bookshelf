@@ -263,9 +263,15 @@ class AuthorBooksFeedView(OPDSBaseView):
     Returns a paginated acquisition feed of all books by this author, sorted
     alphabetically by title.
 
-    Supports optional ``?series=none`` query param: when present, filters to
-    books not linked to any series (powers the "Standalone Books" category
-    from the series feed).
+    Supports an optional ``?series=`` query param:
+
+    * ``?series=none`` — books not linked to any series (powers the
+      "Standalone Books" category from the author series feed);
+    * ``?series=<pk>`` — only this author's books in series ``<pk>`` (powers
+      the per-series entries of the author series feed, which must scope to the
+      author rather than show the whole series).
+
+    A non-integer ``series`` value is ignored.
     """
 
     def get(self, request, pk):
@@ -277,8 +283,11 @@ class AuthorBooksFeedView(OPDSBaseView):
             .order_by('title')
         )
 
-        if request.query_params.get('series') == 'none':
+        series_param = request.query_params.get('series')
+        if series_param == 'none':
             queryset = queryset.filter(bookserieslink__isnull=True)
+        elif series_param and series_param.isdigit():
+            queryset = queryset.filter(bookserieslink__series_id=int(series_param))
 
         page, pagination = self._paginate(queryset, request)
         feed = build_book_results_feed(

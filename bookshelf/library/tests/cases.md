@@ -411,7 +411,7 @@ Canonical dataset.
 9. **test_author_detail_sub_feed_books_alpha_sorted**: First page entries are sorted by title ascending.
 11. **test_author_detail_sub_feed_books_recent_sorted_by_date**: First entry `<updated>` >= second entry `<updated>` (descending date order).
 13. **test_author_detail_sub_feed_series_is_navigation**: Author series feed Content-Type contains `kind=navigation`.
-14. **test_author_detail_sub_feed_series_has_series**: For `author_with_series`, the series feed has at least one entry linking to `opds:root/series/<pk>/`.
+14. **test_author_detail_sub_feed_series_has_series**: For `author_with_series`, the series feed has at least one author-scoped series entry (`authors/<pk>/books/?series=<pk>`).
 15. **test_author_detail_sub_feed_series_entry_has_book_count**: Each series entry `<content>` contains a positive integer (book count).
 16. **test_author_detail_sub_feed_series_no_standalone_entry_when_none**: An author with no standalone books has no 'Standalone Books' entry.
 17. **test_author_detail_sub_feed_series_has_standalone_entry_first**: For `author_with_series`, the first series feed entry is 'Standalone Books'.
@@ -458,6 +458,16 @@ Canonical dataset. Verifies the §6.5a Propagation rule — `?detail=thick` is a
 8. **test_author_series_links_preserve_detail**: The Standalone Books link and every per-series `subsection` link carry `detail=thick`.
 9. **test_detail_survives_drilldown_to_acquisition_feed**: Following the `detail=thick`-bearing Books-by-Title link reaches `opds:root/authors/<pk>/books/?detail=thick`, whose book entries are complete (full-size image present) — proving the preference survives link-following to the terminal acquisition feed.
 10. **test_navigation_links_omit_detail_by_default**: Without `?detail=thick`, no feed- or entry-level link on a navigation feed carries a `detail` param.
+
+## OPDS Author-Scoped Series Navigation (tests_opds.py — OPDSAuthorScopedSeriesTest)
+
+Controlled dataset: one series shared by two authors (Asimov: 2 series books + 1 standalone; Bradbury: 1 series book). Verifies that author→series navigation is scoped to the author's books while the full series stays reachable.
+1. **test_author_series_entry_links_to_author_scoped_books**: The author's series entry links to `authors/<pk>/books/?series=<pk>` with an acquisition `type`.
+2. **test_author_series_entry_count_is_author_scoped**: The series entry `<content>` reports the author's count (2), not the series total (3).
+3. **test_author_scoped_series_lists_only_authors_books**: `?series=<pk>` returns exactly the author's books in that series ({A One, A Two}), excluding the other author's book.
+4. **test_author_scoped_series_excludes_standalone**: The author's standalone book is absent from the `?series=<pk>` view (total = 2).
+5. **test_full_series_lists_all_authors_books**: `series/<pk>/` still lists every author's books in the series (total = 3).
+6. **test_non_integer_series_param_ignored**: A non-integer `?series=abc` is ignored, returning all of the author's books (3).
 
 ## OPDS Book Detail Feed (tests_opds.py — OPDSBookDetailTest)
 
