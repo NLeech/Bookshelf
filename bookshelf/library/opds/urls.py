@@ -6,6 +6,7 @@ app_name = 'opds'
 
 urlpatterns = [
     path('', views.RootFeedView.as_view(), name='root'),
+    path('login/', views.OPDSLoginView.as_view(), name='login'),
 
     # Author endpoints.
     path('authors/', views.AuthorListFeedView.as_view(), name='author_list'),
@@ -34,6 +35,7 @@ urlpatterns = [
     path('books/tree/', views.BookTreeFeedView.as_view(), name='book_tree'),
     path('books/tree/<str:name>/', views.BookTreeFeedView.as_view(), name='book_tree_node'),
     path('books/<int:pk>/', views.BookDetailFeedView.as_view(), name='book_detail'),
+    path('books/<int:pk>/download/', views.OPDSBookDownloadView.as_view(), name='book_download'),
 
     # Search endpoints.
     path('search/', views.SearchRootFeedView.as_view(), name='search'),

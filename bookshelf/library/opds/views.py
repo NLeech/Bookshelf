@@ -1,17 +1,24 @@
+from urllib.parse import quote
+
 from django.conf import settings
 from django.db.models import Count, Exists, OuterRef, Q
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
+from rest_framework.authentication import BasicAuthentication
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.utils.urls import remove_query_param
 from rest_framework.views import APIView
 
 from library.models import Author, Book, BookSeries, BookSeriesLink, Genre
 from library.services import (
+    can_view_book,
     find_alphabet_node_by_name,
     get_alphabet_tree,
+    get_book_file_content,
     get_descendants,
     search_entities,
 )
@@ -60,10 +67,16 @@ class OPDSBaseView(APIView):
 
     Enforces the shared renderer, throttle, and permission configuration
     used across every OPDS endpoint.
+
+    ``authentication_classes`` is Basic-only (not Session): auth is *attempted*
+    on every view so ``request.user`` is populated (browse stays ``AllowAny``),
+    while a Basic-only authenticator guarantees ``401 + WWW-Authenticate: Basic``
+    on the enforced views (Session-first would yield ``403`` instead).
     """
 
     renderer_classes = [OPDSRenderer]
     throttle_classes = [OPDSMinuteRateThrottle, OPDSDayRateThrottle]
+    authentication_classes = [BasicAuthentication]
     permission_classes = [AllowAny]
     pagination_class = OPDSPageNumberPagination
 
@@ -100,6 +113,26 @@ class RootFeedView(OPDSBaseView):
     def get(self, request):
         feed = build_root_feed(request)
         return Response(feed)
+
+
+class OPDSLoginView(OPDSBaseView):
+    """GET opds:login/ — credential challenge / redirect to the root feed.
+
+    Anonymous requests are rejected by ``IsAuthenticated``, which makes DRF
+    raise ``NotAuthenticated`` → ``401 + WWW-Authenticate: Basic`` (the
+    challenge that makes a reader show its credential prompt).  Once the reader
+    sends valid Basic credentials the view redirects (``302``) to the OPDS root.
+
+    Uses ``JSONRenderer`` so DRF can render the ``401`` exception body — the
+    ``OPDSRenderer`` expects a feed dict and would raise on ``{'detail': …}``;
+    the success path returns a redirect that bypasses rendering.
+    """
+
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        return redirect('opds:root')
 
 
 # ---------------------------------------------------------------------------
@@ -586,6 +619,50 @@ class BookDetailFeedView(OPDSBaseView):
         )
         feed = build_book_detail_feed(book, request)
         return Response(feed)
+
+
+class OPDSBookDownloadView(OPDSBaseView):
+    """GET opds:book_download — download a book's extracted file.
+
+    Auth semantics: ``IsAuthenticated`` yields ``401 + WWW-Authenticate: Basic``
+    for anonymous requests (inherited ``BasicAuthentication``); an authenticated
+    user lacking download authorization (``can_view_book``) gets ``403``; a book
+    with no readable file gets ``404``; otherwise the extracted content is
+    returned as an attachment.
+
+    Uses ``JSONRenderer`` so DRF can render the ``401``/``403`` exception bodies;
+    the success body is a plain ``HttpResponse`` passed through unrendered.
+    """
+
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request, pk):
+        book = get_object_or_404(Book, pk=pk)
+
+        if not can_view_book(request.user, book):
+            raise PermissionDenied
+
+        filename, content, content_type = get_book_file_content(book)
+        if content is None:
+            return HttpResponse(status=404)
+
+        response = HttpResponse(content, content_type=content_type)
+        response['Content-Disposition'] = _content_disposition(filename)
+        return response
+
+
+def _content_disposition(filename: str) -> str:
+    """Build an RFC 6266 ``Content-Disposition`` attachment header.
+
+    Mirrors Django's ``FileResponse`` behaviour used by the web
+    ``BookDownloadView``: ASCII filenames use the plain ``filename="…"`` form,
+    while non-ASCII filenames use the percent-encoded ``filename*=utf-8''…``
+    form.
+    """
+    if filename.isascii():
+        return f'attachment; filename="{filename}"'
+    return f"attachment; filename*=utf-8''{quote(filename)}"
 
 
 # ---------------------------------------------------------------------------

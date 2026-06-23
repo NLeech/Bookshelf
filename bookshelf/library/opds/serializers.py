@@ -251,7 +251,11 @@ def _book_cover_url(book: Book, request: Request) -> str:
 def build_root_feed(request: Request) -> FeedDict:
     """Build the root OPDS navigation feed dict.
 
-    Returns a fixed set of entries.
+    Returns the four fixed browse entries (Authors, Genres, Series, Books).
+    A ``Login`` navigation entry is appended **only when the request is
+    anonymous** (``not request.user.is_authenticated``); it disappears once the
+    reader authenticates — yielding 5 entries for anonymous users, 4 for
+    authenticated ones.
 
     Args:
         request: The current HTTP request (used to build absolute URIs).
@@ -286,6 +290,17 @@ def build_root_feed(request: Request) -> FeedDict:
             content='Browse by title', updated=feed_updated,
         ),
     ]
+
+    # The Login entry triggers the reader's Basic credential prompt and is shown
+    # only to anonymous users — it disappears once the reader authenticates.
+    if not request.user.is_authenticated:
+        entries.append(
+            _nav_entry(
+                'tag:bookshelf:login', 'Login',
+                _with_sticky_params(opds_base + 'login/', request), request,
+                content='Sign in to download books', updated=feed_updated,
+            )
+        )
 
     # OPDS readers discover search by scanning feed-level <link rel="search">
     # elements (direct children of <feed>), not entry links — so the OpenSearch

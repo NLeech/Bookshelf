@@ -2,7 +2,10 @@ import io
 import pyzipper
 from unittest import mock
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser, Group
 from django.core.files.base import ContentFile
+from django.test import TestCase
 from parameterized import parameterized
 
 from bookshelf.tests.base_test import BaseTestCase
@@ -16,8 +19,11 @@ from library.services import (
     get_languages,
     get_genres_tree,
     search_entities,
-    get_descendants
+    get_descendants,
+    can_view_book
 )
+
+User = get_user_model()
 from library.book_utils import EpubBookFile, Fb2BookFile
 from library.tests.epub_test_utils import create_epub_one_author
 from library.tests.fb2_test_utils import create_fb2_one_author
@@ -441,3 +447,35 @@ class GenreServicesTest(BaseTestCase):
         expected_ids = expected_ids_func()
         result = get_descendants(input_ids)
         self.assertEqual(result, expected_ids)
+
+
+class CanViewBookTest(TestCase):
+    """Tests for ``library.services.can_view_book(user, book)``.
+
+    The helper currently gates on the ``library.view_book`` permission while
+    accepting the ``book`` for forthcoming per-book rules.  Each call passes a
+    ``book`` instance.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.lang_en = Language.objects.create(code='en', name='English')
+        cls.book = Book.objects.create(title='Sample', language=cls.lang_en)
+
+    def test_can_view_book_true_with_perm(self):
+        """A user in the 'Book access' group may view the book."""
+        user = User.objects.create_user(username='perm', email='perm@example.com', password='pass')
+        group, _ = Group.objects.get_or_create(name='Book access')
+        user.groups.add(group)
+        # Re-fetch to reset the cached permission set on the user instance.
+        user = User.objects.get(pk=user.pk)
+        self.assertTrue(can_view_book(user, self.book))
+
+    def test_can_view_book_false_without_perm(self):
+        """A plain authenticated user may not view the book."""
+        user = User.objects.create_user(username='plain', email='plain@example.com', password='pass')
+        self.assertFalse(can_view_book(user, self.book))
+
+    def test_can_view_book_false_for_anonymous(self):
+        """An anonymous user may not view the book and raises no exception."""
+        self.assertFalse(can_view_book(AnonymousUser(), self.book))

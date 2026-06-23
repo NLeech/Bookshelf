@@ -4,7 +4,7 @@
 
 This document describes the design of the OPDS v1.2 catalog interface for the Bookshelf project.
 
-**Scope:** Initial implementation (Phase 1). No authentication on feed views — the catalog is fully public (`AllowAny`) and acquisition links are always rendered, so every feed is browsable by anyone. Authorization is enforced solely at the download endpoint (`/opds/v1/books/<pk>/download/`), which returns `HTTP 403` without the `library.view_book` permission. Authentication (Basic Auth at the download endpoint) will be added as a separate task.
+**Authentication**`BasicAuthentication` is attempted on every OPDS view, so browse feeds stay fully public (`AllowAny`) and acquisition links are always rendered. Authorization is enforced only at the protected endpoints: the **download** endpoint (`/opds/v1/books/<pk>/download/`) and the **login** endpoint (`/opds/v1/login/`) require authentication and return `HTTP 401` with a `WWW-Authenticate: Basic` header when unauthenticated; the download endpoint additionally returns `HTTP 403` for an authenticated user lacking the `library.view_book` permission. The root feed shows a `Login` entry to anonymous users only.
 
 **Reference specifications:**
 - [OPDS 1.2](https://specs.opds.io/opds-1.2)
@@ -85,6 +85,7 @@ Base prefix: `/opds/v1/`
 | URL | View | Feed type |
 |-----|------|-----------|
 | `/opds/v1/` | `RootFeedView` | Navigation |
+| `/opds/v1/login/` | `OPDSLoginView` | Auth gate (401 anonymous → Basic prompt; 302 → root once authenticated) |
 | `/opds/v1/authors/` | `AuthorListFeedView` | Navigation (flat author list — full set or `?filter=`/`?regex=` results) |
 | `/opds/v1/authors/tree/` | `AuthorTreeFeedView` | Navigation (alphabet tree root) |
 | `/opds/v1/authors/tree/<name>/` | `AuthorTreeFeedView` | Navigation (alphabet sub-tree) |
@@ -105,7 +106,7 @@ Base prefix: `/opds/v1/`
 | `/opds/v1/books/tree/` | `BookTreeFeedView` | Navigation (alphabet tree root) |
 | `/opds/v1/books/tree/<name>/` | `BookTreeFeedView` | Navigation (alphabet sub-tree) |
 | `/opds/v1/books/<int:pk>/` | `BookDetailFeedView` | Acquisition |
-| `/opds/v1/books/<int:pk>/download/` | `BookDownloadView` | Binary (file delivery) |
+| `/opds/v1/books/<int:pk>/download/` | `OPDSBookDownloadView` | Binary (file delivery; 401 anonymous, 403 without `library.view_book`) |
 | `/opds/v1/search/` | `SearchRootFeedView` | Navigation (≤ 3 section entries, unpaginated) |
 | `/opds/v1/search/authors/` | `SearchAuthorsFeedView` | Navigation (paginated) |
 | `/opds/v1/search/series/` | `SearchSeriesFeedView` | Navigation (paginated) |
@@ -166,7 +167,7 @@ Pagination does **not** apply to navigation **tree** feeds (`…/tree/`, `…/tr
 
 ### 6.1 Root Feed (`/opds/v1/`)
 
-Navigation feed. Fixed set of five entries:
+Navigation feed. The four browse entries (Authors, Genres, Series, Books) are fixed; a fifth **`Login`** entry is appended **only for anonymous users** and disappears once authenticated — so the feed has **5 entries for anonymous** requests and **4 for authenticated** ones. The `Login` entry links to `/opds/v1/login/` (`subsection`), which returns `401 + WWW-Authenticate: Basic` to trigger the reader's credential prompt and `302`-redirects to the root once authenticated. `build_root_feed` decides inclusion via `request.user.is_authenticated`.
 
 ```xml
 <feed xmlns="http://www.w3.org/2005/Atom"
@@ -278,7 +279,7 @@ Acquisition feed entry containing, **in this document order**:
 - `<link rel="http://opds-spec.org/image/thumbnail">` — cover_opds_thumbnail URL (Use no_cover 40x60.jpeg for books without a cover.).
 - `<link rel="related">` **(authors)** — **mandatory: exactly one `rel="related"` link per author of the book** (a book with three authors renders three author related-links), each `href` pointing to the author's feed at `/opds/v1/authors/<pk>/` with `type="application/atom+xml;profile=opds-catalog;kind=navigation"` and `title="<author full_name>"`. This is the **only** representation of authors on a book entry — **no `<author>` element is emitted.** Validated by probe: FBReader renders these as tappable jump-to-author links. Applies to every complete book entry — the standalone detail feed and the inline thick (`?detail=thick`) listing entries (§6.5a). Author links are **omitted from thin listing entries** to keep lists lightweight.
 - `<link rel="related">` **(series)** — one per series, `href` pointing to `/opds/v1/series/<pk>/`, with `title="<series name>"` (series name only — no `#<sequence_number>`; the sequence number lives in `<calibre:series_index>`). Rendered alongside the author related-links. Series therefore appear **twice and intentionally**: once as the structured `<calibre:series>`/`<calibre:series_index>` pair (a dedicated series field), and once as a tappable `rel="related"` navigation link here. The `href` prefix (`/authors/` vs. `/series/`) distinguishes author related-links from series related-links.
-- `<link rel="http://opds-spec.org/acquisition">` — **only rendered if the request user has `library.view_book` permission.** Points to `/opds/v1/books/<pk>/download/`.
+- `<link rel="http://opds-spec.org/acquisition">` — **always rendered.** Points to `/opds/v1/books/<pk>/download/`. The catalog stays fully browsable; authorization is enforced at the download endpoint (401/403, §6.6, §9), and the visible link is what lets a reader tap *download* to trigger the Basic credential prompt.
 
 ### 6.5a Book Listing Entry Verbosity (thin default / `?detail=thick`)
 
@@ -287,7 +288,7 @@ Acquisition feed entry containing, **in this document order**:
 **Thin entry (default).** Each book entry contains only:
 - `<title>` — book title.
 - `<id>` — `tag:bookshelf:book:<pk>`.
-- `<link rel="http://opds-spec.org/acquisition">` — download link (subject to the §9 permission rule).
+- `<link rel="http://opds-spec.org/acquisition">` — download link, always rendered (§9); authorization is enforced at the download endpoint.
 - `<link rel="alternate" type="application/atom+xml;type=entry;profile=opds-catalog">` — points to the complete entry at `/opds/v1/books/<pk>/`. **Mandatory** on every partial entry.
 - `<link rel="http://opds-spec.org/image/thumbnail">` — cover_opds_thumbnail (Use no_cover 40x60.jpeg for books without a cover.). **No** full-size `http://opds-spec.org/image` link, **no** `<content>` description, **no** `<calibre:*>` series elements, and **no** author/series `rel="related"` links in thin entries (those appear only in the complete/thick entry per §6.5).
 
@@ -315,10 +316,11 @@ DRF's paginator already preserves the query string on `self`/pagination links.
 
 ### 6.6 Book Download (`/opds/v1/books/<pk>/download/`)
 
-Not an Atom feed — streams the raw file content.
+Not an Atom feed — streams the raw file content. Implemented by `OPDSBookDownloadView` (extends `OPDSBaseView`, so it inherits `BasicAuthentication` and the throttles), with `permission_classes = [IsAuthenticated]` and `renderer_classes = [JSONRenderer]` (so DRF can render the `401`/`403` exception bodies; the success path returns a plain `HttpResponse` that bypasses rendering).
 
+- Returns `HTTP 401` with a `WWW-Authenticate: Basic` header if the request is unauthenticated (`IsAuthenticated` + `BasicAuthentication`), triggering the reader's credential prompt.
+- Returns `HTTP 403` if the authenticated user is not allowed to download this book, checked via `library.services.can_view_book(request.user, book)`. The helper currently gates on `library.view_book`; it takes the `book` so per-book rules (e.g. public-domain books downloadable by anyone) can be added later without changing the call site.
 - Delegates to `library.services.get_book_file_content` for ZIP extraction and decryption.
-- Returns `HTTP 403` if the request user lacks `library.view_book`.
 - Returns `HTTP 404` if the book has no file.
 - Sets `Content-Disposition: attachment; filename="..."` using the sanitized filename from `get_book_file_content`.
 
@@ -384,7 +386,7 @@ class OPDSRenderer(BaseRenderer):
     charset = 'utf-8'
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        # data is a dict matching the feed dict contract (see BOOK-45.md Phase 3)
+        # data is a dict matching the feed dict contract
         feed = self._build_feed(data)
         ET.indent(feed, space='  ')
         xml_bytes = ET.tostring(feed, encoding='unicode').encode('utf-8')
@@ -453,17 +455,20 @@ This covers root-feed entries, author entries, series entries, genre entries, al
 
 ## 9. Permissions Model
 
-For Phase 1 (no authentication challenge):
+`BasicAuthentication` is set on `OPDSBaseView` (`authentication_classes = [BasicAuthentication]`), so it is *attempted* on every OPDS view (populating `request.user`), but enforcement is per-view:
 
-| Action | Requirement |
-|--------|-------------|
-| Browse any feed | No authentication required |
-| See acquisition `<link>` in book entries | User must have `library.view_book` perm |
-| `/opds/v1/books/<pk>/download/` | User must have `library.view_book` perm; otherwise `HTTP 403` |
+| Action | Auth | Permission | Failure |
+|--------|------|-----------|---------|
+| Browse any feed | Attempted (`AllowAny`) | none | — |
+| See acquisition `<link>` in book entries | n/a | none — **always rendered** (§6.5, §6.6) | — |
+| `/opds/v1/login/` | `IsAuthenticated` | none | `401` + `WWW-Authenticate: Basic` when anonymous; `302` → root once authenticated |
+| `/opds/v1/books/<pk>/download/` | `IsAuthenticated` | per-book (via `services.can_view_book(user, book)`) | `401` when anonymous; `403` when not allowed to download the book |
 
-The `library.view_book` permission is granted via the `Book access` group (mirrors the web app).
+The `library.view_book` permission is granted via the `Book access` group (mirrors the web app), checked through the `library.services.can_view_book(user, book)` helper (anonymous-safe). The helper takes the `book` so a per-book public-domain rule (some books downloadable by anyone) can be added later without changing call sites — today it gates purely on `library.view_book`.
 
-When the authentication task is implemented, protected endpoints will return `HTTP 401` with a `WWW-Authenticate` header per the Authentication for OPDS spec.
+**Why Basic-only.** `authentication_classes` is `[BasicAuthentication]` (not Session-first): DRF derives the `WWW-Authenticate` header from the first authenticator's `authenticate_header`, and `SessionAuthentication` returns `None` there — which would make anonymous requests yield `403` instead of `401`. Basic-only guarantees the `401 + WWW-Authenticate: Basic` challenge that makes a reader show its credential prompt. No global `DEFAULT_AUTHENTICATION_CLASSES` is set — auth is per-package.
+
+**Side effect.** A request carrying *invalid* Basic credentials gets `401` on *any* OPDS view (DRF raises `AuthenticationFailed` during authentication, before `AllowAny`). Requests with **no** `Authorization` header still browse anonymously.
 
 ---
 
@@ -554,8 +559,9 @@ No database content required (structure-only). Uses plain `TestCase`.
 |---|------|-----------|
 | 1 | `test_root_feed_status_200` | GET `/opds/v1/` → 200 |
 | 2 | `test_root_feed_content_type` | Response `Content-Type` starts with `application/atom+xml` |
-| 3 | `test_root_feed_has_four_catalog_entries` | Feed contains exactly 4 `<entry>` elements (Authors, Genres, Series, Books) |
-| 4 | `test_root_feed_entry_titles` | Each entry has the expected `<title>` text |
+| 3 | `test_root_feed_anonymous_has_five_entries` | Anonymous GET → exactly 5 `<entry>` elements (Authors, Genres, Series, Books, Login) |
+| 3a | `test_root_feed_authenticated_omits_login_entry` | Authenticated GET (valid Basic creds) → exactly 4 entries; no `Login` |
+| 4 | `test_root_feed_entry_titles` | Each entry has the expected `<title>` text; the `Login` entry links to `/opds/v1/login/` |
 | 5 | `test_root_feed_self_link` | Feed contains `<link rel="self" href="/opds/v1/">` |
 | 6 | `test_root_feed_start_link` | Feed contains `<link rel="start" href="/opds/v1/">` |
 | 7 | `test_root_feed_search_link_at_feed_level` | Feed has exactly one feed-level `<link rel="search" type="application/opensearchdescription+xml">` and no `Search` `<entry>` |
@@ -800,8 +806,8 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 | 3 | `test_book_results_by_filter_status_200` | GET `/opds/v1/books/?filter=m` → 200 (M=43, leaf) |
 | 4 | `test_book_results_has_correct_count` | GET `/opds/v1/books/?filter=m` → feed has 20 entries (page 1 of 43) |
 | 5 | `test_book_results_excludes_other_letter` | GET `/opds/v1/books/?filter=m` → feed does NOT contain any book whose title starts with `"B"` |
-| 6 | `test_book_results_is_acquisition_with_perm` | Privileged user, GET `/opds/v1/books/?filter=m`: entries have `<link rel="http://opds-spec.org/acquisition">` |
-| 7 | `test_book_results_no_acquisition_link_anon` | Anon request: no acquisition link in entries |
+| 6 | `test_book_results_acquisition_link_with_perm` | `user_with_perm`, GET `/opds/v1/books/?filter=m`: entries have `<link rel="http://opds-spec.org/acquisition">` |
+| 7 | `test_book_results_acquisition_link_always_rendered` | Anonymous GET `/opds/v1/books/?filter=m`: entries **still** carry the acquisition link (always rendered — never gated; authorization is enforced at the download endpoint, §9) |
 | 8 | `test_book_results_empty_filter_returns_empty_feed` | GET `/opds/v1/books/?filter=z` → 200 with 0 entries |
 | 9 | `test_book_a_is_expanded_subtree` | GET `/opds/v1/books/tree/a/` → returns navigation sub-entries (`Al`, `An`, `Ar`, `all a`), NOT a flat list of 222 books |
 | 10 | `test_book_results_cyrillic_filter` | GET `/opds/v1/books/?filter=п` → 200 with entries for П=83 books (Ukrainian) |
@@ -819,7 +825,7 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 | 2 | `test_thin_entry_has_mandatory_alternate_link` | Every thin book entry has exactly one `<link rel="alternate" type="application/atom+xml;type=entry;profile=opds-catalog">` whose `href` ends in `/opds/v1/books/<pk>/` (the §6.5 complete-entry endpoint) |
 | 3 | `test_thin_entry_has_thumbnail_no_full_image` | A thin entry has `<link rel="http://opds-spec.org/image/thumbnail">` but **no** `<link rel="http://opds-spec.org/image">` (full-size cover) |
 | 4 | `test_thin_entry_has_acquisition_link_with_perm` | `user_with_perm`: thin entries carry `<link rel="http://opds-spec.org/acquisition">` (thinness does not suppress the download link) |
-| 5 | `test_thin_entry_no_acquisition_link_anon` | Anon request: thin entries carry no acquisition link (§9 rule still applies) |
+| 5 | `test_thin_entry_acquisition_link_always_rendered` | Anonymous request: thin entries **still** carry the acquisition link (always rendered, §9) |
 | 6 | `test_thick_entries_are_complete` | GET `/opds/v1/books/?filter=m&detail=thick`: each book entry matches the §6.5 complete shape — has `<content type="xhtml">` (when the book has a description), `<calibre:series>`/`<calibre:series_index>` (when in a series), full-size `<link rel="http://opds-spec.org/image">`, and author `<link rel="related">` links |
 | 7 | `test_thick_entry_still_has_alternate_link` | A thick entry still carries the `<link rel="alternate">` to `/opds/v1/books/<pk>/` (the param changes verbosity, not the alternate target) |
 | 8 | `test_thick_param_propagates_to_pagination_links` | GET `/opds/v1/books/?filter=m&detail=thick` (43 books, paginated): the `<link rel="next">` (and on page 2, `rel="previous"`/`rel="first"`) URLs all preserve `detail=thick` |
@@ -897,7 +903,7 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 | 14 | `test_author_detail_sub_feed_series_has_standalone_entry_first` | For `author_with_series` who also has standalone books → the **first** entry is "Standalone Books", with `<link href>` ending in `/opds/v1/authors/<pk>/books/?series=none` |
 | 15 | `test_author_detail_sub_feed_series_standalone_entry_has_count` | Standalone entry `<content>` contains the correct standalone count text |
 | 15b | `test_author_books_series_none_filter_only_standalone` | GET `/opds/v1/authors/<pk>/books/?series=none` → total entry count (across pages) equals `author.books.filter(bookserieslink__isnull=True).count()`; contains no book that belongs to a series |
-| 16 | `test_author_books_no_acquisition_link_anon` | Anon request to author books feed → no `<link rel="http://opds-spec.org/acquisition">` in entries |
+| 16 | `test_author_books_acquisition_link_always_rendered` | Anonymous request to author books feed → entries **still** have `<link rel="http://opds-spec.org/acquisition">` (always rendered) |
 | 17 | `test_author_books_acquisition_link_with_perm` | `user_with_perm` request → entries have `<link rel="http://opds-spec.org/acquisition">` |
 
 ---
@@ -914,7 +920,7 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 | 4 | `test_series_detail_has_books` | Feed contains at least 1 book entry (series has books via `_link_books_to_series`) |
 | 5 | `test_series_detail_books_sorted_by_sequence_number` | Book entries appear in ascending `sequence_number` order |
 | 6 | `test_series_detail_book_title_prefixed_with_seq` | Each book entry `<title>` starts with `"#<seq> · "` |
-| 7 | `test_series_detail_no_acquisition_anon` | Anon request → no `<link rel="http://opds-spec.org/acquisition">` on book entries |
+| 7 | `test_series_detail_acquisition_link_always_rendered` | Anonymous request → book entries **still** have `<link rel="http://opds-spec.org/acquisition">` (always rendered) |
 | 8 | `test_series_detail_acquisition_with_perm` | `user_with_perm` request → book entries have `<link rel="http://opds-spec.org/acquisition">` |
 
 ---
@@ -946,8 +952,8 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 | 8 | `test_book_detail_has_series_related_link` | `<link rel="related">` pointing to `/opds/v1/series/<series_1.pk>/` present, with `title` equal to the **series name only** (`"Foundation"`) — **no** `#<sequence_number>` in the link title |
 | 8a | `test_book_detail_author_and_series_related_links_distinguishable` | When the book has both author and series `rel="related"` links, they are distinguishable: author links point to `/opds/v1/authors/<pk>/`, series links to `/opds/v1/series/<pk>/` (asserted by `href` prefix) |
 | 9 | `test_book_detail_no_cover_uses_no_cover_fallback` | book_2 (no cover) → `<link rel="http://opds-spec.org/image">` href ends in `/static/img/no_cover%20600x900.jpeg` and `<link rel="http://opds-spec.org/image/thumbnail">` href ends in `/static/img/no_cover%2040x60.jpeg` (image links are always present; cover-less books fall back to the placeholders, never omit the link) |
-| 10 | `test_book_detail_no_acquisition_link_anon` | Anon user → no `<link rel="http://opds-spec.org/acquisition">` |
-| 11 | `test_book_detail_no_acquisition_link_user_no_perm` | `user_no_perm` → no acquisition link |
+| 10 | `test_book_detail_acquisition_link_always_rendered_anon` | Anonymous user → entry **still** has `<link rel="http://opds-spec.org/acquisition">` (always rendered) |
+| 11 | `test_book_detail_acquisition_link_present_user_no_perm` | `user_no_perm` → acquisition link present (not gated) |
 | 12 | `test_book_detail_has_acquisition_link_user_with_perm` | `user_with_perm` → acquisition link present, `href="/opds/v1/books/<book_1.pk>/download/"` |
 
 ---
@@ -971,15 +977,42 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 
 #### `OPDSBookDownloadTest` (extends `BaseTestCase`)
 
+**Auth phase** `OPDSBookDownloadView` requires authentication (`IsAuthenticated` + `BasicAuthentication`). `user_with_perm` is a member of the `Book access` group; credentials are sent via HTTP Basic (`HTTP_AUTHORIZATION`).
+
 | # | Test | Assertion |
 |---|------|-----------|
-| 1 | `test_download_anon_returns_403` | GET `/opds/v1/books/<pk>/download/` as anon → 403 |
-| 2 | `test_download_user_no_perm_returns_403` | Authenticated, no perm → 403 |
-| 3 | `test_download_user_with_perm_epub_returns_200` | Privileged user, EPUB book → 200, correct `Content-Type` |
-| 4 | `test_download_user_with_perm_fb2_zipped_returns_200` | Privileged user, FB2-in-ZIP book → 200, decrypted content matches |
-| 5 | `test_download_no_file_returns_404` | Book with no file → 404 |
-| 6 | `test_download_content_disposition_header` | Response has `Content-Disposition: attachment; filename="..."` |
-| 7 | `test_download_content_matches_extracted` | Response bytes match `get_book_file_content` output |
+| 1 | `test_download_anon_returns_401` | GET `/opds/v1/books/<pk>/download/` as anonymous → 401; `WWW-Authenticate` header starts with `Basic` |
+| 2 | `test_download_user_no_perm_returns_403` | Authenticated (Basic), no perm → 403 (via `can_view_book(user, book)`) |
+| 3 | `test_download_user_with_perm_epub_returns_200` | `user_with_perm` (Basic), EPUB book → 200, correct `Content-Type` |
+| 4 | `test_download_user_with_perm_fb2_zipped_returns_200` | `user_with_perm` (Basic), FB2-in-ZIP book → 200, decrypted content matches |
+| 5 | `test_download_no_file_returns_404` | `user_with_perm`, book with no file → 404 |
+| 6 | `test_download_content_disposition_header` | `user_with_perm` response has `Content-Disposition: attachment; filename="..."` |
+| 7 | `test_download_content_matches_extracted` | `user_with_perm` response bytes match `get_book_file_content` output |
+
+---
+
+#### `CanViewBookTest` (`TestCase`)
+
+Service-level test of `library.services.can_view_book(user, book)`. Each call passes a `book` instance (the helper currently ignores it, but the contract takes it for the public-domain follow-up).
+
+| # | Test | Assertion |
+|---|------|-----------|
+| 1 | `test_can_view_book_true_with_perm` | User in the `Book access` group (re-fetched to reset the perm cache) → `can_view_book(user, book)` is `True` |
+| 2 | `test_can_view_book_false_without_perm` | Plain authenticated user → `can_view_book(user, book)` is `False` |
+| 3 | `test_can_view_book_false_for_anonymous` | `can_view_book(AnonymousUser(), book)` → `False`, no exception |
+
+---
+
+#### `OPDSLoginViewTest` (extends throttle-reset mixin / `TestCase`)
+
+Auth phase. `OPDSLoginView` at `/opds/v1/login/` triggers the Basic credential prompt and redirects to the root once authenticated. Credentials sent via HTTP Basic (`HTTP_AUTHORIZATION`).
+
+| # | Test | Assertion |
+|---|------|-----------|
+| 1 | `test_login_anonymous_returns_401` | GET `/opds/v1/login/` with no auth → 401 |
+| 2 | `test_login_anonymous_sets_www_authenticate_basic` | The 401 response's `WWW-Authenticate` header starts with `Basic` |
+| 3 | `test_login_authenticated_redirects_to_root` | GET with valid Basic creds (`follow=False`) → 302; `Location` ends in `/opds/v1/` |
+| 4 | `test_login_invalid_credentials_returns_401` | GET with a wrong-password Basic header → 401 |
 
 ---
 
@@ -999,7 +1032,7 @@ Genre detail (`/genres/<pk>/`) is a **subgenres-only** navigation feed; a leaf g
 | 8 | `test_search_authors_subfeed_entries_link_to_author` | GET `/opds/v1/search/authors/?q=Abak` → each entry `<link href>` points to `/opds/v1/authors/<pk>/` |
 | 9 | `test_search_series_subfeed_entries_link_to_series` | GET `/opds/v1/search/series/?q=Ch` → each entry `<link href>` points to `/opds/v1/series/<pk>/` |
 | 10 | `test_search_books_subfeed_acquisition_link_with_perm` | `user_with_perm`, GET `/opds/v1/search/books/?q=Alid1` → book entries have `<link rel="http://opds-spec.org/acquisition">` |
-| 11 | `test_search_books_subfeed_no_acquisition_link_anon` | Anon, GET `/opds/v1/search/books/?q=Alid1` → no acquisition link on book entries |
+| 11 | `test_search_books_subfeed_acquisition_link_always_rendered` | Anonymous, GET `/opds/v1/search/books/?q=Alid1` → book entries **still** have the acquisition link (always rendered) |
 | 12 | `test_search_books_subfeed_pagination` | Create 25 books with title `Zap*`; GET `/opds/v1/search/books/?q=Zap` page 1 has exactly 20 entries; `<link rel="next">` present |
 | 13 | `test_search_books_subfeed_pagination_preserves_q` | `/opds/v1/search/books/?q=Zap` `<link rel="next">` URL contains both `q=Zap` and `page=2` |
 | 14 | `test_search_subfeed_empty_query_returns_empty_feed` | GET `/opds/v1/search/books/` (no `q`) → 200 with 0 `<entry>` elements |
@@ -1056,17 +1089,17 @@ Use `django.utils.timezone.now()` as a fallback when no objects exist rather tha
 
 Use `xml.etree.ElementTree.indent()` (Python 3.9+). Register all namespaces with `ET.register_namespace()` before building the tree to avoid `ns0:` prefixes in output.
 
-### Download view: DRF `APIView` with no renderer
+### Download view: extends `OPDSBaseView`, `JSONRenderer` for error bodies
 
-`BookDownloadView` extends DRF `APIView` (not a plain Django `View`), but sets `renderer_classes = []` so no renderer runs. This keeps it on the same DRF stack as every other OPDS endpoint — crucially the `throttle_classes = [OPDSMinuteRateThrottle, OPDSDayRateThrottle]` required by §3 / §6.6 — while still delivering raw bytes without the Atom renderer layer.
+`OPDSBookDownloadView` extends `OPDSBaseView`, so it inherits `BasicAuthentication` and the throttle classes (`OPDSMinuteRateThrottle`, `OPDSDayRateThrottle`) — keeping it on the same DRF stack as every other OPDS endpoint. It sets `permission_classes = [IsAuthenticated]` (→ 401 for anonymous) and `renderer_classes = [JSONRenderer]` so DRF can render the `401`/`403` exception bodies (the default `OPDSRenderer` expects a feed dict and would raise on `{'detail': …}`).
 
-DRF only invokes a renderer when a view returns a DRF `Response`. The download view returns a plain Django `HttpResponse` / `FileResponse` / `StreamingHttpResponse` directly, which bypasses the renderer entirely. So the empty `renderer_classes` is belt-and-suspenders, and Django's file-response classes are available exactly as they would be on a plain `View`.
+DRF only invokes a renderer when a view returns a DRF `Response`. The success path returns a plain Django `HttpResponse` directly, which bypasses the renderer entirely; `JSONRenderer` is used only for the DRF-raised error responses. Django's file/response classes are available exactly as they would be on a plain `View`.
 
-A plain Django `View` would not run DRF's throttle machinery, forcing a manual re-implementation of throttle checks (cache keys, `429` + `Retry-After`) inside `get()` — duplicating what `APIView.initial()` provides for free. The `APIView` + empty-renderer approach avoids that.
+A plain Django `View` would not run DRF's authentication, throttle, or exception machinery, forcing a manual re-implementation of the `401`/`403`/`429` handling inside `get()` — duplicating what `APIView.initial()` provides for free.
 
 ### Permission check approach
 
-Views check `request.user.has_perm('library.view_book')` directly. No DRF `permission_classes` are used for the acquisition link visibility — the link is simply omitted from the serialized entry. The download view additionally returns `HTTP 403` for unauthorized requests.
+Acquisition `<link>`s are **always rendered** in feeds — they are never gated on permission (authorization is enforced at the download endpoint, so the visible link lets a reader tap *download* and trigger the Basic prompt). The download view enforces authorization via `library.services.can_view_book(request.user, book)`: `IsAuthenticated` gives `HTTP 401` for anonymous requests, and a failing `can_view_book` check gives `HTTP 403`. The helper takes the `book` so a future per-book public-domain rule slots in without touching call sites.
 
 ### Throttle cache backend
 

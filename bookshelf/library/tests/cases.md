@@ -139,6 +139,14 @@
         - Leaf node as input -> returns empty set (not included).
         - Non-existent ID -> returns empty set.
 
+## can_view_book Service (test_book_services.py — CanViewBookTest)
+
+Verifies `library.services.can_view_book(user, book)`; each call passes a `book` instance.
+
+1. **test_can_view_book_true_with_perm**: A user in the `Book access` group (perm cache reset) returns `True`.
+2. **test_can_view_book_false_without_perm**: A plain authenticated user returns `False`.
+3. **test_can_view_book_false_for_anonymous**: `AnonymousUser()` returns `False` and raises no exception.
+
 ## Author List View (AuthorListViewTests)
 1. **test_author_list_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
 2. **test_author_list_view_pagination**: Verifies pagination works correctly (showing 50 authors per page).
@@ -231,8 +239,9 @@ No database content required; the feed is purely structural (uses plain TestCase
 
 1. **test_root_feed_status_200**: GET `opds:root/` returns HTTP 200.
 2. **test_root_feed_content_type**: Response `Content-Type` starts with `application/atom+xml`.
-3. **test_root_feed_has_four_catalog_entries**: Feed XML contains exactly 4 `<entry>` elements.
-4. **test_root_feed_entry_titles**: The 4 entry titles are exactly `{Authors, Genres, Series, Books}`.
+3. **test_root_feed_anonymous_has_login_entry**: Anonymous feed has 5 `<entry>` elements including `Login`, whose `subsection` href ends with `/opds/v1/login/`.
+3a. **test_root_feed_authenticated_omits_login_entry**: With valid Basic credentials the feed has exactly 4 entries and no `Login` entry.
+4. **test_root_feed_entry_titles**: The 5 anonymous entry titles are exactly `{Authors, Genres, Series, Books, Login}`.
 5. **test_root_feed_navigation_link** *(parameterized: self, start)*: Feed contains exactly one `<link rel="self">` and one `<link rel="start">`, each `href` ending with `opds:root/`.
 7. **test_root_feed_search_link_at_feed_level**: The feed has exactly one feed-level `<link rel="search" type="application/opensearchdescription+xml">` and no `Search` navigation `<entry>` (no `tag:bookshelf:search` id).
 8. **test_root_feed_has_templated_atom_search_link**: The feed emits exactly one feed-level templated `<link rel="search" type="application/atom+xml">` whose href contains `search/?q={searchTerms}` (mirrors Flibusta; readers synthesize an inline "Search" row from it).
@@ -437,7 +446,7 @@ Canonical dataset plus an inline described author/book (with `<script>`/`<iframe
 
 Canonical dataset. Verifies the §6.5a Propagation rule — `?detail=thick` is a sticky, catalog-wide preference threaded through every browsable-catalog link and omitted from non-feed / always-complete links. Uses the implemented Root + Author feeds; a series+standalone author is found via `.filter()`.
 
-1. **test_root_subsection_links_preserve_detail**: Every root entry `rel="subsection"` link (Authors, Genres, Series, Books) carries `detail=thick`.
+1. **test_root_subsection_links_preserve_detail**: Every anonymous root entry `rel="subsection"` link (Authors, Genres, Series, Books, Login — 5 links) carries `detail=thick`.
 2. **test_root_search_links_preserve_detail**: Both feed-level search links carry `detail=thick` — the `application/opensearchdescription+xml` descriptor link and the templated `application/atom+xml` link (which also keeps its `{searchTerms}` placeholder).
 3. **test_root_self_and_start_links_preserve_detail**: The feed `rel="self"` and `rel="start"` links both carry `detail=thick`.
 4. **test_root_logo_thumbnail_link_omits_detail**: The non-book logo thumbnail links never carry a `detail` param.
@@ -517,3 +526,22 @@ No database content required. Verifies the OpenSearch description document at `G
 7. **test_opensearch_description_template_omits_detail_by_default**: Without `?detail=thick` the `<Url>` `template` carries no `detail` parameter.
 8. **test_opensearch_description_uses_default_namespace**: The document uses the default OpenSearch namespace with unprefixed tags (`<OpenSearchDescription xmlns="…">`, `<Url …>`) — no `opensearch:`/`ns0:` prefixes — so readers that string-match for a bare `<Url template>` discover search.
 9. **test_opensearch_description_url_type_is_opds_catalog**: The `<Url type>` is `application/atom+xml;profile=opds-catalog;kind=navigation` (OPDS 1.2 requires the OPDS Catalog media type; plain `application/atom+xml` is rejected by spec-compliant readers).
+
+## OPDS Login View (tests_opds.py — OPDSLoginViewTest)
+
+Verifies `GET opds:login/` — the Basic credential challenge / redirect view.
+
+1. **test_login_anonymous_returns_401**: Anonymous GET returns HTTP 401.
+2. **test_login_anonymous_sets_www_authenticate_basic**: The 401 response's `WWW-Authenticate` header starts with `Basic`.
+3. **test_login_authenticated_redirects_to_root**: Valid Basic credentials (no follow) return 302 with `Location` ending `/opds/v1/`.
+4. **test_login_invalid_credentials_returns_401**: A wrong-password Basic header returns HTTP 401.
+
+## OPDS Book Download (tests_opds.py — OPDSBookDownloadTest)
+
+Verifies `GET opds:book_download` — the authenticated download endpoint (real EPUB file via `BaseTestCase`; `user_with_perm` in `Book access`, `user_no_perm` plain; Basic creds via `HTTP_AUTHORIZATION`).
+
+1. **test_download_anon_returns_401**: Anonymous download returns 401 with `WWW-Authenticate` starting `Basic`.
+2. **test_download_user_no_perm_returns_403**: An authenticated user lacking the permission returns 403 (via `can_view_book`).
+3. **test_download_user_with_perm_epub_returns_200**: A permitted user downloads the EPUB → 200, `Content-Disposition` contains `attachment`, body non-empty.
+4. **test_download_no_file_returns_404**: A permitted user requesting a book with no file returns 404.
+5. **test_download_non_ascii_filename_uses_rfc6266**: A Cyrillic title yields an RFC 6266 `filename*=utf-8''` `Content-Disposition` header.

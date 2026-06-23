@@ -566,6 +566,20 @@ def sanitize_filename(filename: str) -> str:
     return filename.strip('._-')
 
 
+def can_view_book(user, book) -> bool:  # noqa: ARG001
+    """Return True if the user may download this book or view its full content.
+
+    Args:
+        user: The requesting user (may be ``AnonymousUser``).
+        book: The Book instance being checked (currently unused; reserved for
+            forthcoming per-book authorization rules).
+
+    Returns:
+        True if the user is allowed to download the book.
+    """
+    return bool(user and user.has_perm('library.view_book'))
+
+
 def get_book_file_content(book: 'Book') -> tuple[str | None, bytes | None, str | None]:
     """Get the unzipped content of a book file.
 

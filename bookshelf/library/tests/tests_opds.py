@@ -1,10 +1,13 @@
 """
 OPDS v1.2 catalog tests.
 """
+import base64
 import io
 import xml.etree.ElementTree as ET
 from urllib.parse import quote
 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.db.models import Count, Exists, OuterRef
@@ -14,7 +17,16 @@ from PIL import Image
 
 from bookshelf.tests.base_test import BaseTestCase
 from library.models import Author, Book, BookSeries, BookSeriesLink, Genre, Language
+from library.tests.epub_test_utils import create_epub_one_author
 from library.tests.test_data_factory import create_test_dataset
+
+User = get_user_model()
+
+
+def _basic(username, password):
+    """Return an HTTP Basic ``Authorization`` header value for *username*."""
+    token = base64.b64encode(f'{username}:{password}'.encode()).decode()
+    return f'Basic {token}'
 
 
 class OPDSThrottleResetMixin:
@@ -98,13 +110,41 @@ class OPDSRootFeedTest(OPDSThrottleResetMixin, TestCase):
         )
 
     # ------------------------------------------------------------------
-    # 3. Exactly four catalog entries
+    # 3. Catalog entries — anonymous sees 5 (incl. Login), authed sees 4
     # ------------------------------------------------------------------
 
-    def test_root_feed_has_four_catalog_entries(self):
+    def test_root_feed_anonymous_has_login_entry(self):
+        """Anonymous root feed has 5 entries; Login subsection → /opds/v1/login/."""
         _, root = self._get_root()
         entries = root.findall('atom:entry', NS)
+        self.assertEqual(len(entries), 5)
+
+        titles = {e.findtext('atom:title', namespaces=NS) for e in entries}
+        self.assertIn('Login', titles)
+
+        login_entry = next(
+            e for e in entries
+            if e.findtext('atom:title', namespaces=NS) == 'Login'
+        )
+        subsection = _links_by_rel(login_entry, 'subsection')
+        self.assertEqual(len(subsection), 1)
+        self.assertTrue(
+            subsection[0].get('href', '').endswith(f'{OPDS_BASE}login/'),
+            msg=subsection[0].get('href', ''),
+        )
+
+    def test_root_feed_authenticated_omits_login_entry(self):
+        """Authenticated root feed (valid Basic creds) has 4 entries; no Login."""
+        User.objects.create_user(username='reader', email='reader@example.com', password='pass')
+        response = self.client.get(
+            self.ROOT_URL, HTTP_AUTHORIZATION=_basic('reader', 'pass')
+        )
+        root = _parse(response)
+        entries = root.findall('atom:entry', NS)
         self.assertEqual(len(entries), 4)
+
+        titles = {e.findtext('atom:title', namespaces=NS) for e in entries}
+        self.assertNotIn('Login', titles)
 
     # ------------------------------------------------------------------
     # 4. Entry titles
@@ -114,7 +154,7 @@ class OPDSRootFeedTest(OPDSThrottleResetMixin, TestCase):
         _, root = self._get_root()
         entries = root.findall('atom:entry', NS)
         titles = {e.findtext('atom:title', namespaces=NS) for e in entries}
-        self.assertEqual(titles, {'Authors', 'Genres', 'Series', 'Books'})
+        self.assertEqual(titles, {'Authors', 'Genres', 'Series', 'Books', 'Login'})
 
     # ------------------------------------------------------------------
     # 5./6. Self and start links
@@ -1397,7 +1437,8 @@ class OPDSThickPropagationTest(OPDSThrottleResetMixin, TestCase):
         """Every root subsection link carries detail=thick."""
         root = _parse(self.client.get(f'{OPDS_BASE}?detail=thick'))
         hrefs = self._subsection_hrefs(root)
-        self.assertEqual(len(hrefs), 4)  # Authors, Genres, Series, Books
+        # Anonymous root: Authors, Genres, Series, Books, Login.
+        self.assertEqual(len(hrefs), 5)
         for href in hrefs:
             self.assertIn('detail=thick', href)
 
@@ -2902,3 +2943,143 @@ class OPDSOpenSearchDescriptionTest(OPDSThrottleResetMixin, TestCase):
         self.assertIn('<Url ', body)
         self.assertNotIn('opensearch:', body)
         self.assertNotIn('ns0:', body)
+
+
+# ---------------------------------------------------------------------------
+# Authentication & download permissions
+# ---------------------------------------------------------------------------
+
+class OPDSLoginViewTest(OPDSThrottleResetMixin, TestCase):
+    """Tests for GET opds:login — the credential challenge / redirect view."""
+
+    LOGIN_URL = f'{OPDS_BASE}login/'
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='reader', email='reader@example.com', password='pass')
+
+    def test_login_anonymous_returns_401(self):
+        """Anonymous GET → 401."""
+        response = self.client.get(self.LOGIN_URL)
+        self.assertEqual(response.status_code, 401)
+
+    def test_login_anonymous_sets_www_authenticate_basic(self):
+        """The 401 response challenges with WWW-Authenticate: Basic."""
+        response = self.client.get(self.LOGIN_URL)
+        self.assertTrue(
+            response['WWW-Authenticate'].startswith('Basic'),
+            msg=response.get('WWW-Authenticate'),
+        )
+
+    def test_login_authenticated_redirects_to_root(self):
+        """Valid Basic creds → 302 redirect to the OPDS root."""
+        response = self.client.get(
+            self.LOGIN_URL,
+            HTTP_AUTHORIZATION=_basic('reader', 'pass'),
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            response['Location'].endswith(OPDS_BASE),
+            msg=response.get('Location'),
+        )
+
+    def test_login_invalid_credentials_returns_401(self):
+        """A wrong-password Basic header → 401."""
+        response = self.client.get(
+            self.LOGIN_URL,
+            HTTP_AUTHORIZATION=_basic('reader', 'wrong'),
+        )
+        self.assertEqual(response.status_code, 401)
+
+
+class OPDSBookDownloadTest(OPDSThrottleResetMixin, BaseTestCase):
+    """Tests for GET opds:book_download — the authenticated download endpoint.
+
+    Uses ``BaseTestCase`` so the book can carry a real EPUB file (extracted via
+    ``get_book_file_content`` against a temp media root).  ``user_with_perm`` is
+    in the ``Book access`` group; ``user_no_perm`` is a plain user.  Basic
+    credentials are sent via ``HTTP_AUTHORIZATION`` (session login does not
+    authenticate the Basic-only OPDS views).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.lang_en = Language.objects.create(code='en', name='English')
+        cls.author = Author.objects.create(first_name='John', last_name='Doe')
+
+        cls.book = Book.objects.create(
+            title='Test EPUB', language=cls.lang_en, file_type='epub',
+        )
+        cls.book.authors.add(cls.author)
+        cls.book.file.save(
+            'test.epub', ContentFile(create_epub_one_author().read())
+        )
+
+        cls.no_file_book = Book.objects.create(
+            title='No File', language=cls.lang_en,
+        )
+
+        cls.user_with_perm = User.objects.create_user(
+            username='perm', email='perm@example.com', password='pass',
+        )
+        group, _ = Group.objects.get_or_create(name='Book access')
+        cls.user_with_perm.groups.add(group)
+
+        cls.user_no_perm = User.objects.create_user(
+            username='plain', email='plain@example.com', password='pass',
+        )
+
+    def _download_url(self, book):
+        return f'{OPDS_BASE}books/{book.pk}/download/'
+
+    def test_download_anon_returns_401(self):
+        """Anonymous download → 401 with WWW-Authenticate: Basic."""
+        response = self.client.get(self._download_url(self.book))
+        self.assertEqual(response.status_code, 401)
+        self.assertTrue(
+            response['WWW-Authenticate'].startswith('Basic'),
+            msg=response.get('WWW-Authenticate'),
+        )
+
+    def test_download_user_no_perm_returns_403(self):
+        """An authenticated user lacking the permission → 403."""
+        response = self.client.get(
+            self._download_url(self.book),
+            HTTP_AUTHORIZATION=_basic('plain', 'pass'),
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_download_user_with_perm_epub_returns_200(self):
+        """A permitted user downloads the EPUB → 200 attachment, non-empty body."""
+        response = self.client.get(
+            self._download_url(self.book),
+            HTTP_AUTHORIZATION=_basic('perm', 'pass'),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('attachment', response['Content-Disposition'])
+        self.assertTrue(response.content)
+
+    def test_download_no_file_returns_404(self):
+        """A permitted user requesting a book with no file → 404."""
+        response = self.client.get(
+            self._download_url(self.no_file_book),
+            HTTP_AUTHORIZATION=_basic('perm', 'pass'),
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_download_non_ascii_filename_uses_rfc6266(self):
+        """A Cyrillic title yields an RFC 6266 ``filename*=utf-8''`` header."""
+        author = Author.objects.create(first_name='Степан', last_name='Бандера')
+        book = Book.objects.create(
+            title='Москалі', language=self.lang_en, file_type='epub',
+        )
+        book.authors.add(author)
+        book.file.save('test.epub', ContentFile(create_epub_one_author().read()))
+
+        response = self.client.get(
+            self._download_url(book),
+            HTTP_AUTHORIZATION=_basic('perm', 'pass'),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("filename*=utf-8''", response['Content-Disposition'])
