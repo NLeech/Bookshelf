@@ -1234,6 +1234,22 @@ class OPDSBookListFeedTest(OPDSThrottleResetMixin, TestCase):
             msg=f'Expected {href_suffix} in {hrefs}',
         )
 
+    @parameterized.expand([
+        # (filter prefix, expected query value) — non-ASCII prefixes must be
+        # percent-encoded so readers re-request the next/prev page with the
+        # same encoding instead of double-encoding it into a 404.
+        ('ascii', 'a', 'a'),
+        ('cyrillic', 'а', quote('а', safe='')),
+    ])
+    def test_leaf_results_href_percent_encodes_filter(self, _name, prefix, expected):
+        """A leaf node's ?filter= href percent-encodes non-ASCII prefixes."""
+        from library.opds.serializers import _leaf_results_href
+        from library.services import AlphabetTree
+
+        node = AlphabetTree(name=prefix, filter=prefix)
+        href = _leaf_results_href(node, 'http://x/opds/v1/', 'books')
+        self.assertEqual(href, f'http://x/opds/v1/books/?filter={expected}')
+
     def test_book_tree_root_has_other_entry_linking_to_subtree(self):
         """GET opds:root/books/tree/ → 'Other' entry (count 31) links to tree/other/."""
         response = self.client.get(f'{OPDS_BASE}books/tree/')
