@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db.models import Count, Exists, OuterRef, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 from rest_framework.authentication import BasicAuthentication
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
@@ -41,6 +42,21 @@ from .serializers import (
     wants_thick_entries,
 )
 from .throttles import OPDSDayRateThrottle, OPDSMinuteRateThrottle
+
+
+def _redirect_preserving_query(request, viewname, **kwargs):
+    """Redirect to ``viewname`` while carrying over the request's query string.
+
+    A bare ``redirect(viewname)`` produces a URL with no query string, which
+    drops sticky catalog-wide preferences such as ``?detail=thick`` (see
+    ``STICKY_QUERY_PARAMS``) on the 302 hop.  Re-appending the incoming query
+    string keeps the preference alive across the redirect.
+    """
+    url = reverse(viewname, kwargs=kwargs)
+    query = request.META.get('QUERY_STRING', '')
+    if query:
+        url = f'{url}?{query}'
+    return redirect(url)
 
 
 class OPDSPageNumberPagination(PageNumberPagination):
@@ -132,7 +148,7 @@ class OPDSLoginView(OPDSBaseView):
     renderer_classes = [JSONRenderer]
 
     def get(self, request):
-        return redirect('opds:root')
+        return _redirect_preserving_query(request, 'opds:root')
 
 
 # ---------------------------------------------------------------------------
@@ -247,9 +263,15 @@ class AuthorBooksFeedView(OPDSBaseView):
     Returns a paginated acquisition feed of all books by this author, sorted
     alphabetically by title.
 
-    Supports optional ``?series=none`` query param: when present, filters to
-    books not linked to any series (powers the "Standalone Books" category
-    from the series feed).
+    Supports an optional ``?series=`` query param:
+
+    * ``?series=none`` — books not linked to any series (powers the
+      "Standalone Books" category from the author series feed);
+    * ``?series=<pk>`` — only this author's books in series ``<pk>`` (powers
+      the per-series entries of the author series feed, which must scope to the
+      author rather than show the whole series).
+
+    A non-integer ``series`` value is ignored.
     """
 
     def get(self, request, pk):
@@ -261,8 +283,11 @@ class AuthorBooksFeedView(OPDSBaseView):
             .order_by('title')
         )
 
-        if request.query_params.get('series') == 'none':
+        series_param = request.query_params.get('series')
+        if series_param == 'none':
             queryset = queryset.filter(bookserieslink__isnull=True)
+        elif series_param and series_param.isdigit():
+            queryset = queryset.filter(bookserieslink__series_id=int(series_param))
 
         page, pagination = self._paginate(queryset, request)
         feed = build_book_results_feed(
@@ -455,7 +480,7 @@ class GenreDetailFeedView(OPDSBaseView):
         subgenres = genre.subgenres.order_by('name')
 
         if not subgenres.exists():
-            return redirect('opds:genre_book_tree', pk=pk)
+            return _redirect_preserving_query(request, 'opds:genre_book_tree', pk=pk)
 
         subgenres_with_counts = [
             (subgenre, _genre_book_queryset(subgenre).count())

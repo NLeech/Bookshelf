@@ -589,8 +589,11 @@ def build_author_series_feed(
 
     When ``standalone_count > 0``, prepends a "Standalone Books" entry as
     the first entry linking to ``opds:root/authors/<pk>/books/?series=none``.
-    Followed by one navigation entry per series, linking to
-    ``opds:root/series/<pk>/``.
+    Followed by one entry per series, each an acquisition link to
+    ``opds:root/authors/<pk>/books/?series=<series_pk>`` so it shows only this
+    author's books in that series (not the whole series — that lives at
+    ``opds:root/series/<pk>/``, reachable from the series catalog or a book's
+    ``rel="related"`` link).
 
     Args:
         author: An Author model instance.
@@ -620,9 +623,12 @@ def build_author_series_feed(
     for series in series_with_counts:
         count = getattr(series, 'author_book_count', 0)
         entries.append(_nav_entry(
-            f'tag:bookshelf:series:{series.pk}', series.name,
-            _with_sticky_params(opds_base + f'series/{series.pk}/', request), request,
-            content=f'{count} book(s) in this series',
+            f'tag:bookshelf:author:{author.pk}:series:{series.pk}', series.name,
+            _with_sticky_params(
+                opds_base + f'authors/{author.pk}/books/?series={series.pk}', request
+            ),
+            request, link_type=ACQ_TYPE,
+            content=f'{count} book(s) by this author in this series',
             updated=series.updated_at,
         ))
 

@@ -368,22 +368,23 @@ Canonical dataset plus an inline `genre_empty` top-level genre (no subgenres, no
 10. **test_genre_detail_lists_subgenres_only**: `sf_fantasy` detail lists exactly its 3 subgenres, each linking to its own detail feed.
 11. **test_genre_detail_has_no_book_or_alphabet_entries**: `sf_fantasy` detail has no acquisition entries and no alphabet-tree nodes.
 12. **test_genre_detail_without_subgenres_redirects_to_book_tree** *(parameterized: leaf, empty)*: GET a genre detail with no subgenres (`dystopia`, `genre_empty`) returns 302 to its `books/tree/`.
-13. **test_genre_book_tree_status_200_navigation**: GET `opds:root/genres/<sf_fantasy.pk>/books/tree/` returns 200 with `kind=navigation`.
-14. **test_genre_book_tree_has_alphabet_entries**: `sf_fantasy` book tree has an expandable 'A' node whose sub-tree shows an 'Al' entry.
-15. **test_genre_book_tree_only_contains_own_books**: `dystopia` book tree shows only {A, B, M, П, 0-9, Other} with A=46 and M=10.
-16. **test_genre_book_tree_node_returns_404** *(parameterized: leaf_node, nonexistent_node)*: GET a leaf (`tree/a/`) and a missing (`tree/z/`) node return 404.
-17. **test_genre_book_tree_empty_genre_returns_empty_tree**: GET `genre_empty` book tree returns 200 with 0 entries.
-18. **test_genre_book_tree_leaf_links_to_results**: A leaf letter node ('M') links to `opds:root/genres/<pk>/books/?filter=m`.
-19. **test_genre_book_tree_non_leaf_links_to_subtree**: An expandable 'A' node links to its sub-tree, whose first entry is the synthetic 'all A'.
-20. **test_genre_book_tree_regex_node_link_carries_regex_param**: The '0-9' leaf links via `?regex=`; the 'Other' node links to its `tree/other/` sub-tree.
-21. **test_genre_books_results_is_acquisition_feed**: Genre book results Content-Type contains `kind=acquisition`.
-22. **test_genre_books_results_by_filter_status_200**: GET `genres/<dystopia.pk>/books/?filter=alid` returns HTTP 200.
-23. **test_genre_books_results_by_filter_filters_correctly**: `?filter=alid` returns only titles starting with 'Alid'.
-24. **test_genre_books_results_empty_filter_returns_empty_feed**: `?filter=z` returns 200 with 0 entries.
-25. **test_genre_books_results_by_regex_filters_by_regex**: `?regex=^[0-9]` total equals the genre's 0-9 tree count (2); all titles start with a digit.
-26. **test_genre_books_results_regex_beats_filter**: `?filter=0-9` (no regex) uses `istartswith` and yields 0 entries.
-27. **test_genre_books_results_thin_by_default**: Genre book entries are thin by default — no `<content>`/full image; exactly one `rel="alternate"`.
-28. **test_genre_books_results_thick_param_makes_entries_complete**: `?detail=thick` makes genre book entries complete (full-size image link present).
+13. **test_genre_detail_redirect_preserves_detail_thick**: A leaf-genre (`dystopia`) 302 with `?detail=thick` redirects to `genres/<pk>/books/tree/?detail=thick`.
+14. **test_genre_book_tree_status_200_navigation**: GET `opds:root/genres/<sf_fantasy.pk>/books/tree/` returns 200 with `kind=navigation`.
+15. **test_genre_book_tree_has_alphabet_entries**: `sf_fantasy` book tree has an expandable 'A' node whose sub-tree shows an 'Al' entry.
+16. **test_genre_book_tree_only_contains_own_books**: `dystopia` book tree shows only {A, B, M, П, 0-9, Other} with A=46 and M=10.
+17. **test_genre_book_tree_node_returns_404** *(parameterized: leaf_node, nonexistent_node)*: GET a leaf (`tree/a/`) and a missing (`tree/z/`) node return 404.
+18. **test_genre_book_tree_empty_genre_returns_empty_tree**: GET `genre_empty` book tree returns 200 with 0 entries.
+19. **test_genre_book_tree_leaf_links_to_results**: A leaf letter node ('M') links to `opds:root/genres/<pk>/books/?filter=m`.
+20. **test_genre_book_tree_non_leaf_links_to_subtree**: An expandable 'A' node links to its sub-tree, whose first entry is the synthetic 'all A'.
+21. **test_genre_book_tree_regex_node_link_carries_regex_param**: The '0-9' leaf links via `?regex=`; the 'Other' node links to its `tree/other/` sub-tree.
+22. **test_genre_books_results_is_acquisition_feed**: Genre book results Content-Type contains `kind=acquisition`.
+23. **test_genre_books_results_by_filter_status_200**: GET `genres/<dystopia.pk>/books/?filter=alid` returns HTTP 200.
+24. **test_genre_books_results_by_filter_filters_correctly**: `?filter=alid` returns only titles starting with 'Alid'.
+25. **test_genre_books_results_empty_filter_returns_empty_feed**: `?filter=z` returns 200 with 0 entries.
+26. **test_genre_books_results_by_regex_filters_by_regex**: `?regex=^[0-9]` total equals the genre's 0-9 tree count (2); all titles start with a digit.
+27. **test_genre_books_results_regex_beats_filter**: `?filter=0-9` (no regex) uses `istartswith` and yields 0 entries.
+28. **test_genre_books_results_thin_by_default**: Genre book entries are thin by default — no `<content>`/full image; exactly one `rel="alternate"`.
+29. **test_genre_books_results_thick_param_makes_entries_complete**: `?detail=thick` makes genre book entries complete (full-size image link present).
 
 ## OPDS Genre Feed Counts (tests_opds.py — OPDSGenreFeedCountsTest)
 
@@ -410,7 +411,7 @@ Canonical dataset.
 9. **test_author_detail_sub_feed_books_alpha_sorted**: First page entries are sorted by title ascending.
 11. **test_author_detail_sub_feed_books_recent_sorted_by_date**: First entry `<updated>` >= second entry `<updated>` (descending date order).
 13. **test_author_detail_sub_feed_series_is_navigation**: Author series feed Content-Type contains `kind=navigation`.
-14. **test_author_detail_sub_feed_series_has_series**: For `author_with_series`, the series feed has at least one entry linking to `opds:root/series/<pk>/`.
+14. **test_author_detail_sub_feed_series_has_series**: For `author_with_series`, the series feed has at least one author-scoped series entry (`authors/<pk>/books/?series=<pk>`).
 15. **test_author_detail_sub_feed_series_entry_has_book_count**: Each series entry `<content>` contains a positive integer (book count).
 16. **test_author_detail_sub_feed_series_no_standalone_entry_when_none**: An author with no standalone books has no 'Standalone Books' entry.
 17. **test_author_detail_sub_feed_series_has_standalone_entry_first**: For `author_with_series`, the first series feed entry is 'Standalone Books'.
@@ -457,6 +458,16 @@ Canonical dataset. Verifies the §6.5a Propagation rule — `?detail=thick` is a
 8. **test_author_series_links_preserve_detail**: The Standalone Books link and every per-series `subsection` link carry `detail=thick`.
 9. **test_detail_survives_drilldown_to_acquisition_feed**: Following the `detail=thick`-bearing Books-by-Title link reaches `opds:root/authors/<pk>/books/?detail=thick`, whose book entries are complete (full-size image present) — proving the preference survives link-following to the terminal acquisition feed.
 10. **test_navigation_links_omit_detail_by_default**: Without `?detail=thick`, no feed- or entry-level link on a navigation feed carries a `detail` param.
+
+## OPDS Author-Scoped Series Navigation (tests_opds.py — OPDSAuthorScopedSeriesTest)
+
+Controlled dataset: one series shared by two authors (Asimov: 2 series books + 1 standalone; Bradbury: 1 series book). Verifies that author→series navigation is scoped to the author's books while the full series stays reachable.
+1. **test_author_series_entry_links_to_author_scoped_books**: The author's series entry links to `authors/<pk>/books/?series=<pk>` with an acquisition `type`.
+2. **test_author_series_entry_count_is_author_scoped**: The series entry `<content>` reports the author's count (2), not the series total (3).
+3. **test_author_scoped_series_lists_only_authors_books**: `?series=<pk>` returns exactly the author's books in that series ({A One, A Two}), excluding the other author's book.
+4. **test_author_scoped_series_excludes_standalone**: The author's standalone book is absent from the `?series=<pk>` view (total = 2).
+5. **test_full_series_lists_all_authors_books**: `series/<pk>/` still lists every author's books in the series (total = 3).
+6. **test_non_integer_series_param_ignored**: A non-integer `?series=abc` is ignored, returning all of the author's books (3).
 
 ## OPDS Book Detail Feed (tests_opds.py — OPDSBookDetailTest)
 
@@ -535,7 +546,8 @@ Verifies `GET opds:login/` — the Basic credential challenge / redirect view.
 1. **test_login_anonymous_returns_401**: Anonymous GET returns HTTP 401.
 2. **test_login_anonymous_sets_www_authenticate_basic**: The 401 response's `WWW-Authenticate` header starts with `Basic`.
 3. **test_login_authenticated_redirects_to_root**: Valid Basic credentials (no follow) return 302 with `Location` ending `/opds/v1/`.
-4. **test_login_invalid_credentials_returns_401**: A wrong-password Basic header returns HTTP 401.
+4. **test_login_redirect_preserves_detail_thick**: Valid credentials with `?detail=thick` return a 302 whose `Location` ends `/opds/v1/?detail=thick`.
+5. **test_login_invalid_credentials_returns_401**: A wrong-password Basic header returns HTTP 401.
 
 ## OPDS Book Download (tests_opds.py — OPDSBookDownloadTest)
 
