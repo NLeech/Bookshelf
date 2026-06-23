@@ -293,23 +293,24 @@ Canonical dataset (560 books: A=222, B=167, M=43, П=83, 0-9=14, Other=31; no bo
 9. **test_book_tree_sub_node_has_all_entry_first**: GET `opds:root/books/tree/a/` first entry is 'all A' with count 222.
 10. **test_book_tree_sub_node_all_entry_links_to_filter**: The 'all A' entry links to `opds:root/books/?filter=a`.
 11. **test_book_tree_child_links_to** *(parameterized: leaf_filter, expandable_subtree)*: The leaf 'Ar' child links to `?filter=ar`; the expandable 'Al' child links to `tree/al/`.
-12. **test_book_tree_root_has_other_entry_linking_to_subtree**: The 'Other' entry (count 31) links to `opds:root/books/tree/other/`.
-13. **test_book_tree_other_subtree_all_entry_uses_regex**: GET `opds:root/books/tree/other/` first entry 'all Other' (count 31) links via `?regex=`.
-14. **test_book_tree_entries_have_logo_thumbnail**: Every tree root entry carries the logo thumbnail link.
-15. **test_book_results_is_acquisition_feed**: GET `opds:root/books/?filter=m` Content-Type contains `kind=acquisition`.
-16. **test_book_results_by_filter_status_200**: GET `opds:root/books/?filter=m` returns HTTP 200.
-17. **test_book_results_has_correct_count**: GET `opds:root/books/?filter=m` returns 20 entries (page 1 of 43).
-18. **test_book_results_count_across_pages** *(parameterized: filter_m, cyrillic_filter, digits_regex, regex_beats_filter)*: total across pages — `?filter=m`→43, `?filter=<п>` (percent-encoded)→83, `?regex=^[0-9]`→14, `?filter=0-9&regex=^[0-9]`→14 (regex wins).
-19. **test_book_results_excludes_other_letter**: GET `opds:root/books/?filter=m` returns no title starting with 'B'.
-20. **test_book_results_sorted_by_title**: Entries in `opds:root/books/?filter=m` are ordered by title ascending.
-21. **test_book_results_empty_filter_returns_empty_feed**: GET `opds:root/books/?filter=z` returns 200 with zero entries.
-22. **test_book_results_full_set_no_filter_paginated**: GET `opds:root/books/` (no params) returns 200 with a full first page of 20.
-23. **test_book_results_entry_links_to_book_detail**: Each thin entry's `rel="alternate"` link points to `opds:root/books/<pk>/`.
-24. **test_book_results_acquisition_link_always_rendered**: Every results entry exposes exactly one acquisition link.
-25. **test_book_results_entries_thin_by_default**: Results entries are thin (no content/full image/related; one thumbnail).
-26. **test_book_results_thick_param_makes_entries_complete**: `?detail=thick` makes entries complete (full image + alternate).
-27. **test_book_results_thick_param_propagates_to_pagination**: `?detail=thick` is preserved on the `next` pagination link.
-28. **test_book_results_thin_pagination_links_have_no_detail**: Default (thin) feed pagination links carry no `detail` param.
+12. **test_leaf_results_href_percent_encodes_filter** *(parameterized: ascii, cyrillic)*: A leaf node's `?filter=` href percent-encodes non-ASCII prefixes (ASCII 'a' unchanged; Cyrillic 'а' → `%D0%B0`), so readers don't double-encode the value into a 404 on pagination.
+13. **test_book_tree_root_has_other_entry_linking_to_subtree**: The 'Other' entry (count 31) links to `opds:root/books/tree/other/`.
+14. **test_book_tree_other_subtree_all_entry_uses_regex**: GET `opds:root/books/tree/other/` first entry 'all Other' (count 31) links via `?regex=`.
+15. **test_book_tree_entries_have_logo_thumbnail**: Every tree root entry carries the logo thumbnail link.
+16. **test_book_results_is_acquisition_feed**: GET `opds:root/books/?filter=m` Content-Type contains `kind=acquisition`.
+17. **test_book_results_by_filter_status_200**: GET `opds:root/books/?filter=m` returns HTTP 200.
+18. **test_book_results_has_correct_count**: GET `opds:root/books/?filter=m` returns 20 entries (page 1 of 43).
+19. **test_book_results_count_across_pages** *(parameterized: filter_m, cyrillic_filter, digits_regex, regex_beats_filter)*: total across pages — `?filter=m`→43, `?filter=<п>` (percent-encoded)→83, `?regex=^[0-9]`→14, `?filter=0-9&regex=^[0-9]`→14 (regex wins).
+20. **test_book_results_excludes_other_letter**: GET `opds:root/books/?filter=m` returns no title starting with 'B'.
+21. **test_book_results_sorted_by_title**: Entries in `opds:root/books/?filter=m` are ordered by title ascending.
+22. **test_book_results_empty_filter_returns_empty_feed**: GET `opds:root/books/?filter=z` returns 200 with zero entries.
+23. **test_book_results_full_set_no_filter_paginated**: GET `opds:root/books/` (no params) returns 200 with a full first page of 20.
+24. **test_book_results_entry_links_to_book_detail**: Each thin entry's `rel="alternate"` link points to `opds:root/books/<pk>/`.
+25. **test_book_results_acquisition_link_always_rendered**: Every results entry exposes exactly one acquisition link.
+26. **test_book_results_entries_thin_by_default**: Results entries are thin (no content/full image/related; one thumbnail).
+27. **test_book_results_thick_param_makes_entries_complete**: `?detail=thick` makes entries complete (full image + alternate).
+28. **test_book_results_thick_param_propagates_to_pagination**: `?detail=thick` is preserved on the `next` pagination link.
+29. **test_book_results_thin_pagination_links_have_no_detail**: Default (thin) feed pagination links carry no `detail` param.
 
 ## OPDS Series List and Tree Feeds (tests_opds.py — OPDSSeriesListFeedTest)
 

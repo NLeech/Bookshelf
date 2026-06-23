@@ -368,7 +368,7 @@ def _leaf_results_href(node: AlphabetTree, opds_base: str, base_url: str) -> str
         The flat-results href string for this node.
     """
     if node.filter:
-        return opds_base + f'{base_url}/?filter={node.filter}'
+        return opds_base + f'{base_url}/?filter={quote(node.filter, safe="")}'
     return opds_base + f'{base_url}/?regex={_url_encode_regex(node.regex)}'
 
 
