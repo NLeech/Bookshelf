@@ -13,8 +13,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.core.files.base import ContentFile
+from django.db import connection
 from django.db.models import Count, Exists, OuterRef
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from parameterized import parameterized
 from PIL import Image
 
@@ -74,6 +76,14 @@ def _entry_link_rels(entry):
 def _links_by_rel(entry, rel):
     """Return all <link> elements on *entry* with the given *rel*."""
     return [lnk for lnk in entry.findall('atom:link', NS) if lnk.get('rel') == rel]
+
+
+def _entry_categories(entry):
+    """Return [(term, label), …] for an entry's <category> children."""
+    return [
+        (c.get('term'), c.get('label'))
+        for c in entry.findall('atom:category', NS)
+    ]
 
 
 def _parse(response):
@@ -1107,6 +1117,58 @@ class OPDSBookVerbosityTest(OPDSThrottleResetMixin, TestCase):
         self.assertNotIn('iframe', rendered)
         self.assertNotIn('alert(1)', rendered)
 
+    # ---- genre categories (every entry, thin and thick) ----
+
+    def test_thin_entry_has_category_tags(self):
+        """Thin listing entries carry <category> tags so readers surface genres."""
+        root = _parse(self.client.get(f'{OPDS_BASE}authors/{self.any_author.pk}/books/'))
+        entries = self._book_entries(root)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            pk = int(entry.findtext('atom:id', namespaces=NS).split(':')[-1])
+            expected = list(
+                Book.objects.get(pk=pk).genres.values_list('name', flat=True)
+            )
+            self.assertGreater(len(expected), 0)
+            terms = [term for term, _ in _entry_categories(entry)]
+            self.assertEqual(terms, expected)
+
+    def test_thick_entry_has_category_tags(self):
+        """Each thick entry's <category> terms match its book's genre names."""
+        root = _parse(self.client.get(
+            f'{OPDS_BASE}authors/{self.any_author.pk}/books/?detail=thick'
+        ))
+        entries = self._book_entries(root)
+        self.assertGreater(len(entries), 0)
+        for entry in entries:
+            pk = int(entry.findtext('atom:id', namespaces=NS).split(':')[-1])
+            expected = list(
+                Book.objects.get(pk=pk).genres.values_list('name', flat=True)
+            )
+            self.assertGreater(len(expected), 0)
+            terms = [term for term, _ in _entry_categories(entry)]
+            self.assertEqual(terms, expected)
+
+    def test_book_list_feed_genres_no_n_plus_one(self):
+        """Thick book listings prefetch genres: one genre query, not one per book."""
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(f'{OPDS_BASE}books/?detail=thick')
+        self.assertEqual(response.status_code, 200)
+
+        root = _parse(response)
+        # Sanity: the page actually rendered multiple books, so an unprefetched
+        # access would have produced many genre queries.
+        self.assertGreater(len(self._book_entries(root)), 1)
+
+        genre_queries = [
+            q for q in ctx.captured_queries
+            if 'library_book_genres' in q['sql']
+        ]
+        self.assertEqual(
+            len(genre_queries), 1,
+            msg='genres must be prefetched in a single query, not per book',
+        )
+
 
 # ---------------------------------------------------------------------------
 # OPDSBookListFeedTest
@@ -1733,6 +1795,16 @@ class OPDSBookDetailTest(OPDSThrottleResetMixin, BaseTestCase):
             book=cls.book_1, series=cls.series_1, sequence_number=1,
         )
 
+        # Two genres on book_1 exercise the <category> path (non-ASCII names
+        # match the task example); book_3 stays genre-less for the empty case.
+        cls.genre_counterculture = Genre.objects.create(
+            name='Контркультура', code='counterculture',
+        )
+        cls.genre_modern_prose = Genre.objects.create(
+            name='Современная проза', code='modern_prose',
+        )
+        cls.book_1.genres.add(cls.genre_counterculture, cls.genre_modern_prose)
+
         # No cover — exercises the no_cover placeholder fallback.
         cls.book_2 = Book.objects.create(title='I, Robot', language=cls.lang_en)
         cls.book_2.authors.add(cls.author_a)
@@ -1848,6 +1920,39 @@ class OPDSBookDetailTest(OPDSThrottleResetMixin, BaseTestCase):
     def test_book_detail_no_content_when_no_description(self):
         """A book with an empty description has no <content> element."""
         self.assertIsNone(self._entry(self.book_3).find('atom:content', NS))
+
+    # -- genres / categories --------------------------------------------
+
+    def test_book_detail_has_category_per_genre(self):
+        """Entry has exactly one <category> per genre; terms match genre names."""
+        entry = self._entry(self.book_1)
+        categories = _entry_categories(entry)
+        self.assertEqual(len(categories), 2)
+        self.assertEqual(
+            {term for term, _ in categories},
+            {self.genre_counterculture.name, self.genre_modern_prose.name},
+        )
+
+    def test_book_detail_category_term_equals_label(self):
+        """Each <category> uses term == label == a real Genre.name and no scheme."""
+        entry = self._entry(self.book_1)
+        genre_names = {self.genre_counterculture.name, self.genre_modern_prose.name}
+        categories = entry.findall('atom:category', NS)
+        self.assertEqual(len(categories), 2)
+        for category in categories:
+            term = category.get('term')
+            self.assertEqual(category.get('label'), term)
+            self.assertIn(term, genre_names)
+            self.assertIsNone(category.get('scheme'))
+
+    def test_book_detail_category_matches_example_format(self):
+        """The non-ASCII term/label pair from the task example round-trips intact."""
+        categories = _entry_categories(self._entry(self.book_1))
+        self.assertIn(('Контркультура', 'Контркультура'), categories)
+
+    def test_book_detail_no_category_when_no_genres(self):
+        """A book with no genres emits zero <category> elements."""
+        self.assertEqual(_entry_categories(self._entry(self.book_3)), [])
 
     # -- calibre series -------------------------------------------------
 

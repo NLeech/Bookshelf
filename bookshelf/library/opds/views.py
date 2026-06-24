@@ -279,7 +279,7 @@ class AuthorBooksFeedView(OPDSBaseView):
 
         queryset = (
             author.books
-            .prefetch_related('authors', 'bookserieslink_set__series')
+            .prefetch_related('authors', 'bookserieslink_set__series', 'genres')
             .order_by('title')
         )
 
@@ -313,7 +313,7 @@ class AuthorRecentBooksFeedView(OPDSBaseView):
 
         queryset = (
             author.books
-            .prefetch_related('authors', 'bookserieslink_set__series')
+            .prefetch_related('authors', 'bookserieslink_set__series', 'genres')
             .order_by('-created_at')
         )
 
@@ -413,7 +413,7 @@ class SeriesDetailFeedView(OPDSBaseView):
             BookSeriesLink.objects
             .filter(series=series)
             .select_related('book')
-            .prefetch_related('book__authors', 'book__bookserieslink_set__series')
+            .prefetch_related('book__authors', 'book__bookserieslink_set__series', 'book__genres')
             .order_by('sequence_number')
         )
 
@@ -538,7 +538,7 @@ class GenreBookListFeedView(OPDSBaseView):
         genre = get_object_or_404(Genre, pk=pk)
         queryset = (
             _genre_book_queryset(genre)
-            .prefetch_related('authors', 'bookserieslink_set__series')
+            .prefetch_related('authors', 'bookserieslink_set__series', 'genres')
             .order_by('title')
         )
 
@@ -580,7 +580,7 @@ class BookListFeedView(OPDSBaseView):
     def get(self, request):
         queryset = (
             Book.objects
-            .prefetch_related('authors', 'bookserieslink_set__series')
+            .prefetch_related('authors', 'bookserieslink_set__series', 'genres')
             .order_by('title')
         )
 
@@ -639,7 +639,7 @@ class BookDetailFeedView(OPDSBaseView):
 
     def get(self, request, pk):
         book = get_object_or_404(
-            Book.objects.prefetch_related('authors', 'bookserieslink_set__series'),
+            Book.objects.prefetch_related('authors', 'bookserieslink_set__series', 'genres'),
             pk=pk,
         )
         feed = build_book_detail_feed(book, request)
@@ -784,7 +784,7 @@ class SearchBooksFeedView(OPDSBaseView):
         query = request.query_params.get('q', '').strip()
         queryset = (
             search_entities(query)['books']
-            .prefetch_related('authors', 'bookserieslink_set__series')
+            .prefetch_related('authors', 'bookserieslink_set__series', 'genres')
         )
         page, pagination = self._paginate(queryset, request)
         feed = build_book_results_feed(
