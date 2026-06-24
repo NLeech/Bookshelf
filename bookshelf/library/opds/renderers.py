@@ -189,6 +189,16 @@ class OPDSRenderer(BaseRenderer):
         if updated is not None:
             ET.SubElement(el, f'{{{ATOM_NS}}}updated').text = _fmt_datetime(updated)
 
+        # Genre categories — one <category> per genre (book entries only).
+        # Emitted before <content>: some OPDS readers parse entries in document
+        # order and ignore siblings that follow <content>.
+        for category in entry.get('categories', []):
+            cat_el = ET.SubElement(el, f'{{{ATOM_NS}}}category')
+            cat_el.set('term', category.get('term', ''))
+            label = category.get('label')
+            if label:
+                cat_el.set('label', label)
+
         content = entry.get('content')
         if content is not None:
             content_type = entry.get('content_type', 'text')
