@@ -84,6 +84,13 @@ class CalibreSeriesDict(TypedDict):
     index: int
 
 
+class CategoryDict(TypedDict):
+    """An Atom ``<category>`` element (book entries only)."""
+
+    term: str
+    label: str
+
+
 class EntryDict(TypedDict):
     """A single Atom ``<entry>`` within a feed."""
 
@@ -95,6 +102,7 @@ class EntryDict(TypedDict):
     authors: list[AuthorRefDict]
     links: list[LinkDict]
     calibre_series: NotRequired[list[CalibreSeriesDict]]
+    categories: NotRequired[list[CategoryDict]]
     content_type: NotRequired[str]
 
 
@@ -708,6 +716,16 @@ def _build_book_entry(
         'authors': [],
         'links': links,
     }
+
+    # Genres as <category> elements — name-ordered via Genre.Meta.ordering.
+    # Emitted on every entry (thin and thick): OPDS readers surface book tags
+    # from the listing entry, so thin listings must carry them too.
+    categories: list[CategoryDict] = [
+        {'term': genre.name, 'label': genre.name}
+        for genre in book.genres.all()
+    ]
+    if categories:
+        entry['categories'] = categories
 
     if not thick:
         return entry

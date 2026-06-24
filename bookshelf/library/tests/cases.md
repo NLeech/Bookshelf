@@ -443,6 +443,9 @@ Canonical dataset plus an inline described author/book (with `<script>`/`<iframe
 7. **test_thick_param_propagates_to_pagination_links**: `detail=thick` is preserved on every `first`/`next`/`previous` pagination link, asserted across page 1 (first + next) and page 2 (first + previous).
 8. **test_thick_series_book_has_calibre_and_series_related**: A series-linked book in thick mode has `<calibre:series>` + `<calibre:series_index>` and a series `rel="related"` link to `opds:root/series/<pk>/`.
 9. **test_thick_entry_content_is_sanitized_xhtml**: A described book's thick `<content type="xhtml">` is an XHTML `<div>` where allowlisted tags (`p`, `strong`) survive and disallowed tags (`script`, `iframe`) and script text are stripped.
+10. **test_thin_entry_has_category_tags**: Thin (default) listing entries carry `<category>` tags equal to their book's genre names, so readers surface genres from the listing entry.
+11. **test_thick_entry_has_category_tags**: Each thick entry's `<category>` `term`s equal its book's genre names (name-ordered), confirming genres render on `?detail=thick` listings.
+12. **test_book_list_feed_genres_no_n_plus_one**: A thick `opds:root/books/` listing prefetches genres — exactly one query touches the genre M2M table regardless of page size, guarding the `prefetch_related('genres')` requirement.
 
 ## OPDS Thick Propagation (tests_opds.py — OPDSThickPropagationTest)
 
@@ -471,7 +474,7 @@ Controlled dataset: one series shared by two authors (Asimov: 2 series books + 1
 
 ## OPDS Book Detail Feed (tests_opds.py — OPDSBookDetailTest)
 
-`BaseTestCase` + small detail fixture (`book_1` with a real cover, `book_2` cover-less, `book_3` standalone; authors Asimov/Bradbury; series Foundation + Robot Series subseries). Verifies the §6.5 complete book-detail feed at `GET opds:root/books/<pk>/`. Per the catalog-is-fully-browsable convention the acquisition link is always rendered, so there are no permission-gating cases.
+`BaseTestCase` + small detail fixture (`book_1` with a real cover and two genres — `Контркультура`, `Современная русская и зарубежная проза`; `book_2` cover-less; `book_3` standalone and genre-less; authors Asimov/Bradbury; series Foundation + Robot Series subseries). Verifies the §6.5 complete book-detail feed at `GET opds:root/books/<pk>/`. Per the catalog-is-fully-browsable convention the acquisition link is always rendered, so there are no permission-gating cases.
 
 1. **test_book_detail_status_200**: GET `opds:root/books/<pk>/` returns 200.
 2. **test_book_detail_404**: GET `opds:root/books/99999/` returns 404.
@@ -497,6 +500,10 @@ Controlled dataset: one series shared by two authors (Asimov: 2 series books + 1
 22. **test_book_detail_author_and_series_related_links_distinguishable**: Author related links target `/authors/<pk>/`; series related links target `/series/<pk>/`.
 23. **test_book_detail_acquisition_link_always_rendered**: The acquisition link is always present and points to `opds:root/books/<pk>/download/`.
 24. **test_book_detail_has_no_alternate_link**: The detail feed (being the alternate target) carries no `rel="alternate"` link.
+25. **test_book_detail_has_category_per_genre**: The entry emits exactly one `<category>` per genre and the `term`s equal the book's two genre names.
+26. **test_book_detail_category_term_equals_label**: Each `<category>` has `term == label`, both equal to a real `Genre.name`, and no `scheme` attribute.
+27. **test_book_detail_category_matches_example_format**: The non-ASCII `('Контркультура', 'Контркультура')` `term`/`label` pair from the task example round-trips intact through ElementTree/UTF-8.
+28. **test_book_detail_no_category_when_no_genres**: A genre-less book emits zero `<category>` elements.
 
 ## OPDS Search Feeds (tests_opds.py — OPDSSearchTest)
 
