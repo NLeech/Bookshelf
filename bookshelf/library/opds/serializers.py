@@ -749,7 +749,7 @@ def _build_book_entry(
 
     # Series: structured <calibre:*> pair + a tappable rel="related" link.
     calibre_series: list[CalibreSeriesDict] = []
-    for series_link in book.bookserieslink_set.select_related('series').all():
+    for series_link in book.bookserieslink_set.all():
         series = series_link.series
         calibre_series.append({
             'name': series.name.strip(),
