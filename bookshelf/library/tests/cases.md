@@ -435,7 +435,7 @@ Canonical dataset.
 9. **test_author_detail_sub_feed_books_alpha_sorted**: First page entries are sorted by title ascending.
 11. **test_author_detail_sub_feed_books_recent_sorted_by_date**: First entry `<updated>` >= second entry `<updated>` (descending date order).
 13. **test_author_detail_sub_feed_series_is_navigation**: Author series feed Content-Type contains `kind=navigation`.
-14. **test_author_detail_sub_feed_series_has_series**: For `author_with_series`, the series feed has at least one author-scoped series entry (`authors/<pk>/books/?series=<pk>`).
+14. **test_author_detail_sub_feed_series_has_series**: For `author_with_series`, the series feed has at least one author-scoped series entry (`series/<pk>/?author=<pk>`).
 15. **test_author_detail_sub_feed_series_entry_has_book_count**: Each series entry `<content>` contains a positive integer (book count).
 16. **test_author_detail_sub_feed_series_no_standalone_entry_when_none**: An author with no standalone books has no 'Standalone Books' entry.
 17. **test_author_detail_sub_feed_series_has_standalone_entry_first**: For `author_with_series`, the first series feed entry is 'Standalone Books'.
@@ -482,19 +482,29 @@ Canonical dataset. Verifies the §6.5a Propagation rule — `?detail=thick` is a
 5. **test_author_tree_subsection_links_preserve_detail**: Every author-tree child `subsection` link and the synthetic "all" link carry `detail=thick`.
 6. **test_author_results_links_preserve_detail**: Each author-result detail-feed `subsection` link and the `first`/`next` pagination links carry `detail=thick`.
 7. **test_author_detail_subsection_links_preserve_detail**: All three author-detail `subsection` links (Books by Title, New Arrivals, Books by Series) carry `detail=thick`.
-8. **test_author_series_links_preserve_detail**: The Standalone Books link and every per-series `subsection` link carry `detail=thick`.
+8. **test_author_series_links_preserve_detail**: The Standalone Books link and every author-scoped per-series `subsection` link (now pointing at `series/<pk>/?author=<pk>`) carry `detail=thick`.
 9. **test_detail_survives_drilldown_to_acquisition_feed**: Following the `detail=thick`-bearing Books-by-Title link reaches `opds:root/authors/<pk>/books/?detail=thick`, whose book entries are complete (full-size image present) — proving the preference survives link-following to the terminal acquisition feed.
 10. **test_navigation_links_omit_detail_by_default**: Without `?detail=thick`, no feed- or entry-level link on a navigation feed carries a `detail` param.
 
 ## OPDS Author-Scoped Series Navigation (tests_opds.py — OPDSAuthorScopedSeriesTest)
 
-Controlled dataset: one series shared by two authors (Asimov: 2 series books + 1 standalone; Bradbury: 1 series book). Verifies that author→series navigation is scoped to the author's books while the full series stays reachable.
-1. **test_author_series_entry_links_to_author_scoped_books**: The author's series entry links to `authors/<pk>/books/?series=<pk>` with an acquisition `type`.
+Controlled dataset: a series shared by two authors (Asimov: 2 series books + 1 standalone; Bradbury: 1 series book), plus an "Order Series" whose alphabetical and sequence orders differ, and a "Parent Series" with a "Child Series" subseries. Verifies that author→series navigation now links to the canonical series detail feed scoped via `?author=<pk>`, preserving `sequence_number` ordering, while the full series stays reachable unscoped.
+1. **test_author_series_entry_links_to_author_scoped_books**: The author's series entry links to `series/<pk>/?author=<pk>` with an acquisition `type`.
 2. **test_author_series_entry_count_is_author_scoped**: The series entry `<content>` reports the author's count (2), not the series total (3).
-3. **test_author_scoped_series_lists_only_authors_books**: `?series=<pk>` returns exactly the author's books in that series ({A One, A Two}), excluding the other author's book.
-4. **test_author_scoped_series_excludes_standalone**: The author's standalone book is absent from the `?series=<pk>` view (total = 2).
+3. **test_author_scoped_series_lists_only_authors_books**: `series/<pk>/?author=<pk>` returns exactly the author's books in that series ({A One, A Two}), excluding the other author's book.
+4. **test_author_scoped_series_excludes_standalone**: The author's standalone book is absent from the author-scoped view (total = 2).
 5. **test_full_series_lists_all_authors_books**: `series/<pk>/` still lists every author's books in the series (total = 3).
-6. **test_non_integer_series_param_ignored**: A non-integer `?series=abc` is ignored, returning all of the author's books (3).
+6. **test_non_integer_author_param_ignored**: A non-integer `?author=abc` is ignored, returning the full series (all authors, 3 books).
+7. **test_unknown_author_id_yields_empty_book_list**: A valid but non-existent `?author=<id>` returns an empty book list with HTTP 200 (not 404).
+8. **test_author_scoped_series_is_sequence_ordered**: Author-scoped books keep `sequence_number` order (Bravo #1, Alpha #2) with the `#<seq> · ` title prefix, not alphabetical order.
+9. **test_author_scoped_series_hides_subseries**: Under `?author=<pk>` the parent-series feed shows only the author's book, with no subseries navigation entry.
+10. **test_full_series_shows_subseries**: Without `?author` the parent series still lists its subseries entry.
+
+## OPDS Author-Scoped Series Feed Identity (tests_opds.py — OPDSAuthorScopedSeriesFeedIdentityTest)
+
+Controlled dataset: a series with 25 Asimov books (forces pagination at page size 20) plus 5 Bradbury books in the same series. Verifies feed-identity and pagination contracts for the author-scoped series feed.
+1. **test_author_scoped_feed_id_is_distinct**: The author-scoped feed `<id>` is `tag:bookshelf:series:<pk>:author:<pk>` and differs from the unscoped `tag:bookshelf:series:<pk>`.
+2. **test_author_param_survives_pagination**: Following the `next` link keeps `?author=<pk>` in the link, results stay author-scoped (only Asimov titles across all pages), and the full 25-book scope spans at least two pages.
 
 ## OPDS Book Detail Feed (tests_opds.py — OPDSBookDetailTest)
 
