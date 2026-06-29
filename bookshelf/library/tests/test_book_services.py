@@ -110,6 +110,21 @@ class BookServicesTest(BaseTestCase):
         if book.file:
             book.file.close()
 
+    def test_get_book_extractor_corrupt_epub_returns_none(self):
+        """T9: a corrupt non-ZIP EPUB yields None and logs, never propagating."""
+        book = Book.objects.create(title="Corrupt EPUB", language=self.language)
+        # Bytes that are not a valid EPUB/ZIP make read_epub raise inside the
+        # non-ZIP branch of get_book_extractor.
+        book.file.save("corrupt.epub", ContentFile(b"this is not a valid epub archive"))
+
+        with self.assertLogs('library.services', level='ERROR') as cm:
+            extractor = get_book_extractor(book)
+        self.assertIsNone(extractor)
+        self.assertTrue(any("Failed to extract book" in output for output in cm.output))
+
+        if book.file:
+            book.file.close()
+
     def test_get_book_extractor_empty_zip(self):
         """Test with empty ZIP file."""
         zip_buffer = io.BytesIO()

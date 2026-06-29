@@ -455,6 +455,285 @@ def create_epub_with_isbn(isbn_val: str, use_prefix: bool = False) -> io.BytesIO
     stream.seek(0)
     return stream
 
+# --------------------------------------------------------------------------- #
+# Synthetic factories for the boundary/spine-fill chapter extraction model.
+#
+# These build in-memory EPUBs whose STRUCTURE (spine order, TOC tree with the
+# same #fragments, and in-DOM heading `id` anchors) replicates the patterns the
+# refactored `_get_chapters_from_book()` must handle. Bodies are lorem-style
+# filler; only the structure is asserted by the tests.
+# --------------------------------------------------------------------------- #
+
+def _html(file_name: str, item_id: str, content: str) -> epub.EpubHtml:
+    """Build an EpubHtml spine item with a stable id and raw body content."""
+    item = epub.EpubHtml(title='', file_name=file_name, lang='en')
+    item.id = item_id
+    item.content = content
+    return item
+
+
+def _build_epub(
+    identifier: str,
+    items: list,
+    toc,
+    spine_items: list,
+    title: str = 'Synthetic EPUB',
+    author: str = 'Synthetic Author',
+    language: str = 'en',
+) -> io.BytesIO:
+    """Assemble an in-memory EPUB from explicit items, TOC, and spine.
+
+    The spine is prefixed with the navigation document, mirroring the other
+    factories in this module. ``toc`` is assigned verbatim so callers control the
+    exact TOC tree (sections, links, and #fragments).
+    """
+    book = epub.EpubBook()
+    book.set_identifier(identifier)
+    book.set_title(title)
+    book.set_language(language)
+    book.add_author(author)
+
+    for item in items:
+        book.add_item(item)
+
+    book.toc = toc
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ['nav'] + list(spine_items)
+
+    stream = io.BytesIO()
+    epub.write_epub(stream, book, {})
+    stream.seek(0)
+    return stream
+
+
+def create_epub_parent_with_anchored_children() -> io.BytesIO:
+    """T4: one spine file with a no-anchor parent and two anchored children.
+
+    The parent carries the file head (intro); each child heading carries the TOC
+    #fragment id and its own body.
+    """
+    parent = _html(
+        'parent.xhtml', 'parent',
+        '<h1>Раздел</h1><p>Intro paragraph before any anchored section.</p>'
+        '<h2 id="a">Раздел 1-50</h2><p>Body of verses one to fifty.</p>'
+        '<h2 id="b">Раздел 51-100</h2><p>Body of verses fifty-one to one hundred.</p>',
+    )
+    toc = (
+        (epub.Link('parent.xhtml', 'Раздел', 'parent'),
+         (epub.Link('parent.xhtml#a', 'Раздел 1-50', 'a'),
+          epub.Link('parent.xhtml#b', 'Раздел 51-100', 'b'))),
+    )
+    return _build_epub('parent_with_anchored_children', [parent], toc, [parent])
+
+
+def create_epub_gap_and_split_tail() -> io.BytesIO:
+    """T5: calibre split files; only the *_split_000 files carry TOC entries."""
+    a0 = _html('partA_split_000.xhtml', 'a0',
+               '<h1>Vireo</h1><p>Vireo opening paragraph long enough.</p>')
+    a1 = _html('partA_split_001.xhtml', 'a1',
+               '<p>Vireo split tail continuation paragraph.</p>')
+    b0 = _html('partB_split_000.xhtml', 'b0',
+               '<h1>Heron</h1><p>Heron opening paragraph long enough.</p>')
+    toc = (
+        epub.Link('partA_split_000.xhtml', 'Vireo', 'v'),
+        epub.Link('partB_split_000.xhtml', 'Heron', 'h'),
+    )
+    return _build_epub('gap_and_split_tail', [a0, a1, b0], toc, [a0, a1, b0])
+
+
+def create_epub_single_toc_entry_spanning_flow() -> io.BytesIO:
+    """T6: empty cover + several text sections, TOC = a single entry -> cover."""
+    cover = _html('cover.xhtml', 'cover', '<div></div>')
+    s1 = _html('Section0001.xhtml', 's1', '<p>Section one narrative text.</p>')
+    s2 = _html('Section0002.xhtml', 's2', '<p>Section two narrative text.</p>')
+    s3 = _html('Section0003.xhtml', 's3', '<p>Section three narrative text.</p>')
+    toc = (epub.Link('cover.xhtml', 'Start', 'start'),)
+    return _build_epub('single_toc_entry_spanning_flow', [cover, s1, s2, s3], toc, [cover, s1, s2, s3])
+
+
+def create_epub_interleaved_levels() -> io.BytesIO:
+    """T7: one file with anchors at different tree levels (decision #3)."""
+    ch = _html(
+        'ch1-3.xhtml', 'ch',
+        '<h1 id="g1">Глава 1</h1><p>Chapter one body text.</p>'
+        '<h2 id="id4">Подраздел 1.1</h2><p>Subsection 1.1 body text.</p>'
+        '<h1 id="id5">Глава 2</h1><p>Chapter two body text.</p>'
+        '<h2 id="id6">Подраздел 2.1</h2><p>Subsection 2.1 body text.</p>',
+    )
+    toc = (
+        (epub.Link('ch1-3.xhtml#g1', 'Глава 1', 'g1'),
+         (epub.Link('ch1-3.xhtml#id4', 'Подраздел 1.1', 'id4'),)),
+        (epub.Link('ch1-3.xhtml#id5', 'Глава 2', 'id5'),
+         (epub.Link('ch1-3.xhtml#id6', 'Подраздел 2.1', 'id6'),)),
+    )
+    return _build_epub('interleaved_levels', [ch], toc, [ch])
+
+
+def create_epub_no_toc_with_empty_cover() -> io.BytesIO:
+    """T8: empty TOC; an empty cover precedes two textual spine files."""
+    cover = _html('cover.xhtml', 'cover', '<div></div>')
+    t1 = _html('text1.xhtml', 't1', '<h1>First</h1><p>First file narrative text.</p>')
+    t2 = _html('text2.xhtml', 't2', '<h1>Second</h1><p>Second file narrative text.</p>')
+    return _build_epub('no_toc_empty_cover', [cover, t1, t2], (), [cover, t1, t2])
+
+
+def create_epub_pre_toc(front_content: str) -> io.BytesIO:
+    """T3: a single pre-TOC front-matter file followed by one TOC chapter.
+
+    ``front_content`` controls whether the front matter is empty (skipped),
+    media-only (emitted), or textual (emitted).
+    """
+    front = _html('front.xhtml', 'front', front_content)
+    chap = _html('chap1.xhtml', 'chap1', '<h1>Chapter 1</h1><p>Chapter one body text.</p>')
+    toc = (epub.Link('chap1.xhtml', 'Chapter 1', 'chap1'),)
+    return _build_epub('pre_toc', [front, chap], toc, [front, chap])
+
+
+def create_epub_pre_toc_textual() -> io.BytesIO:
+    """T10: empty cover + textual preface (no TOC entry) + a TOC chapter."""
+    cover = _html('cover.xhtml', 'cover', '<div></div>')
+    preface = _html('preface.xhtml', 'preface',
+                    '<p>Preface narrative content with no heading of its own.</p>')
+    chap = _html('chap1.xhtml', 'chap1', '<h1>Chapter 1</h1><p>Chapter one body text.</p>')
+    toc = (epub.Link('chap1.xhtml', 'Chapter 1', 'chap1'),)
+    return _build_epub('pre_toc_textual', [cover, preface, chap], toc, [cover, preface, chap])
+
+
+def create_epub_unresolved_anchors() -> io.BytesIO:
+    """T12: consecutive files whose TOC #fragments do not exist in the DOM.
+
+    Mirrors calibre conversions where every nav id is suffixed and matches no
+    in-file element. Each file must become its own chapter's content; no chapter
+    may absorb the next file (the forward-shift regression).
+    """
+    f0 = _html('part0.xhtml', 'f0', '<h1>Alpha</h1><p>Alpha file narrative text.</p>')
+    f1 = _html('part1.xhtml', 'f1', '<h1>Beta</h1><p>Beta file narrative text.</p>')
+    f2 = _html('part2.xhtml', 'f2', '<h1>Gamma</h1><p>Gamma file narrative text.</p>')
+    toc = (
+        epub.Link('part0.xhtml#missing0', 'Alpha', 'a'),
+        epub.Link('part1.xhtml#missing1', 'Beta', 'b'),
+        epub.Link('part2.xhtml#missing2', 'Gamma', 'c'),
+    )
+    return _build_epub('unresolved_anchors', [f0, f1, f2], toc, [f0, f1, f2])
+
+
+def create_epub_dangling_toc() -> io.BytesIO:
+    """T11: a TOC entry pointing at a file absent from spine and manifest."""
+    c1 = _html('chap1.xhtml', 'c1', '<h1>Ch1</h1><p>Chapter one narrative text.</p>')
+    c2 = _html('chap2.xhtml', 'c2', '<h1>Ch2</h1><p>Chapter two narrative text.</p>')
+    toc = (
+        epub.Link('chap1.xhtml', 'Ch1', 'c1'),
+        epub.Link('missing.html', 'Dangling', 'dangling'),
+        epub.Link('chap2.xhtml', 'Ch2', 'c2'),
+    )
+    return _build_epub('dangling_toc', [c1, c2], toc, [c1, c2])
+
+
+# --------------------------------------------------------------------------- #
+# Reference twins (R1-R5): synthetic structural replicas validated against the
+# reader screenshots. Exact chapter trees are asserted by
+# TestEpubChapterExtractionReferenceBooks.
+# --------------------------------------------------------------------------- #
+
+def create_epub_container_children_reference() -> io.BytesIO:
+    """R1: Предисловие / container -> (Раздел 1-50 .. Раздел 551-600) / Послесловие."""
+    pre = _html('pre.xhtml', 'pre', '<h1>Предисловие</h1><p>Preface body text.</p>')
+    ranges = [(i * 50 + 1, i * 50 + 50) for i in range(12)]
+    verses_body = ''.join(
+        f'<h2 id="a{i}">Раздел {lo}-{hi}</h2><p>Body for verses {lo}-{hi}.</p>'
+        for i, (lo, hi) in enumerate(ranges)
+    )
+    verses = _html('verses.xhtml', 'verses', verses_body)
+    post = _html('post.xhtml', 'post', '<h1>Послесловие</h1><p>Afterword body text.</p>')
+    children = tuple(
+        epub.Link(f'verses.xhtml#a{i}', f'Раздел {lo}-{hi}', f'a{i}')
+        for i, (lo, hi) in enumerate(ranges)
+    )
+    toc = (
+        epub.Link('pre.xhtml', 'Предисловие', 'pre'),
+        (epub.Section('Раздел'), children),
+        epub.Link('post.xhtml', 'Послесловие', 'post'),
+    )
+    return _build_epub('container_children_reference', [pre, verses, post], toc, [pre, verses, post])
+
+
+def create_epub_multilevel_chapters_reference() -> io.BytesIO:
+    """R2: Предисловие / Глава 1 -> (4 children) / Глава 2 -> (5 children).
+
+    Глава 1 has four children and Глава 2 has five; all child titles are generic
+    placeholders that only encode the structure, not any real book content.
+    """
+    pre = _html('pre.xhtml', 'pre', '<h1>Предисловие</h1><p>Preface body text.</p>')
+
+    ch1_children = [f'Раздел 1.{n}' for n in range(1, 5)]
+    ch1_body = '<h1>Глава 1</h1><p>Chapter one lead-in text.</p>' + ''.join(
+        f'<h2 id="c{i}">{title}</h2><p>Body for {title}.</p>'
+        for i, title in enumerate(ch1_children)
+    )
+    ch1 = _html('ch1.xhtml', 'ch1', ch1_body)
+
+    ch2_children = [f'Раздел 2.{n}' for n in range(1, 6)]
+    ch2_body = '<h1>Глава 2</h1><p>Chapter two lead-in text.</p>' + ''.join(
+        f'<h2 id="d{i}">{title}</h2><p>Body for {title}.</p>'
+        for i, title in enumerate(ch2_children)
+    )
+    ch2 = _html('ch2.xhtml', 'ch2', ch2_body)
+
+    toc = (
+        epub.Link('pre.xhtml', 'Предисловие', 'pre'),
+        (epub.Link('ch1.xhtml', 'Глава 1', 'ch1'),
+         tuple(epub.Link(f'ch1.xhtml#c{i}', title, f'c{i}')
+               for i, title in enumerate(ch1_children))),
+        (epub.Link('ch2.xhtml', 'Глава 2', 'ch2'),
+         tuple(epub.Link(f'ch2.xhtml#d{i}', title, f'd{i}')
+               for i, title in enumerate(ch2_children))),
+    )
+    return _build_epub('multilevel_chapters_reference', [pre, ch1, ch2], toc, [pre, ch1, ch2])
+
+
+def create_epub_nested_containers_reference() -> io.BytesIO:
+    """R3: nested containers — Часть 1 -> Глава 1 -> Подраздел 1.1."""
+    part = _html(
+        'part1.xhtml', 'part1',
+        '<h1 id="g1">Глава 1</h1><p>Chapter body text.</p>'
+        '<h2 id="sub">Подраздел 1.1</h2><p>Subsection body text.</p>',
+    )
+    toc = (
+        (epub.Section('Часть 1'),
+         ((epub.Link('part1.xhtml#g1', 'Глава 1', 'g1'),
+           (epub.Link('part1.xhtml#sub', 'Подраздел 1.1', 'sub'),)),)),
+    )
+    return _build_epub('nested_containers_reference', [part], toc, [part])
+
+
+def create_epub_single_chapter_reference() -> io.BytesIO:
+    """R4: one "Start" chapter spanning the whole flow (TOC = 1 entry)."""
+    cover = _html('cover.xhtml', 'cover', '<div></div>')
+    sections = [
+        _html(f'Section{n:04d}.xhtml', f's{n}', f'<p>Section {n} narrative text.</p>')
+        for n in range(1, 7)
+    ]
+    toc = (epub.Link('cover.xhtml', 'Start', 'start'),)
+    return _build_epub('single_chapter_reference', [cover, *sections], toc, [cover, *sections])
+
+
+def create_epub_split_parts_reference() -> io.BytesIO:
+    """R5: calibre splits collapse — three parts, each split into two files."""
+    items = []
+    toc_links = []
+    spine = []
+    for letter, title in [('A', 'Vireo'), ('B', 'Heron'), ('C', 'Plover')]:
+        split0 = _html(f'part{letter}_split_000.xhtml', f'{letter}0',
+                       f'<h1>{title}</h1><p>{title} opening paragraph text.</p>')
+        split1 = _html(f'part{letter}_split_001.xhtml', f'{letter}1',
+                       f'<p>{title} split tail continuation text.</p>')
+        items.extend([split0, split1])
+        spine.extend([split0, split1])
+        toc_links.append(epub.Link(f'part{letter}_split_000.xhtml', title, letter.lower()))
+    return _build_epub('split_parts_reference', items, tuple(toc_links), spine)
+
+
 def write_stream_to_file(stream: io.BytesIO, file_path: str) -> None:
     """
     Writes a stream to a file.

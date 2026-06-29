@@ -67,10 +67,30 @@
 8. **test_extract_cover_heuristic**: Tests extraction of a cover image from an EPUB using heuristic fallback.
 
 ### TestEpubChapterExtraction
+Chapters follow the "TOC defines boundaries, spine fills" model: a chapter spans spine content from one TOC navigation point up to the next, in spine order; a boundary is a `(spine file, optional #anchor)` pair. Content slicing (DOM order of anchors within a file) and tree assembly (parent/child from TOC nesting depth) are independent.
 1. **test_get_simple_chapters**: Tests extraction of a simple, flat list of chapters.
 2. **test_get_nested_chapters**: Tests extraction of chapters with a nested structure.
 3. **test_cyrillic_chapters**: Tests extraction of chapters with Cyrillic titles and content.
 4. **test_get_chapters_no_toc**: Tests extraction of chapters when the EPUB has no table of contents.
+5. **test_normalize_toc_lone_link** (T1): A lone `epub.Link` TOC (injected post-load, since ebooklib cannot write that shape) does not crash and yields the link's file as a chapter.
+6. **test_normalize_toc_two_element_list_not_misfired** (T2): A 2-element LIST `[Link, (Section, [child])]` keeps BOTH top-level entries; the section becomes a container parent with one subchapter.
+7. **test_emptiness_text_or_media** (T3, parameterized): Pre-TOC front matter is skipped only when it has neither text (>20 chars) nor media. Scenarios: empty `<div>` (skipped), `<img>`-only plate (emitted), real text (emitted).
+8. **test_multi_anchor_one_file_splits_into_subchapters** (T4): One file with a no-anchor parent and two anchored children splits into a parent chapter with two subchapters; each verse body appears exactly once in its own subchapter.
+9. **test_gap_and_split_tail_fold_into_previous_chapter** (T5): Calibre `_split_001` tails and gap files (no TOC point of their own) fold into the previous chapter; no duplicate/garbage chapters.
+10. **test_single_toc_entry_spanning_flow** (T6): TOC of a single entry → exactly one chapter spanning the whole spine flow (cover + all sections), no per-file garbage.
+11. **test_interleaved_levels_in_one_file** (T7): Anchors at different tree levels within one file assemble into the correct parent/child tree; each fragment's content is bounded by the next anchor in DOM order, independent of tree nesting.
+12. **test_no_toc_each_file_is_chapter_with_empty_skip** (T8): With no TOC, each non-empty spine file is one flat chapter (titled by first heading → filename); the empty cover is skipped.
+13. **test_pre_toc_textual_becomes_top_level_chapter** (T10): An empty cover is skipped; a textual preface with no TOC entry becomes a top-level chapter (title from heading → filename → "Предисловие"), followed by the first TOC chapter.
+14. **test_dangling_toc_href_is_skipped** (T11): A TOC entry whose href is absent from spine and manifest is dropped (no empty chapter, no crash); neighbouring valid chapters remain intact.
+15. **test_unresolved_anchors_do_not_shift_content** (T12): When every TOC `#fragment` resolves to a file but matches no in-DOM id (calibre-style), each file becomes its own chapter's content — no chapter is left empty and no chapter absorbs the next file (regression for the one-file forward-shift bug).
+
+### TestEpubChapterExtractionReference
+Regression twins (R1-R5): synthetic in-memory EPUBs replicating five real-world book structures (spine order, TOC tree with `#fragments`, in-DOM anchor ids) with lorem bodies; each asserts the exact chapter tree validated against FBReader/Moon Reader screenshots.
+1. **test_container_children_reference_tree** (R1): `Предисловие / Раздел[container] → (Раздел 1-50 … Раздел 551-600, 12 children at level 1) / Послесловие`.
+2. **test_multilevel_chapters_reference_tree** (R2): `Предисловие / Глава 1 → (Раздел 1.1 … 1.4) / Глава 2 → (Раздел 2.1 … 2.5)`. All child titles are generic placeholders encoding only the structure (4 and 5 children).
+3. **test_nested_containers_reference_tree** (R3): nested containers `Часть 1 → Глава 1 → Подраздел 1.1` at levels 0/1/2.
+4. **test_single_chapter_reference** (R4): one "Start" chapter spanning the flow, no subchapters.
+5. **test_split_parts_reference_no_duplicate_chapters** (R5): calibre splits collapse to one chapter per part (Vireo, Heron, Plover); each split tail folds into its part, no duplicates.
 
 ## FB2 Book File (test_fb2_book_file.py)
 ### TestFb2BookFileLoad
@@ -130,6 +150,7 @@
 21. **test_search_entities_series**: Test searching series by name.
 22. **test_search_entities_empty_query**: Test search with empty query.
 23. **test_search_entities_no_results**: Test search with no matches.
+24. **test_get_book_extractor_corrupt_epub_returns_none** (T9): A corrupt non-ZIP EPUB whose bytes make `read_epub` raise yields `None` from `get_book_extractor` (no exception propagates) and logs an error.
 
 ## Genre Services (GenreServicesTest)
 1. **test_get_descendants_logic**: Parameterized test verifying leaf-node identification for various inputs.
