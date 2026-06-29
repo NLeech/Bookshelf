@@ -597,11 +597,11 @@ def build_author_series_feed(
 
     When ``standalone_count > 0``, prepends a "Standalone Books" entry as
     the first entry linking to ``opds:root/authors/<pk>/books/?series=none``.
-    Followed by one entry per series, each an acquisition link to
-    ``opds:root/authors/<pk>/books/?series=<series_pk>`` so it shows only this
-    author's books in that series (not the whole series — that lives at
-    ``opds:root/series/<pk>/``, reachable from the series catalog or a book's
-    ``rel="related"`` link).
+    Followed by one entry per series, each an acquisition link to the
+    author-scoped series detail feed
+    ``opds:root/series/<series_pk>/?author=<pk>`` so it shows only this
+    author's books in that series, in canonical series (``sequence_number``)
+    order.
 
     Args:
         author: An Author model instance.
@@ -633,7 +633,7 @@ def build_author_series_feed(
         entries.append(_nav_entry(
             f'tag:bookshelf:author:{author.pk}:series:{series.pk}', series.name,
             _with_sticky_params(
-                opds_base + f'authors/{author.pk}/books/?series={series.pk}', request
+                opds_base + f'series/{series.pk}/?author={author.pk}', request
             ),
             request, link_type=ACQ_TYPE,
             content=f'{count} book(s) by this author in this series',
@@ -927,6 +927,7 @@ def build_series_detail_feed(
     pagination: PaginationDict | None,
     request: Request,
     thick: bool = False,
+    author_id: int | None = None,
 ) -> FeedDict:
     """Build the series detail acquisition feed.
 
@@ -940,20 +941,29 @@ def build_series_detail_feed(
     Book entries are thin by default; ``thick=True`` (driven by
     ``?detail=thick``) renders the complete book shape inline.
 
+    When ``author_id`` is set, the feed is the author-scoped variant
+    (``?author=<pk>``): the caller passes only that author's book links and an
+    empty ``subseries_with_counts`` (subseries are hidden under author scope),
+    and the feed ``<id>`` is suffixed ``:author:<author_id>`` so it does not
+    share a cache identity with the full-series feed.
+
     Args:
         series: The BookSeries instance being detailed.
-        subseries_with_counts: Direct subseries annotated with ``book_count``.
+        subseries_with_counts: Direct subseries annotated with ``book_count``
+            (empty when author-scoped).
         book_links_page: The current page of BookSeriesLink rows for this
             series (``select_related('book')``, ordered by ``sequence_number``).
         pagination: Pagination dict for the book list, or None.
         request: The current HTTP request.
         thick: Render complete (thick) book entries when True.
+        author_id: When set, the author pk this feed is scoped to; varies the
+            feed ``<id>`` so author-scoped results stay distinct.
 
     Returns:
         A feed dict conforming to the feed dict contract.
     """
     opds_base = _opds_base(request)
-    self_link = _with_sticky_params(opds_base + f'series/{series.pk}/', request)
+    self_link = _with_sticky_params(request.build_absolute_uri(), request)
     start_link = _with_sticky_params(opds_base, request)
 
     entries: list[EntryDict] = [
@@ -972,8 +982,12 @@ def build_series_detail_feed(
         entry['title'] = f'#{link.sequence_number} · {link.book.title}'
         entries.append(entry)
 
+    feed_id = f'tag:bookshelf:series:{series.pk}'
+    if author_id is not None:
+        feed_id = f'{feed_id}:author:{author_id}'
+
     return {
-        'id': f'tag:bookshelf:series:{series.pk}',
+        'id': feed_id,
         'title': series.name,
         'updated': series.updated_at,
         'kind': 'acquisition',
