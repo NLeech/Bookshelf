@@ -263,15 +263,11 @@ class AuthorBooksFeedView(OPDSBaseView):
     Returns a paginated acquisition feed of all books by this author, sorted
     alphabetically by title.
 
-    Supports an optional ``?series=`` query param:
+    Supports an optional ``?series=none`` query param — books not linked to any
+    series (powers the "Standalone Books" category from the author series feed).
 
-    * ``?series=none`` — books not linked to any series (powers the
-      "Standalone Books" category from the author series feed);
-    * ``?series=<pk>`` — only this author's books in series ``<pk>`` (powers
-      the per-series entries of the author series feed, which must scope to the
-      author rather than show the whole series).
-
-    A non-integer ``series`` value is ignored.
+    A non-``none`` ``series`` value is ignored.  (Per-series author scoping now
+    lives at ``opds:root/series/<pk>/?author=<pk>``.)
     """
 
     def get(self, request, pk):
@@ -286,8 +282,6 @@ class AuthorBooksFeedView(OPDSBaseView):
         series_param = request.query_params.get('series')
         if series_param == 'none':
             queryset = queryset.filter(bookserieslink__isnull=True)
-        elif series_param and series_param.isdigit():
-            queryset = queryset.filter(bookserieslink__series_id=int(series_param))
 
         page, pagination = self._paginate(queryset, request)
         feed = build_book_results_feed(
@@ -395,32 +389,48 @@ class SeriesDetailFeedView(OPDSBaseView):
 
     Lists each direct subseries as a navigation entry (linking to
     ``opds:root/series/<subpk>/``), followed by the series' books as
-    acquisition entries ordered by ``sequence_number``, each title prefixed
-    ``"#<seq> · "``.  Book entries are thin by default; ``?detail=thick``
-    renders the complete book shape inline (preserved across pagination).
+    acquisition entries ordered by ``sequence_number`` (then ``title`` as a
+    stable tie-breaker), each title prefixed ``"#<seq> · "``.  Book entries are
+    thin by default; ``?detail=thick`` renders the complete book shape inline
+    (preserved across pagination).
+
+    Supports an optional ``?author=<pk>`` query param.  When present, the feed
+    is scoped to a single author: only that author's books in the series are
+    listed and subseries navigation entries are hidden.  A non-integer
+    ``author`` value is ignored (full series shown); a syntactically valid but
+    unknown author id yields an empty book list (still HTTP 200).
     """
 
     def get(self, request, pk):
         series = get_object_or_404(BookSeries, pk=pk)
 
-        subseries = (
-            series.subseries
-            .annotate(book_count=Count('books', distinct=True))
-            .order_by('name')
-        )
+        author_param = request.query_params.get('author')
+        author_id = int(author_param) if author_param and author_param.isdigit() else None
+
+        if author_id is None:
+            subseries = (
+                series.subseries
+                .annotate(book_count=Count('books', distinct=True))
+                .order_by('name')
+            )
+        else:
+            subseries = BookSeries.objects.none()
 
         book_links = (
             BookSeriesLink.objects
             .filter(series=series)
             .select_related('book')
             .prefetch_related('book__authors', 'book__bookserieslink_set__series', 'book__genres')
-            .order_by('sequence_number')
+            .order_by('sequence_number', 'book__title')
         )
+        if author_id is not None:
+            book_links = book_links.filter(book__authors__id=author_id)
 
         page, pagination = self._paginate(book_links, request)
         feed = build_series_detail_feed(
             series, subseries, page, pagination, request,
             thick=wants_thick_entries(request),
+            author_id=author_id,
         )
         return Response(feed)
 
@@ -676,7 +686,7 @@ class OPDSBookDownloadView(OPDSBaseView):
     def get(self, request, pk):
         book = get_object_or_404(Book, pk=pk)
 
-        if not can_view_book(request.user, book):
+        if not can_view_book(request.user):
             raise PermissionDenied
 
         filename, content, content_type = get_book_file_content(book)

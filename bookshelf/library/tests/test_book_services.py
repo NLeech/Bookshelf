@@ -110,6 +110,21 @@ class BookServicesTest(BaseTestCase):
         if book.file:
             book.file.close()
 
+    def test_get_book_extractor_corrupt_epub_returns_none(self):
+        """T9: a corrupt non-ZIP EPUB yields None and logs, never propagating."""
+        book = Book.objects.create(title="Corrupt EPUB", language=self.language)
+        # Bytes that are not a valid EPUB/ZIP make read_epub raise inside the
+        # non-ZIP branch of get_book_extractor.
+        book.file.save("corrupt.epub", ContentFile(b"this is not a valid epub archive"))
+
+        with self.assertLogs('library.services', level='ERROR') as cm:
+            extractor = get_book_extractor(book)
+        self.assertIsNone(extractor)
+        self.assertTrue(any("Failed to extract book" in output for output in cm.output))
+
+        if book.file:
+            book.file.close()
+
     def test_get_book_extractor_empty_zip(self):
         """Test with empty ZIP file."""
         zip_buffer = io.BytesIO()
@@ -462,32 +477,23 @@ class GenreServicesTest(BaseTestCase):
 
 
 class CanViewBookTest(TestCase):
-    """Tests for ``library.services.can_view_book(user, book)``.
-
-    The helper currently gates on the ``library.view_book`` permission while
-    accepting the ``book`` for forthcoming per-book rules.  Each call passes a
-    ``book`` instance.
+    """Tests for ``library.services.can_view_book(user)``.
     """
 
-    @classmethod
-    def setUpTestData(cls):
-        cls.lang_en = Language.objects.create(code='en', name='English')
-        cls.book = Book.objects.create(title='Sample', language=cls.lang_en)
-
     def test_can_view_book_true_with_perm(self):
-        """A user in the 'Book access' group may view the book."""
+        """A user in the 'Book access' group may view books."""
         user = User.objects.create_user(username='perm', email='perm@example.com', password='pass')
         group, _ = Group.objects.get_or_create(name='Book access')
         user.groups.add(group)
         # Re-fetch to reset the cached permission set on the user instance.
         user = User.objects.get(pk=user.pk)
-        self.assertTrue(can_view_book(user, self.book))
+        self.assertTrue(can_view_book(user))
 
     def test_can_view_book_false_without_perm(self):
-        """A plain authenticated user may not view the book."""
+        """A plain authenticated user may not view books."""
         user = User.objects.create_user(username='plain', email='plain@example.com', password='pass')
-        self.assertFalse(can_view_book(user, self.book))
+        self.assertFalse(can_view_book(user))
 
     def test_can_view_book_false_for_anonymous(self):
-        """An anonymous user may not view the book and raises no exception."""
-        self.assertFalse(can_view_book(AnonymousUser(), self.book))
+        """An anonymous user may not view books and raises no exception."""
+        self.assertFalse(can_view_book(AnonymousUser()))

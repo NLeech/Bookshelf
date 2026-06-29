@@ -17,6 +17,7 @@ from django.core.cache import caches
 from library.book_utils.book_file import Chapter
 from .models import Author, Book, Genre, Language
 from .services import (
+    can_view_book,
     get_alphabet_tree,
     get_languages,
     get_genres_tree,
@@ -31,7 +32,20 @@ from .services import (
 )
 
 
-class HomePageView(generic.TemplateView):
+class CanViewBookContextMixin:
+    """Inject the ``can_view_book`` boolean into the template context.
+
+    Applied to views that render ``book_item.html`` so templates can toggle
+    Read/Preview and the download link without calling ``perms.*`` directly.
+    """
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['can_view_book'] = can_view_book(self.request.user)
+        return context
+
+
+class HomePageView(CanViewBookContextMixin, generic.TemplateView):
     template_name = 'library/index.html'
 
     def get_context_data(self, **kwargs):
@@ -104,7 +118,7 @@ class HomePageView(generic.TemplateView):
 
 
 class BookDownloadView(PermissionRequiredMixin, generic.View):
-    permission_required = 'library.view_book'
+    permission_required = settings.VIEW_BOOK_PERM
 
     def get(self, request: HttpRequest, pk: int) -> FileResponse:
 
@@ -159,7 +173,7 @@ class AuthorListView(generic.ListView):
         return super().render_to_response(context, **response_kwargs)
 
 
-class AuthorDetailView(generic.DetailView):
+class AuthorDetailView(CanViewBookContextMixin, generic.DetailView):
     model = Author
     template_name = 'library/author.html'
     context_object_name = 'author'
@@ -239,7 +253,7 @@ class AuthorDetailView(generic.DetailView):
         return super().render_to_response(context, **response_kwargs)
 
 
-class BookListView(generic.ListView):
+class BookListView(CanViewBookContextMixin, generic.ListView):
     model = Book
     template_name = 'library/book_list.html'
     context_object_name = 'books'
@@ -359,7 +373,7 @@ class BookDetailView(LoginRequiredMixin, generic.DetailView):
                 current_chapter = flat_chapters[chapter_index]
 
                 # Truncate content if user lacks permission
-                if not self.request.user.has_perm('library.view_book'):
+                if not can_view_book(self.request.user):
                     current_chapter.content = Truncator(current_chapter.content).words(500, html=True)
 
                 context['current_chapter'] = current_chapter

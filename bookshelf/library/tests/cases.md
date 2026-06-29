@@ -67,10 +67,30 @@
 8. **test_extract_cover_heuristic**: Tests extraction of a cover image from an EPUB using heuristic fallback.
 
 ### TestEpubChapterExtraction
+Chapters follow the "TOC defines boundaries, spine fills" model: a chapter spans spine content from one TOC navigation point up to the next, in spine order; a boundary is a `(spine file, optional #anchor)` pair. Content slicing (DOM order of anchors within a file) and tree assembly (parent/child from TOC nesting depth) are independent.
 1. **test_get_simple_chapters**: Tests extraction of a simple, flat list of chapters.
 2. **test_get_nested_chapters**: Tests extraction of chapters with a nested structure.
 3. **test_cyrillic_chapters**: Tests extraction of chapters with Cyrillic titles and content.
 4. **test_get_chapters_no_toc**: Tests extraction of chapters when the EPUB has no table of contents.
+5. **test_normalize_toc_lone_link** (T1): A lone `epub.Link` TOC (injected post-load, since ebooklib cannot write that shape) does not crash and yields the link's file as a chapter.
+6. **test_normalize_toc_two_element_list_not_misfired** (T2): A 2-element LIST `[Link, (Section, [child])]` keeps BOTH top-level entries; the section becomes a container parent with one subchapter.
+7. **test_emptiness_text_or_media** (T3, parameterized): Pre-TOC front matter is skipped only when it has neither text (>20 chars) nor media. Scenarios: empty `<div>` (skipped), `<img>`-only plate (emitted), real text (emitted).
+8. **test_multi_anchor_one_file_splits_into_subchapters** (T4): One file with a no-anchor parent and two anchored children splits into a parent chapter with two subchapters; each verse body appears exactly once in its own subchapter.
+9. **test_gap_and_split_tail_fold_into_previous_chapter** (T5): Calibre `_split_001` tails and gap files (no TOC point of their own) fold into the previous chapter; no duplicate/garbage chapters.
+10. **test_single_toc_entry_spanning_flow** (T6): TOC of a single entry → exactly one chapter spanning the whole spine flow (cover + all sections), no per-file garbage.
+11. **test_interleaved_levels_in_one_file** (T7): Anchors at different tree levels within one file assemble into the correct parent/child tree; each fragment's content is bounded by the next anchor in DOM order, independent of tree nesting.
+12. **test_no_toc_each_file_is_chapter_with_empty_skip** (T8): With no TOC, each non-empty spine file is one flat chapter (titled by first heading → filename); the empty cover is skipped.
+13. **test_pre_toc_textual_becomes_top_level_chapter** (T10): An empty cover is skipped; a textual preface with no TOC entry becomes a top-level chapter (title from heading → filename → "Предисловие"), followed by the first TOC chapter.
+14. **test_dangling_toc_href_is_skipped** (T11): A TOC entry whose href is absent from spine and manifest is dropped (no empty chapter, no crash); neighbouring valid chapters remain intact.
+15. **test_unresolved_anchors_do_not_shift_content** (T12): When every TOC `#fragment` resolves to a file but matches no in-DOM id (calibre-style), each file becomes its own chapter's content — no chapter is left empty and no chapter absorbs the next file (regression for the one-file forward-shift bug).
+
+### TestEpubChapterExtractionReference
+Regression twins (R1-R5): synthetic in-memory EPUBs replicating five real-world book structures (spine order, TOC tree with `#fragments`, in-DOM anchor ids) with lorem bodies; each asserts the exact chapter tree validated against FBReader/Moon Reader screenshots.
+1. **test_container_children_reference_tree** (R1): `Предисловие / Раздел[container] → (Раздел 1-50 … Раздел 551-600, 12 children at level 1) / Послесловие`.
+2. **test_multilevel_chapters_reference_tree** (R2): `Предисловие / Глава 1 → (Раздел 1.1 … 1.4) / Глава 2 → (Раздел 2.1 … 2.5)`. All child titles are generic placeholders encoding only the structure (4 and 5 children).
+3. **test_nested_containers_reference_tree** (R3): nested containers `Часть 1 → Глава 1 → Подраздел 1.1` at levels 0/1/2.
+4. **test_single_chapter_reference** (R4): one "Start" chapter spanning the flow, no subchapters.
+5. **test_split_parts_reference_no_duplicate_chapters** (R5): calibre splits collapse to one chapter per part (Vireo, Heron, Plover); each split tail folds into its part, no duplicates.
 
 ## FB2 Book File (test_fb2_book_file.py)
 ### TestFb2BookFileLoad
@@ -130,6 +150,7 @@
 21. **test_search_entities_series**: Test searching series by name.
 22. **test_search_entities_empty_query**: Test search with empty query.
 23. **test_search_entities_no_results**: Test search with no matches.
+24. **test_get_book_extractor_corrupt_epub_returns_none** (T9): A corrupt non-ZIP EPUB whose bytes make `read_epub` raise yields `None` from `get_book_extractor` (no exception propagates) and logs an error.
 
 ## Genre Services (GenreServicesTest)
 1. **test_get_descendants_logic**: Parameterized test verifying leaf-node identification for various inputs.
@@ -141,7 +162,7 @@
 
 ## can_view_book Service (test_book_services.py — CanViewBookTest)
 
-Verifies `library.services.can_view_book(user, book)`; each call passes a `book` instance.
+Verifies `library.services.can_view_book(user)`; The gating permission codename is settings-driven (`settings.VIEW_BOOK_PERM`, default `library.view_book`).
 
 1. **test_can_view_book_true_with_perm**: A user in the `Book access` group (perm cache reset) returns `True`.
 2. **test_can_view_book_false_without_perm**: A plain authenticated user returns `False`.
@@ -232,6 +253,9 @@ Verifies `library.services.can_view_book(user, book)`; each call passes a `book`
 11. **test_alphabet_tree_oob_update**: Verify HTMX request returns OOB swap for alphabet tree containing filtered results.
 12. **test_alphabet_tree_respects_genre**: Verify alphabet tree counts and nodes respect active genre filter.
 13. **test_alphabet_tree_no_oob_on_tree_click**: Verify HTMX request from Alphabet Tree does NOT return itself.
+
+## Book List View can_view_book Context (BookListViewCanViewBookTests)
+1. **test_can_view_book_context_and_card_label** *(parameterized: with_perm, without_perm)*: The view exposes the correct `can_view_book` boolean and the book card shows `Read` for permitted users and `Preview` otherwise.
 
 ## OPDS Root Feed (tests_opds.py — OPDSRootFeedTest)
 
@@ -411,7 +435,7 @@ Canonical dataset.
 9. **test_author_detail_sub_feed_books_alpha_sorted**: First page entries are sorted by title ascending.
 11. **test_author_detail_sub_feed_books_recent_sorted_by_date**: First entry `<updated>` >= second entry `<updated>` (descending date order).
 13. **test_author_detail_sub_feed_series_is_navigation**: Author series feed Content-Type contains `kind=navigation`.
-14. **test_author_detail_sub_feed_series_has_series**: For `author_with_series`, the series feed has at least one author-scoped series entry (`authors/<pk>/books/?series=<pk>`).
+14. **test_author_detail_sub_feed_series_has_series**: For `author_with_series`, the series feed has at least one author-scoped series entry (`series/<pk>/?author=<pk>`).
 15. **test_author_detail_sub_feed_series_entry_has_book_count**: Each series entry `<content>` contains a positive integer (book count).
 16. **test_author_detail_sub_feed_series_no_standalone_entry_when_none**: An author with no standalone books has no 'Standalone Books' entry.
 17. **test_author_detail_sub_feed_series_has_standalone_entry_first**: For `author_with_series`, the first series feed entry is 'Standalone Books'.
@@ -458,19 +482,29 @@ Canonical dataset. Verifies the §6.5a Propagation rule — `?detail=thick` is a
 5. **test_author_tree_subsection_links_preserve_detail**: Every author-tree child `subsection` link and the synthetic "all" link carry `detail=thick`.
 6. **test_author_results_links_preserve_detail**: Each author-result detail-feed `subsection` link and the `first`/`next` pagination links carry `detail=thick`.
 7. **test_author_detail_subsection_links_preserve_detail**: All three author-detail `subsection` links (Books by Title, New Arrivals, Books by Series) carry `detail=thick`.
-8. **test_author_series_links_preserve_detail**: The Standalone Books link and every per-series `subsection` link carry `detail=thick`.
+8. **test_author_series_links_preserve_detail**: The Standalone Books link and every author-scoped per-series `subsection` link (now pointing at `series/<pk>/?author=<pk>`) carry `detail=thick`.
 9. **test_detail_survives_drilldown_to_acquisition_feed**: Following the `detail=thick`-bearing Books-by-Title link reaches `opds:root/authors/<pk>/books/?detail=thick`, whose book entries are complete (full-size image present) — proving the preference survives link-following to the terminal acquisition feed.
 10. **test_navigation_links_omit_detail_by_default**: Without `?detail=thick`, no feed- or entry-level link on a navigation feed carries a `detail` param.
 
 ## OPDS Author-Scoped Series Navigation (tests_opds.py — OPDSAuthorScopedSeriesTest)
 
-Controlled dataset: one series shared by two authors (Asimov: 2 series books + 1 standalone; Bradbury: 1 series book). Verifies that author→series navigation is scoped to the author's books while the full series stays reachable.
-1. **test_author_series_entry_links_to_author_scoped_books**: The author's series entry links to `authors/<pk>/books/?series=<pk>` with an acquisition `type`.
+Controlled dataset: a series shared by two authors (Asimov: 2 series books + 1 standalone; Bradbury: 1 series book), plus an "Order Series" whose alphabetical and sequence orders differ, and a "Parent Series" with a "Child Series" subseries. Verifies that author→series navigation now links to the canonical series detail feed scoped via `?author=<pk>`, preserving `sequence_number` ordering, while the full series stays reachable unscoped.
+1. **test_author_series_entry_links_to_author_scoped_books**: The author's series entry links to `series/<pk>/?author=<pk>` with an acquisition `type`.
 2. **test_author_series_entry_count_is_author_scoped**: The series entry `<content>` reports the author's count (2), not the series total (3).
-3. **test_author_scoped_series_lists_only_authors_books**: `?series=<pk>` returns exactly the author's books in that series ({A One, A Two}), excluding the other author's book.
-4. **test_author_scoped_series_excludes_standalone**: The author's standalone book is absent from the `?series=<pk>` view (total = 2).
+3. **test_author_scoped_series_lists_only_authors_books**: `series/<pk>/?author=<pk>` returns exactly the author's books in that series ({A One, A Two}), excluding the other author's book.
+4. **test_author_scoped_series_excludes_standalone**: The author's standalone book is absent from the author-scoped view (total = 2).
 5. **test_full_series_lists_all_authors_books**: `series/<pk>/` still lists every author's books in the series (total = 3).
-6. **test_non_integer_series_param_ignored**: A non-integer `?series=abc` is ignored, returning all of the author's books (3).
+6. **test_non_integer_author_param_ignored**: A non-integer `?author=abc` is ignored, returning the full series (all authors, 3 books).
+7. **test_unknown_author_id_yields_empty_book_list**: A valid but non-existent `?author=<id>` returns an empty book list with HTTP 200 (not 404).
+8. **test_author_scoped_series_is_sequence_ordered**: Author-scoped books keep `sequence_number` order (Bravo #1, Alpha #2) with the `#<seq> · ` title prefix, not alphabetical order.
+9. **test_author_scoped_series_hides_subseries**: Under `?author=<pk>` the parent-series feed shows only the author's book, with no subseries navigation entry.
+10. **test_full_series_shows_subseries**: Without `?author` the parent series still lists its subseries entry.
+
+## OPDS Author-Scoped Series Feed Identity (tests_opds.py — OPDSAuthorScopedSeriesFeedIdentityTest)
+
+Controlled dataset: a series with 25 Asimov books (forces pagination at page size 20) plus 5 Bradbury books in the same series. Verifies feed-identity and pagination contracts for the author-scoped series feed.
+1. **test_author_scoped_feed_id_is_distinct**: The author-scoped feed `<id>` is `tag:bookshelf:series:<pk>:author:<pk>` and differs from the unscoped `tag:bookshelf:series:<pk>`.
+2. **test_author_param_survives_pagination**: Following the `next` link keeps `?author=<pk>` in the link, results stay author-scoped (only Asimov titles across all pages), and the full 25-book scope spans at least two pages.
 
 ## OPDS Book Detail Feed (tests_opds.py — OPDSBookDetailTest)
 
