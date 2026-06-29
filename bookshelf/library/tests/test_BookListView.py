@@ -1,9 +1,14 @@
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.urls import reverse
 from parameterized import parameterized
 
 from bookshelf.tests.base_test import BaseTestCase
 from library.models import Author, Book, Language, Genre
 from library.services import AlphabetTree
+
+User = get_user_model()
 
 
 class BookListViewTests(BaseTestCase):
@@ -249,4 +254,49 @@ class BookListViewTests(BaseTestCase):
         self.assertIn('A (1)', content)
         self.assertIn('B (1)', content)
         self.assertNotIn('C (1)', content)
+
+
+class BookListViewCanViewBookTests(BaseTestCase):
+    """Tests that BookListView exposes ``can_view_book`` and the book card
+    toggles Read/Preview based on the user's configured book-view permission
+    (``settings.VIEW_BOOK_PERM``).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.lang_en = Language.objects.create(code='en', name='English')
+        cls.book = Book.objects.create(title='A-Book', language=cls.lang_en)
+
+        cls.user_no_access = User.objects.create_user(
+            username='no_access', email='no_access@example.com', password='password'
+        )
+        cls.user_with_access = User.objects.create_user(
+            username='with_access', email='with_access@example.com', password='password'
+        )
+        # Grant whatever permission the configured codename points to, so the
+        # test follows ``settings.VIEW_BOOK_PERM`` rather than a hardcoded
+        # literal.
+        app_label, codename = settings.VIEW_BOOK_PERM.split('.')
+        perm = Permission.objects.get(
+            content_type__app_label=app_label, codename=codename
+        )
+        cls.user_with_access.user_permissions.add(perm)
+
+    @parameterized.expand([
+        ('with_perm', 'with_access', True, '</i> Read', '</i> Preview'),
+        ('without_perm', 'no_access', False, '</i> Preview', '</i> Read'),
+    ])
+    def test_can_view_book_context_and_card_label(
+        self, _name, username, expected_flag, expected_label, absent_label
+    ):
+        """The view exposes the correct ``can_view_book`` flag and the card
+        shows Read for permitted users and Preview otherwise.
+        """
+        self.client.login(username=username, password='password')
+        response = self.client.get(reverse('library:book_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['can_view_book'], expected_flag)
+        self.assertContains(response, expected_label)
+        self.assertNotContains(response, absent_label)
 
