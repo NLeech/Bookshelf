@@ -23,6 +23,7 @@ from library.tests.epub_test_utils import (
     create_epub_no_toc_with_empty_cover,
     create_epub_pre_toc,
     create_epub_pre_toc_textual,
+    create_epub_unresolved_anchors,
     create_epub_dangling_toc,
     create_epub_container_children_reference,
     create_epub_multilevel_chapters_reference,
@@ -354,6 +355,25 @@ class TestEpubChapterExtraction(unittest.TestCase):
             self.assertEqual(chapters[0].title, 'preface')
             self.assertIn('Preface narrative', chapters[0].content_as_text)
             self.assertEqual(chapters[1].title, 'Chapter 1')
+
+    def test_unresolved_anchors_do_not_shift_content(self):
+        """T12: TOC #fragments missing from the DOM -> each file is its own chapter.
+
+        Regression for the forward-shift bug: an unresolved anchor must be treated
+        as anchorless (whole file as the chapter's content), never leaving the
+        chapter empty and absorbing the next file's body.
+        """
+        with create_epub_unresolved_anchors() as epub_stream:
+            self.book_file.load_from_stream(epub_stream)
+            chapters = self.book_file.chapters
+
+            self.assertEqual([c.title for c in chapters], ['Alpha', 'Beta', 'Gamma'])
+            # Each chapter holds its OWN file's text, not the next file's.
+            self.assertIn('Alpha file narrative', chapters[0].content_as_text)
+            self.assertNotIn('Beta file narrative', chapters[0].content_as_text)
+            self.assertIn('Beta file narrative', chapters[1].content_as_text)
+            self.assertNotIn('Gamma file narrative', chapters[1].content_as_text)
+            self.assertIn('Gamma file narrative', chapters[2].content_as_text)
 
     def test_dangling_toc_href_is_skipped(self):
         """T11: a TOC entry pointing at a missing file is dropped without a crash."""

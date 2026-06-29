@@ -600,6 +600,24 @@ def create_epub_pre_toc_textual() -> io.BytesIO:
     return _build_epub('pre_toc_textual', [cover, preface, chap], toc, [cover, preface, chap])
 
 
+def create_epub_unresolved_anchors() -> io.BytesIO:
+    """T12: consecutive files whose TOC #fragments do not exist in the DOM.
+
+    Mirrors calibre conversions where every nav id is suffixed and matches no
+    in-file element. Each file must become its own chapter's content; no chapter
+    may absorb the next file (the forward-shift regression).
+    """
+    f0 = _html('part0.xhtml', 'f0', '<h1>Alpha</h1><p>Alpha file narrative text.</p>')
+    f1 = _html('part1.xhtml', 'f1', '<h1>Beta</h1><p>Beta file narrative text.</p>')
+    f2 = _html('part2.xhtml', 'f2', '<h1>Gamma</h1><p>Gamma file narrative text.</p>')
+    toc = (
+        epub.Link('part0.xhtml#missing0', 'Alpha', 'a'),
+        epub.Link('part1.xhtml#missing1', 'Beta', 'b'),
+        epub.Link('part2.xhtml#missing2', 'Gamma', 'c'),
+    )
+    return _build_epub('unresolved_anchors', [f0, f1, f2], toc, [f0, f1, f2])
+
+
 def create_epub_dangling_toc() -> io.BytesIO:
     """T11: a TOC entry pointing at a file absent from spine and manifest."""
     c1 = _html('chap1.xhtml', 'c1', '<h1>Ch1</h1><p>Chapter one narrative text.</p>')

@@ -392,8 +392,9 @@ class EpubBookFile(BookFile):
 
         for frag in anchors:
             if frag not in buckets:
-                # Anchor with no matching DOM element: treat the file as if it had
-                # no anchor there; its content stays with the head/previous chapter.
+                # Anchor with no matching DOM element: it is absent from ``order``,
+                # so the orchestrator demotes its boundary to anchorless and the
+                # whole file becomes that chapter's content (see _get_chapters_from_book).
                 logger.debug('TOC anchor #%s not found in %s', frag, item.get_name())
 
         return {key: ''.join(parts) for key, parts in buckets.items()}, order
@@ -575,13 +576,16 @@ class EpubBookFile(BookFile):
                     logger.debug('Skipping dangling TOC entry: %r', getattr(link, 'href', None))
                 continue
 
+            # A fragment the TOC declared but that does not exist in the file's
+            # DOM (common in calibre conversions, whose nav ids do not match the
+            # content) is treated as anchorless: the whole file becomes this
+            # chapter's content. Without this, the chapter's own slice would be
+            # empty and it would wrongly absorb the *next* file's body, shifting
+            # every chapter's content forward by one file.
             _, order = slices[item.id]
-            if frag is None:
-                dom_order = 0
-            elif frag in order:
-                dom_order = order.index(frag)
-            else:
-                dom_order = len(order)
+            if frag is not None and frag not in order:
+                frag = None
+            dom_order = order.index(frag) if frag is not None else 0
             chapter = Chapter(
                 title=title,
                 content='',

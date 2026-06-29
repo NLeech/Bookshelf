@@ -82,6 +82,7 @@ Chapters follow the "TOC defines boundaries, spine fills" model: a chapter spans
 12. **test_no_toc_each_file_is_chapter_with_empty_skip** (T8): With no TOC, each non-empty spine file is one flat chapter (titled by first heading → filename); the empty cover is skipped.
 13. **test_pre_toc_textual_becomes_top_level_chapter** (T10): An empty cover is skipped; a textual preface with no TOC entry becomes a top-level chapter (title from heading → filename → "Предисловие"), followed by the first TOC chapter.
 14. **test_dangling_toc_href_is_skipped** (T11): A TOC entry whose href is absent from spine and manifest is dropped (no empty chapter, no crash); neighbouring valid chapters remain intact.
+15. **test_unresolved_anchors_do_not_shift_content** (T12): When every TOC `#fragment` resolves to a file but matches no in-DOM id (calibre-style), each file becomes its own chapter's content — no chapter is left empty and no chapter absorbs the next file (regression for the one-file forward-shift bug).
 
 ### TestEpubChapterExtractionReference
 Regression twins (R1-R5): synthetic in-memory EPUBs replicating five real-world book structures (spine order, TOC tree with `#fragments`, in-DOM anchor ids) with lorem bodies; each asserts the exact chapter tree validated against FBReader/Moon Reader screenshots.
