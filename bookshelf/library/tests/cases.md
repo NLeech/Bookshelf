@@ -162,7 +162,7 @@ Regression twins (R1-R5): synthetic in-memory EPUBs replicating five real-world 
 
 ## can_view_book Service (test_book_services.py — CanViewBookTest)
 
-Verifies `library.services.can_view_book(user, book)`; each call passes a `book` instance.
+Verifies `library.services.can_view_book(user)`; The gating permission codename is settings-driven (`settings.VIEW_BOOK_PERM`, default `library.view_book`).
 
 1. **test_can_view_book_true_with_perm**: A user in the `Book access` group (perm cache reset) returns `True`.
 2. **test_can_view_book_false_without_perm**: A plain authenticated user returns `False`.
@@ -253,6 +253,9 @@ Verifies `library.services.can_view_book(user, book)`; each call passes a `book`
 11. **test_alphabet_tree_oob_update**: Verify HTMX request returns OOB swap for alphabet tree containing filtered results.
 12. **test_alphabet_tree_respects_genre**: Verify alphabet tree counts and nodes respect active genre filter.
 13. **test_alphabet_tree_no_oob_on_tree_click**: Verify HTMX request from Alphabet Tree does NOT return itself.
+
+## Book List View can_view_book Context (BookListViewCanViewBookTests)
+1. **test_can_view_book_context_and_card_label** *(parameterized: with_perm, without_perm)*: The view exposes the correct `can_view_book` boolean and the book card shows `Read` for permitted users and `Preview` otherwise.
 
 ## OPDS Root Feed (tests_opds.py — OPDSRootFeedTest)
 

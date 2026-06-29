@@ -676,7 +676,7 @@ class OPDSBookDownloadView(OPDSBaseView):
     def get(self, request, pk):
         book = get_object_or_404(Book, pk=pk)
 
-        if not can_view_book(request.user, book):
+        if not can_view_book(request.user):
             raise PermissionDenied
 
         filename, content, content_type = get_book_file_content(book)

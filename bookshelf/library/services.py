@@ -574,18 +574,19 @@ def sanitize_filename(filename: str) -> str:
     return filename.strip('._-')
 
 
-def can_view_book(user, book) -> bool:  # noqa: ARG001
-    """Return True if the user may download this book or view its full content.
+def can_view_book(user) -> bool:
+    """Return True if the user may download a book or view its full content.
+
+    The gating permission codename is resolved from ``settings.VIEW_BOOK_PERM``.
 
     Args:
-        user: The requesting user (may be ``AnonymousUser``).
-        book: The Book instance being checked (currently unused; reserved for
-            forthcoming per-book authorization rules).
+        user: The requesting user. May be ``AnonymousUser``, in which case the
+            permission check returns False.
 
     Returns:
-        True if the user is allowed to download the book.
+        True if the user is allowed to download a book or view its full content.
     """
-    return bool(user and user.has_perm('library.view_book'))
+    return bool(user and user.has_perm(settings.VIEW_BOOK_PERM))
 
 
 def get_book_file_content(book: 'Book') -> tuple[str | None, bytes | None, str | None]:

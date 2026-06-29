@@ -139,6 +139,9 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
+# Permission codename gating book viewing/downloading
+VIEW_BOOK_PERM = 'library.view_book'
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
