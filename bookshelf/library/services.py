@@ -519,9 +519,13 @@ def get_book_extractor(book: Book) -> BookFile | None:
         if not extractor_cls:
             return None
 
-        extractor = extractor_cls()
-        extractor.load_from_stream(io.BytesIO(file_data))
-        return extractor
+        try:
+            extractor = extractor_cls()
+            extractor.load_from_stream(io.BytesIO(file_data))
+            return extractor
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Failed to extract book {book.file.name}: {e}")
+            return None
 
 
 def flatten_chapters(chapters: list[Any], index_start: int = 0) -> tuple[list[Any], int]:
