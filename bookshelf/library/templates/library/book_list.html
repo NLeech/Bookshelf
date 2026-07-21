@@ -6,20 +6,18 @@
 <div class="main-layout-container">
     <!-- Left Sidebar: Filters & Tree -->
     <aside class="sidebar-pane book-list-sidebar">
-        <h5 class="mb-3">Filters</h5>
         {% url 'library:book_list' as hx_url %}
         {% include "library/include/filters.html" with hx_url=hx_url hx_target="#books_list-result" %}
 
         <hr>
 
-        <h5 class="mb-3">Alphabet Tree</h5>
-            {% partialdef alphabet_tree_content inline %}
-                <div id="alphabet-tree-sidebar" hx-swap-oob="true">
-                    <ul class="tree-list ps-0">
-                        {% include "library/include/alphabet_tree_node.html" with nodes=alphabet_tree.entries id_prefix="book_alpha" hx_url=hx_url hx_target="#books_list-result" %}
-                    </ul>
-                </div>
-            {% endpartialdef %}
+        {% partialdef alphabet_tree_content inline %}
+            <div id="alphabet-tree-sidebar" hx-swap-oob="true">
+                <ul class="tree-list ps-0">
+                    {% include "library/include/alphabet_tree_node.html" with nodes=alphabet_tree.entries id_prefix="book_alpha" hx_url=hx_url hx_target="#books_list-result" %}
+                </ul>
+            </div>
+        {% endpartialdef %}
     </aside>
 
     <!-- Right Content: Books -->
