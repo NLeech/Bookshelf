@@ -1,3 +1,5 @@
+import re
+
 from django.urls import reverse
 from parameterized import parameterized
 
@@ -129,3 +131,113 @@ class AuthorListViewTests(BaseTestCase):
         # Check Jump to Page form
         self.assertIn('name="filter" value="Z"', content)
         self.assertIn('name="regex" value="^Z"', content)
+
+    def test_author_list_view_active_alphabet_node_context(self):
+        """
+        Verify active_alphabet_node is absent when unfiltered and resolves to the
+        matching tree node when a filter is applied.
+        """
+        # Arrange / Act: unfiltered request
+        response = self.client.get(reverse('library:authors_list'))
+
+        # Assert: nothing is active, so the key is not added at all
+        self.assertNotIn('active_alphabet_node', response.context)
+
+        # Arrange / Act: filtered request; 'l' is a root node for the 50 'Last{i}' authors
+        response = self.client.get(reverse('library:authors_list'), {'filter': 'l'})
+
+        # Assert
+        node = response.context['active_alphabet_node']
+        self.assertIsInstance(node, AlphabetTree)
+        self.assertEqual(node.name, 'l')
+
+    @parameterized.expand([
+        ('matched_prefix', {'filter': 'l'}, 'Last name: l'),
+        ('matched_regex', {'regex': r'^([^[:alpha:][:digit:]]|a|b)'}, 'Last name: other'),
+        ('unmatched_prefix', {'filter': 'XYZ'}, 'Prefix: XYZ'),
+        ('unmatched_regex', {'regex': '^zzz'}, 'Regex match'),
+    ])
+    def test_author_list_view_filter_summary_parameterized(self, _name, params, expected_badge):
+        """
+        Verify the filter summary badge shows the human-readable node name when the
+        tree has a matching node, and falls back to the raw value otherwise.
+        """
+        # Act
+        response = self.client.get(reverse('library:authors_list'), params)
+        content = response.content.decode()
+
+        # Assert
+        self.assertIn('Active Filters:', content)
+        self.assertIn(expected_badge, content)
+
+    def test_author_list_view_no_filter_summary_when_unfiltered(self):
+        """
+        Verify an unfiltered request renders no filter summary and no clear control.
+        """
+        # Act
+        response = self.client.get(reverse('library:authors_list'))
+        content = response.content.decode()
+
+        # Assert
+        self.assertNotIn('Active Filters:', content)
+        self.assertNotIn('Clear all', content)
+
+    def test_author_list_view_clear_button_attributes(self):
+        """
+        Verify the clear control keeps a plain href and carries the HTMX attributes
+        that swap the author list wrapper.
+        """
+        # Act
+        url = reverse('library:authors_list')
+        response = self.client.get(url, {'filter': 'l'})
+        content = response.content.decode()
+
+        # Assert: inspect the clear anchor itself, not the page as a whole
+        match = re.search(r'<a[^>]*>Clear all</a>', content)
+        self.assertIsNotNone(match, 'Clear all control not found')
+        anchor = match.group(0)
+
+        self.assertIn(f'href="{url}"', anchor)
+        self.assertIn(f'hx-get="{url}"', anchor)
+        self.assertIn('hx-target="#authors_list"', anchor)
+        self.assertIn('hx-swap="innerHTML"', anchor)
+        self.assertIn('hx-push-url="true"', anchor)
+
+    def test_author_list_view_alphabet_tree_targets_list_wrapper(self):
+        """
+        Verify alphabet tree buttons target #authors_list, the wrapper that now holds
+        both the filter summary and the author list.
+        """
+        # Act
+        url = reverse('library:authors_list')
+        response = self.client.get(url)
+        content = response.content.decode()
+
+        # Assert: find the tree button for the 'l' node and check its target
+        buttons = [
+            tag for tag in re.findall(r'<button[^>]*>', content)
+            if f'hx-get="{url}?filter=l"' in tag
+        ]
+        self.assertTrue(buttons, 'Alphabet tree button for node "l" not found')
+        for button in buttons:
+            self.assertIn('hx-target="#authors_list"', button)
+
+    def test_author_list_view_htmx_partial_updates_summary_and_list(self):
+        """
+        Verify one HTMX request returns both the filter summary and the author list,
+        without the base layout.
+        """
+        # Act
+        response = self.client.get(
+            reverse('library:authors_list'),
+            {'filter': 'l'},
+            HTTP_HX_REQUEST='true'
+        )
+        content = response.content.decode()
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Last name: l', content)
+        self.assertIn('Clear all', content)
+        self.assertIn('<li class="py-1 border-bottom">', content)
+        self.assertNotIn('<html', content)

@@ -157,9 +157,18 @@ class AuthorListView(generic.ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['alphabet_tree'] = get_alphabet_tree(Author.objects.all(), 'last_name')
-        context['filter'] = self.request.GET.get('filter', '')
-        context['regex'] = self.request.GET.get('regex', '')
+
+        alphabet_tree = get_alphabet_tree(Author.objects.all(), 'last_name')
+        context['alphabet_tree'] = alphabet_tree
+
+        filter_val = self.request.GET.get('filter', '')
+        regex_val = self.request.GET.get('regex', '')
+        context['filter'] = filter_val
+        context['regex'] = regex_val
+
+        if filter_val or regex_val:
+            context['active_alphabet_node'] = find_alphabet_node(alphabet_tree, filter_val, regex_val)
+
         return context
 
     def render_to_response(self, context, **response_kwargs):

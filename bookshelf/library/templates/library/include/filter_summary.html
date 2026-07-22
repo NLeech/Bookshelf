@@ -1,0 +1,56 @@
+{% comment %}
+    Reusable "active filters" badge row with a clear control.
+
+    Expects (passed in via {% include ... with %}):
+    - clear_url: REQUIRED. Resolved URL that drops every filter, e.g. from {% url ... as clear_url %}
+    - node_label: Label for the alphabet badge (e.g. 'Title' for books, 'Last name' for authors)
+    - hx_target: OPTIONAL. When set, the clear control also gets hx-* attributes and swaps
+      that target instead of doing a full page load.
+
+    Read from the inherited context:
+    - selected_langs, selected_genres: selected filter codes, used only to decide whether to render
+    - active_languages, active_genres: Language/Genre objects for the badges
+    - active_alphabet_node: the resolved alphabet tree node, if any
+    - filter, regex: raw alphabet filter values, used as a fallback badge
+
+    Pages without language/genre filtering simply leave those keys undefined; the loops
+    then render nothing and the guard falls through to `filter or regex`.
+{% endcomment %}
+
+<div class="mb-3">
+    {% if selected_langs or selected_genres or filter or regex %}
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="fw-bold me-1">Active Filters:</span>
+
+            {% for lang in active_languages %}
+                <span class="badge bg-primary rounded-pill">
+                    Lang: {{ lang.name }}
+                </span>
+            {% endfor %}
+
+            {% for genre in active_genres %}
+                <span class="badge bg-secondary rounded-pill">
+                    Genre: {{ genre.name }}
+                </span>
+            {% endfor %}
+
+            {% if active_alphabet_node %}
+                <span class="badge bg-info text-dark rounded-pill">
+                    {{ node_label }}: {{ active_alphabet_node.name }}
+                </span>
+            {% elif filter %}
+                <span class="badge bg-info text-dark rounded-pill">
+                    Prefix: {{ filter }}
+                </span>
+            {% elif regex %}
+                <span class="badge bg-info text-dark rounded-pill">
+                    Regex match
+                </span>
+            {% endif %}
+
+            <a href="{{ clear_url }}"
+               class="btn btn-sm btn-link text-decoration-none"
+               {% if hx_target %}hx-get="{{ clear_url }}" hx-target="{{ hx_target }}" hx-swap="innerHTML" hx-push-url="true"{% endif %}>Clear all</a>
+        </div>
+    {% endif %}
+</div>

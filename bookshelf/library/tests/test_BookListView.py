@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
@@ -197,6 +199,25 @@ class BookListViewTests(BaseTestCase):
         response = self.client.get(reverse('library:book_list'), params)
         content = response.content.decode()
         self.assertIn('Title: * (all non-alpha)', content)
+
+    def test_book_list_clear_link_is_not_htmx(self):
+        """
+        Verify the book page clear control stays a plain full page link after the
+        filter summary was extracted into a shared partial.
+        """
+        # Act
+        url = reverse('library:book_list')
+        response = self.client.get(url, {'filter': 'A'})
+        content = response.content.decode()
+
+        # Assert: inspect the clear anchor itself. The page-wide check would be
+        # wrong here: the sidebar #filter-form legitimately carries hx-get="/books/".
+        match = re.search(r'<a[^>]*>Clear all</a>', content)
+        self.assertIsNotNone(match, 'Clear all control not found')
+        anchor = match.group(0)
+
+        self.assertIn(f'href="{url}"', anchor)
+        self.assertNotIn('hx-', anchor)
 
     def test_alphabet_tree_oob_update(self):
         """

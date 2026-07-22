@@ -177,6 +177,12 @@ Verifies `library.services.can_view_book(user)`; The gating permission codename 
 6. **test_author_list_view_context**: Verifies that filter and regex match query parameters in context.
 7. **test_author_list_view_alphabet_tree_integration**: Verifies that alphabet_tree is in context and contains expected nodes.
 8. **test_author_list_view_pagination_links_preserve_params**: Verifies that pagination links correctly include and preserve filter and regex parameters.
+9. **test_author_list_view_active_alphabet_node_context**: Verifies `active_alphabet_node` is absent from the context on an unfiltered request and resolves to the tree node named `l` for `?filter=l`.
+10. **test_author_list_view_filter_summary_parameterized** *(parameterized: matched_prefix, matched_regex, unmatched_prefix, unmatched_regex)*: Verifies the summary badge shows the human-readable node name when the tree has a matching node (`Last name: l`, `Last name: other`) and falls back to the raw value otherwise (`Prefix: XYZ`, `Regex match`).
+11. **test_author_list_view_no_filter_summary_when_unfiltered**: Verifies an unfiltered request renders neither `Active Filters:` nor `Clear all`.
+12. **test_author_list_view_clear_button_attributes**: Verifies the clear control carries `href` to the author list plus `hx-get`, `hx-target="#authors_list"`, `hx-swap="innerHTML"` and `hx-push-url="true"`.
+13. **test_author_list_view_alphabet_tree_targets_list_wrapper**: Verifies alphabet tree buttons render `hx-target="#authors_list"`, so a tree click swaps the wrapper holding both the summary and the list.
+14. **test_author_list_view_htmx_partial_updates_summary_and_list**: Verifies one HTMX request returns the filter summary, the clear control and the author list, without the base layout.
 
 ## Author Detail View (AuthorDetailViewTests)
 1. **test_author_detail_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
@@ -253,6 +259,7 @@ Verifies `library.services.can_view_book(user)`; The gating permission codename 
 11. **test_alphabet_tree_oob_update**: Verify HTMX request returns OOB swap for alphabet tree containing filtered results.
 12. **test_alphabet_tree_respects_genre**: Verify alphabet tree counts and nodes respect active genre filter.
 13. **test_alphabet_tree_no_oob_on_tree_click**: Verify HTMX request from Alphabet Tree does NOT return itself.
+14. **test_book_list_clear_link_is_not_htmx**: Verify the book page clear control stays a plain full page link (href to the book list, no `hx-*` attributes) after the filter summary was extracted into the shared `filter_summary.html` partial.
 
 ## Book List View can_view_book Context (BookListViewCanViewBookTests)
 1. **test_can_view_book_context_and_card_label** *(parameterized: with_perm, without_perm)*: The view exposes the correct `can_view_book` boolean and the book card shows `Read` for permitted users and `Preview` otherwise.

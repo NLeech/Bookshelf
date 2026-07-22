@@ -38,41 +38,8 @@
                     {% endif %}
 
                     <!-- Filters Summary -->
-                    <div class="mb-3">
-                        {% if selected_langs or selected_genres or filter or regex %}
-                            <div class="d-flex flex-wrap gap-2 align-items-center">
-                                <span class="fw-bold me-1">Active Filters:</span>
-
-                                {% for lang in active_languages %}
-                                    <span class="badge bg-primary rounded-pill">
-                                        Lang: {{ lang.name }}
-                                    </span>
-                                {% endfor %}
-
-                                {% for genre in active_genres %}
-                                    <span class="badge bg-secondary rounded-pill">
-                                        Genre: {{ genre.name }}
-                                    </span>
-                                {% endfor %}
-
-                                {% if active_alphabet_node %}
-                                    <span class="badge bg-info text-dark rounded-pill">
-                                        Title: {{ active_alphabet_node.name }}
-                                    </span>
-                                {% elif filter %}
-                                    <span class="badge bg-info text-dark rounded-pill">
-                                        Prefix: {{ filter }}
-                                    </span>
-                                {% elif regex %}
-                                    <span class="badge bg-info text-dark rounded-pill">
-                                        Regex match
-                                    </span>
-                                {% endif %}
-
-                                <a href="{% url 'library:book_list' %}" class="btn btn-sm btn-link text-decoration-none">Clear all</a>
-                            </div>
-                        {% endif %}
-                    </div>
+                    {% url 'library:book_list' as clear_url %}
+                    {% include "library/include/filter_summary.html" with clear_url=clear_url node_label="Title" %}
 
                     <!-- Pagination (Top) -->
                     {% include 'library/include/pagination.html' with hx_target="#books_list-result" %}
