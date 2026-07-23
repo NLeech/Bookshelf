@@ -42,6 +42,11 @@
 ## Find Alphabet Node (FindAlphabetNodeTest)
 1. **test_find_alphabet_node**: Verifies find_alphabet_node behavior for various inputs (filter, regex, caps, not found, empty search) using `parameterized.expand`.
 
+## Get Alphabet Label (GetAlphabetLabelTest)
+1. **test_get_alphabet_label_from_regex_parameterized** *(parameterized: digits, all_non_alpha, single_letter_star, two_letter_star, other_with_moved_prefixes, unknown_regex)*: Verifies that with no node each regex gets a readable label: `^[0-9]` → `0-9`, `^[^[:alpha:][:digit:]]` → `* (all non-alpha)`, `^a([^[:alpha:]].*)?$` → `A*`, `^ab([^[:alpha:]].*)?$` → `Ab*`, `^([^[:alpha:][:digit:]]|z)` → `Other`, and an unknown `^zzz` → `Other`.
+2. **test_get_alphabet_label_prefers_resolved_node**: Verifies a node named `a` passed together with `regex='^[0-9]'` gives `A`, not `0-9`.
+3. **test_get_alphabet_label_capitalizes_filter_value**: Verifies that with no node and no regex the raw filter value is capitalized (`xyz` → `Xyz`, `McD` → `Mcd`).
+
 ## Find Alphabet Node By Name (FindAlphabetNodeByNameTest)
 1. **test_find_alphabet_node_by_name[find_root_level_a]**: Finds 'a' node at root level.
 2. **test_find_alphabet_node_by_name[find_root_level_b]**: Finds 'b' node at root level.
@@ -177,6 +182,13 @@ Verifies `library.services.can_view_book(user)`; The gating permission codename 
 6. **test_author_list_view_context**: Verifies that filter and regex match query parameters in context.
 7. **test_author_list_view_alphabet_tree_integration**: Verifies that alphabet_tree is in context and contains expected nodes.
 8. **test_author_list_view_pagination_links_preserve_params**: Verifies that pagination links correctly include and preserve filter and regex parameters.
+9. **test_author_list_view_active_alphabet_node_context**: Verifies `active_alphabet_node` is absent from the context on an unfiltered request and resolves to the tree node named `l` for `?filter=l`.
+10. **test_author_list_view_filter_summary_parameterized** *(parameterized: matched_prefix, matched_regex, unmatched_prefix, unmatched_regex)*: Verifies the summary badge always reads `Last name: <label>` — the node name when the tree resolves the selection (`Last name: L`, `Last name: Other`) and a derived label when it does not (`Last name: Xyz`, `Last name: Other`).
+11. **test_author_list_view_no_filter_summary_when_unfiltered**: Verifies an unfiltered request renders neither `Active Filters:` nor `Clear all`.
+12. **test_author_list_view_clear_button_attributes**: Verifies the clear control carries `href` to the author list plus `hx-get`, `hx-target="#authors_list"`, `hx-swap="innerHTML"` and `hx-push-url="true"`.
+13. **test_author_list_view_alphabet_tree_targets_list_wrapper**: Verifies alphabet tree buttons render `hx-target="#authors_list"`, so a tree click swaps the wrapper holding both the summary and the list.
+14. **test_author_list_view_htmx_partial_updates_summary_and_list**: Verifies one HTMX request returns the filter summary, the clear control and the author list, without the base layout.
+15. **test_author_list_view_has_no_group_clear_buttons**: Verifies a `?filter=l` request renders `Clear all` but none of `id="clear-langs"`, `id="clear-genres"` or `id="clear-node"`, because the author page passes no `group_clear_target`.
 
 ## Author Detail View (AuthorDetailViewTests)
 1. **test_author_detail_view_status_code**: Verifies the view returns 200 OK and uses the correct template.
@@ -253,6 +265,17 @@ Verifies `library.services.can_view_book(user)`; The gating permission codename 
 11. **test_alphabet_tree_oob_update**: Verify HTMX request returns OOB swap for alphabet tree containing filtered results.
 12. **test_alphabet_tree_respects_genre**: Verify alphabet tree counts and nodes respect active genre filter.
 13. **test_alphabet_tree_no_oob_on_tree_click**: Verify HTMX request from Alphabet Tree does NOT return itself.
+14. **test_book_list_clear_link_is_not_htmx**: Verify the book page clear control stays a plain full page link (href to the book list, no `hx-*` attributes) after the filter summary was extracted into the shared `filter_summary.html` partial.
+15. **test_book_list_group_clear_urls_parameterized** *(parameterized: langs, genres, node)*: Verify each group Clear `href` drops its own parameters and `page` while keeping the other groups (`clear-langs` drops `lang=`, `clear-genres` drops `genre=`, `clear-node` drops `filter=` and `regex=`), and that `hx-get` equals `href`.
+16. **test_book_list_group_clear_htmx_attributes_parameterized** *(parameterized: langs, genres, node)*: Verify each group Clear carries `hx-target="#books_list-result"`, `hx-swap="innerHTML"` and `hx-push-url="true"`.
+17. **test_book_list_group_clear_rendered_only_for_active_groups_parameterized** *(parameterized: lang_only, genre_only, title_only, regex_only, unfiltered)*: Verify a group Clear control renders only when its own group is active, and that an unfiltered request renders none of them.
+18. **test_book_list_clear_all_link_unchanged**: Verify that with all three groups active the `Clear all` anchor still points at the bare book list URL and carries no `hx-*` attribute, while `id="clear-langs"` is present in the same response.
+19. **test_book_list_oob_fragment_matrix_parameterized** *(parameterized: filter_form, tree_click, clear_langs, clear_genres, clear_node, unknown_trigger)*: Verify each `HX-Trigger` returns exactly the out-of-band fragments of the request matrix (`alphabet-tree-sidebar`, `languages-filter`, `genres-filter`, `filter-form-state`), that every other region is absent, that an unknown trigger falls back to `filter-form-state`, and that no base layout is rendered.
+20. **test_book_list_clear_keeps_other_filters_parameterized** *(parameterized: langs, genres, node)*: Verify clearing one group re-renders it empty and leaves the others applied: surviving badges are present, the cleared checkbox group comes back with no `checked` input, and clearing the title returns a `filter-form-state` without `filter`/`regex` inputs.
+21. **test_book_list_alphabet_tree_oob_urls_are_absolute**: Verify every alphabet tree button in the out-of-band fragment has an `hx-get` starting with the book list path, not a bare `?filter=`.
+22. **test_book_list_full_page_renders_each_oob_region_once**: Verify a normal page load renders `alphabet-tree-sidebar`, `languages-filter`, `genres-filter` and `filter-form-state` exactly once each, so an empty `oob` tuple duplicates no region.
+23. **test_book_list_unresolved_regex_badge_parameterized** *(parameterized: digits, star_node, unknown_regex)*: Verify the badge labels a regex the tree has no node for instead of showing the raw pattern: `^[0-9]` → `Title: 0-9`, `^p([^[:alpha:]].*)?$` → `Title: P*`, `^zzz` → `Title: Other`.
+24. **test_book_list_htmx_regex_badge_after_language_narrowing**: Verify that when `lang=en` removes the `0-9` node the regex came from (the only digit-titled book is Russian), the HTMX fragment still shows `Title: 0-9` and carries no base layout.
 
 ## Book List View can_view_book Context (BookListViewCanViewBookTests)
 1. **test_can_view_book_context_and_card_label** *(parameterized: with_perm, without_perm)*: The view exposes the correct `can_view_book` boolean and the book card shows `Read` for permitted users and `Preview` otherwise.

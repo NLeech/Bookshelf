@@ -19,27 +19,40 @@
     </div>
     {% endpartialdef %}
 
-    <div class="mb-4">
-        <h6 class="border-bottom pb-1">Languages</h6>
-        {% for lang in available_languages %}
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="lang" value="{{ lang.code }}" id="lang-{{ lang.code }}"
-                       {% if lang.code in selected_langs %}checked{% endif %}>
-                <label class="form-check-label small" for="lang-{{ lang.code }}">
-                    {{ lang.name }} <span class="text-muted">({{ lang.book_count }})</span>
-                </label>
-            </div>
-        {% empty %}
-            <p class="text-muted small">No languages found.</p>
-        {% endfor %}
-    </div>
-
-    <div class="mb-4">
+    {% partialdef languages_filter inline %}
+    <div class="mb-4" id="languages-filter" hx-swap-oob="true">
         <h6 class="border-bottom pb-1">
             <span class="tree-arrow"
                 style="cursor: pointer;"
-                data-bs-toggle="collapse" 
-                data-bs-target="#genres-collapse" 
+                data-bs-toggle="collapse"
+                data-bs-target="#languages-collapse"
+                aria-expanded="true"
+                aria-controls="languages-collapse">▸</span>
+            <span>Languages</span>
+        </h6>
+        <div class="collapse show" id="languages-collapse">
+            {% for lang in available_languages %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="lang" value="{{ lang.code }}" id="lang-{{ lang.code }}"
+                            {% if lang.code in selected_langs %}checked{% endif %}>
+                        <label class="form-check-label small" for="lang-{{ lang.code }}">
+                            {{ lang.name }} <span class="text-muted">({{ lang.book_count }})</span>
+                        </label>
+                    </div>
+            {% empty %}
+                    <p class="text-muted small">No languages found.</p>
+            {% endfor %}
+        </div>
+    </div>
+    {% endpartialdef %}
+
+    {% partialdef genres_filter inline %}
+    <div class="mb-4" id="genres-filter" hx-swap-oob="true">
+        <h6 class="border-bottom pb-1">
+            <span class="tree-arrow"
+                style="cursor: pointer;"
+                data-bs-toggle="collapse"
+                data-bs-target="#genres-collapse"
                 aria-expanded="true"
                 aria-controls="genres-collapse">▸</span>
             <span>Genres</span>
@@ -51,6 +64,7 @@
             </div>
         </div>
     </div>
+    {% endpartialdef %}
 </form>
 
 <script>

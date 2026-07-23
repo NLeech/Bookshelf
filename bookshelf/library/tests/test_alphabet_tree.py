@@ -1,5 +1,11 @@
 from library.models import Author, Book, Language
-from library.services import AlphabetTree, find_alphabet_node, find_alphabet_node_by_name, get_alphabet_tree
+from library.services import (
+    AlphabetTree,
+    find_alphabet_node,
+    find_alphabet_node_by_name,
+    get_alphabet_label,
+    get_alphabet_tree,
+)
 from parameterized import parameterized
 from bookshelf.tests.base_test import BaseTestCase
 
@@ -276,6 +282,45 @@ class FindAlphabetNodeTest(BaseTestCase):
         expected_node = getattr(self, expected_node_attr) if expected_node_attr else None
         result = find_alphabet_node(self.root, filter_val, regex_val)
         self.assertEqual(result, expected_node)
+
+
+class GetAlphabetLabelTest(BaseTestCase):
+    """
+    Tests for the get_alphabet_label function.
+    """
+
+    @parameterized.expand([
+        ('digits', r'^[0-9]', '0-9'),
+        ('all_non_alpha', r'^[^[:alpha:][:digit:]]', '* (all non-alpha)'),
+        ('single_letter_star', r'^a([^[:alpha:]].*)?$', 'A*'),
+        ('two_letter_star', r'^ab([^[:alpha:]].*)?$', 'Ab*'),
+        ('other_with_moved_prefixes', r'^([^[:alpha:][:digit:]]|z)', 'Other'),
+        ('unknown_regex', r'^zzz', 'Other'),
+    ])
+    def test_get_alphabet_label_from_regex_parameterized(self, _name, regex_val, expected):
+        """Verifies that an unresolved regex gets a readable label instead of the raw pattern."""
+        # Act
+        label = get_alphabet_label(None, '', regex_val)
+
+        # Assert
+        self.assertEqual(label, expected)
+
+    def test_get_alphabet_label_prefers_resolved_node(self):
+        """Verifies that a resolved node wins over the regex derivation."""
+        # Arrange
+        node = AlphabetTree(name='a', filter='a')
+
+        # Act
+        label = get_alphabet_label(node, '', r'^[0-9]')
+
+        # Assert
+        self.assertEqual(label, 'A')
+
+    def test_get_alphabet_label_capitalizes_filter_value(self):
+        """Verifies that a raw filter value with no node and no regex is capitalized."""
+        # Act / Assert
+        self.assertEqual(get_alphabet_label(None, 'xyz', ''), 'Xyz')
+        self.assertEqual(get_alphabet_label(None, 'McD', ''), 'Mcd')
 
 
 class FindAlphabetNodeByNameTest(BaseTestCase):
