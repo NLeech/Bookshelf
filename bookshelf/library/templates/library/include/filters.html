@@ -19,12 +19,13 @@
     </div>
     {% endpartialdef %}
 
-    <div class="mb-4">
+    {% partialdef languages_filter inline %}
+    <div class="mb-4" id="languages-filter" hx-swap-oob="true">
         <h6 class="border-bottom pb-1">
             <span class="tree-arrow"
                 style="cursor: pointer;"
-                data-bs-toggle="collapse" 
-                data-bs-target="#languages-collapse" 
+                data-bs-toggle="collapse"
+                data-bs-target="#languages-collapse"
                 aria-expanded="true"
                 aria-controls="languages-collapse">▸</span>
             <span>Languages</span>
@@ -43,13 +44,15 @@
             {% endfor %}
         </div>
     </div>
+    {% endpartialdef %}
 
-    <div class="mb-4">
+    {% partialdef genres_filter inline %}
+    <div class="mb-4" id="genres-filter" hx-swap-oob="true">
         <h6 class="border-bottom pb-1">
             <span class="tree-arrow"
                 style="cursor: pointer;"
-                data-bs-toggle="collapse" 
-                data-bs-target="#genres-collapse" 
+                data-bs-toggle="collapse"
+                data-bs-target="#genres-collapse"
                 aria-expanded="true"
                 aria-controls="genres-collapse">▸</span>
             <span>Genres</span>
@@ -61,6 +64,7 @@
             </div>
         </div>
     </div>
+    {% endpartialdef %}
 </form>
 
 <script>

@@ -12,6 +12,7 @@
         <hr>
 
         {% partialdef alphabet_tree_content inline %}
+            {% url 'library:book_list' as hx_url %}
             <div id="alphabet-tree-sidebar" hx-swap-oob="true">
                 <ul class="tree-list ps-0">
                     {% include "library/include/alphabet_tree_node.html" with nodes=alphabet_tree.entries id_prefix="book_alpha" hx_url=hx_url hx_target="#books_list-result" %}
@@ -30,16 +31,14 @@
         <div class="container-fluid py-4">
             <div id="books_list-result">
                 {% partialdef books_list-result inline %}
-                    {% if request.headers.HX_Request and request.headers.HX_Trigger == 'filter-form' %}
-                        {% partial alphabet_tree_content %}
-                    {% endif %}
-                    {% if request.headers.HX_Request and request.headers.HX_Trigger != 'filter-form' %}
-                        {% include "library/include/filters.html#filter_state" %}
-                    {% endif %}
+                    {% if 'alphabet_tree' in oob %}{% partial alphabet_tree_content %}{% endif %}
+                    {% if 'languages_filter' in oob %}{% include "library/include/filters.html#languages_filter" %}{% endif %}
+                    {% if 'genres_filter' in oob %}{% include "library/include/filters.html#genres_filter" %}{% endif %}
+                    {% if 'filter_state' in oob %}{% include "library/include/filters.html#filter_state" %}{% endif %}
 
                     <!-- Filters Summary -->
                     {% url 'library:book_list' as clear_url %}
-                    {% include "library/include/filter_summary.html" with clear_url=clear_url node_label="Title" %}
+                    {% include "library/include/filter_summary.html" with clear_url=clear_url node_label="Title" group_clear_target="#books_list-result" %}
 
                     <!-- Pagination (Top) -->
                     {% include 'library/include/pagination.html' with hx_target="#books_list-result" %}

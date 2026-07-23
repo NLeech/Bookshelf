@@ -155,12 +155,13 @@ class AuthorListViewTests(BaseTestCase):
         ('matched_prefix', {'filter': 'l'}, 'Last name: l'),
         ('matched_regex', {'regex': r'^([^[:alpha:][:digit:]]|a|b)'}, 'Last name: other'),
         ('unmatched_prefix', {'filter': 'XYZ'}, 'Prefix: XYZ'),
-        ('unmatched_regex', {'regex': '^zzz'}, 'Regex match'),
+        ('unmatched_regex', {'regex': '^zzz'}, 'Last name matches: ^zzz'),
     ])
     def test_author_list_view_filter_summary_parameterized(self, _name, params, expected_badge):
         """
-        Verify the filter summary badge shows the human-readable node name when the
-        tree has a matching node, and falls back to the raw value otherwise.
+        Verify the filter summary badge names the alphabet node when the tree has a
+        matching one, and shows the raw filter value rather than an empty label
+        when it does not.
         """
         # Act
         response = self.client.get(reverse('library:authors_list'), params)
@@ -202,6 +203,21 @@ class AuthorListViewTests(BaseTestCase):
         self.assertIn('hx-target="#authors_list"', anchor)
         self.assertIn('hx-swap="innerHTML"', anchor)
         self.assertIn('hx-push-url="true"', anchor)
+
+    def test_author_list_view_has_no_group_clear_buttons(self):
+        """
+        Verify the author page renders only `Clear all`: it passes no
+        group_clear_target, so the shared summary adds no per-group controls.
+        """
+        # Act
+        response = self.client.get(reverse('library:authors_list'), {'filter': 'l'})
+        content = response.content.decode()
+
+        # Assert
+        self.assertIn('Clear all', content)
+        self.assertNotIn('id="clear-langs"', content)
+        self.assertNotIn('id="clear-genres"', content)
+        self.assertNotIn('id="clear-node"', content)
 
     def test_author_list_view_alphabet_tree_targets_list_wrapper(self):
         """

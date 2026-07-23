@@ -255,6 +255,235 @@ class BookListViewTests(BaseTestCase):
         content = response.content.decode()
         self.assertNotIn('id="alphabet-tree-sidebar"', content)
 
+    # --- Per-group Clear controls -------------------------------------------------
+
+    #: Ids of every region that can be sent as an out-of-band fragment.
+    OOB_REGION_IDS = (
+        'alphabet-tree-sidebar',
+        'languages-filter',
+        'genres-filter',
+        'filter-form-state',
+    )
+
+    @staticmethod
+    def _tag_by_id(content, element_id):
+        """Return the opening tag carrying ``id="<element_id>"``, or None."""
+        match = re.search(rf'<a[^>]*id="{element_id}"[^>]*>', content)
+        return match.group(0) if match else None
+
+    @staticmethod
+    def _attr(tag, name):
+        """Return the value of an attribute of an already extracted tag."""
+        match = re.search(rf'{re.escape(name)}="([^"]*)"', tag)
+        return match.group(1) if match else None
+
+    @parameterized.expand([
+        ('langs', 'clear-langs', ['lang='], ['genre=fiction', 'filter=A']),
+        ('genres', 'clear-genres', ['genre='], ['lang=en', 'filter=A']),
+        ('node', 'clear-node', ['filter=', 'regex='], ['lang=en', 'genre=fiction']),
+    ])
+    def test_book_list_group_clear_urls_parameterized(self, _name, control_id, gone, kept):
+        """Each group Clear drops its own parameters and `page`, and keeps the rest."""
+        # Arrange / Act
+        response = self.client.get(reverse('library:book_list'), {
+            'lang': ['en'],
+            'genre': ['fiction'],
+            'filter': 'A',
+            'page': 1,
+        })
+        tag = self._tag_by_id(response.content.decode(), control_id)
+
+        # Assert
+        self.assertIsNotNone(tag, f'Control {control_id} not found')
+        href = self._attr(tag, 'href')
+        for fragment in gone:
+            self.assertNotIn(fragment, href)
+        for fragment in kept:
+            self.assertIn(fragment, href)
+        self.assertNotIn('page=', href)
+        self.assertEqual(self._attr(tag, 'hx-get'), href)
+
+    @parameterized.expand([
+        ('langs', 'clear-langs'),
+        ('genres', 'clear-genres'),
+        ('node', 'clear-node'),
+    ])
+    def test_book_list_group_clear_htmx_attributes_parameterized(self, _name, control_id):
+        """Each group Clear swaps the book list wrapper in place and pushes the URL."""
+        # Arrange / Act
+        response = self.client.get(reverse('library:book_list'), {
+            'lang': ['en'],
+            'genre': ['fiction'],
+            'filter': 'A',
+        })
+        tag = self._tag_by_id(response.content.decode(), control_id)
+
+        # Assert
+        self.assertIsNotNone(tag, f'Control {control_id} not found')
+        self.assertIn('hx-target="#books_list-result"', tag)
+        self.assertIn('hx-swap="innerHTML"', tag)
+        self.assertIn('hx-push-url="true"', tag)
+
+    @parameterized.expand([
+        ('lang_only', {'lang': ['en']}, ['clear-langs']),
+        ('genre_only', {'genre': ['fiction']}, ['clear-genres']),
+        ('title_only', {'filter': 'A'}, ['clear-node']),
+        ('regex_only', {'regex': '^A'}, ['clear-node']),
+        ('unfiltered', {}, []),
+    ])
+    def test_book_list_group_clear_rendered_only_for_active_groups_parameterized(
+        self, _name, params, expected_ids
+    ):
+        """A group Clear renders only when its own filter group is active."""
+        # Arrange / Act
+        response = self.client.get(reverse('library:book_list'), params)
+        content = response.content.decode()
+
+        # Assert
+        for control_id in ('clear-langs', 'clear-genres', 'clear-node'):
+            if control_id in expected_ids:
+                self.assertIn(f'id="{control_id}"', content)
+            else:
+                self.assertNotIn(f'id="{control_id}"', content)
+
+    def test_book_list_clear_all_link_unchanged(self):
+        """`Clear all` stays a plain full page link next to the new group controls."""
+        # Arrange / Act
+        url = reverse('library:book_list')
+        response = self.client.get(url, {
+            'lang': ['en'],
+            'genre': ['fiction'],
+            'filter': 'A',
+        })
+        content = response.content.decode()
+
+        # Assert: the group controls are rendered in the same response
+        self.assertIn('id="clear-langs"', content)
+
+        match = re.search(r'<a[^>]*>Clear all</a>', content)
+        self.assertIsNotNone(match, 'Clear all control not found')
+        anchor = match.group(0)
+        self.assertIn(f'href="{url}"', anchor)
+        self.assertNotIn('hx-', anchor)
+
+    @parameterized.expand([
+        ('filter_form', {'lang': ['ru']}, 'filter-form', ['alphabet-tree-sidebar']),
+        ('tree_click', {'filter': 'B'}, None, ['filter-form-state']),
+        (
+            'clear_langs',
+            {'genre': ['fiction'], 'filter': 'A'},
+            'clear-langs',
+            ['languages-filter', 'alphabet-tree-sidebar'],
+        ),
+        (
+            'clear_genres',
+            {'lang': ['en'], 'filter': 'A'},
+            'clear-genres',
+            ['genres-filter', 'alphabet-tree-sidebar'],
+        ),
+        ('clear_node', {'lang': ['en'], 'genre': ['fiction']}, 'clear-node', ['filter-form-state']),
+        ('unknown_trigger', {'filter': 'B'}, 'some-other-id', ['filter-form-state']),
+    ])
+    def test_book_list_oob_fragment_matrix_parameterized(
+        self, _name, params, trigger, expected_ids
+    ):
+        """Each HTMX trigger returns exactly the out-of-band fragments it needs."""
+        # Arrange
+        headers = {'HTTP_HX_REQUEST': 'true'}
+        if trigger is not None:
+            headers['HTTP_HX_TRIGGER'] = trigger
+
+        # Act
+        response = self.client.get(reverse('library:book_list'), params, **headers)
+        content = response.content.decode()
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        for region_id in self.OOB_REGION_IDS:
+            if region_id in expected_ids:
+                self.assertIn(f'id="{region_id}"', content)
+            else:
+                self.assertNotIn(f'id="{region_id}"', content)
+        self.assertNotIn('<html', content)
+
+    @parameterized.expand([
+        ('langs', {'genre': ['fiction'], 'filter': 'A'}, 'clear-langs', ['Genre: Fiction'], 'lang'),
+        ('genres', {'lang': ['en'], 'filter': 'A'}, 'clear-genres', ['Lang: English'], 'genre'),
+        (
+            'node',
+            {'lang': ['en'], 'genre': ['fiction']},
+            'clear-node',
+            ['Lang: English', 'Genre: Fiction'],
+            None,
+        ),
+    ])
+    def test_book_list_clear_keeps_other_filters_parameterized(
+        self, _name, params, trigger, surviving_badges, cleared_input_name
+    ):
+        """Clearing one group re-renders it empty and leaves the other groups applied."""
+        # Arrange / Act
+        response = self.client.get(
+            reverse('library:book_list'),
+            params,
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TRIGGER=trigger,
+        )
+        content = response.content.decode()
+
+        # Assert: the other groups still show their badges
+        for badge in surviving_badges:
+            self.assertIn(badge, content)
+
+        if cleared_input_name is not None:
+            inputs = re.findall(rf'<input[^>]*name="{cleared_input_name}"[^>]*>', content)
+            self.assertTrue(inputs, f'No {cleared_input_name} inputs returned')
+            for tag in inputs:
+                self.assertNotIn('checked', tag)
+        else:
+            # The alphabet group clears through the hidden form state instead
+            match = re.search(r'<div id="filter-form-state"[^>]*>(.*?)</div>', content, re.DOTALL)
+            self.assertIsNotNone(match, 'filter-form-state fragment not returned')
+            self.assertNotIn('name="filter"', match.group(1))
+            self.assertNotIn('name="regex"', match.group(1))
+
+    def test_book_list_alphabet_tree_oob_urls_are_absolute(self):
+        """Tree buttons in the OOB fragment keep the book list path, not a bare `?filter=`."""
+        # Arrange / Act
+        url = reverse('library:book_list')
+        response = self.client.get(
+            url,
+            {'lang': ['ru']},
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TRIGGER='filter-form',
+        )
+        content = response.content.decode()
+
+        # Assert: the OOB fragment opens the response, and the tree buttons are the
+        # only buttons in it that carry hx-get
+        marker = content.find('id="alphabet-tree-sidebar"')
+        self.assertNotEqual(marker, -1, 'Alphabet tree OOB fragment not returned')
+        hx_gets = re.findall(r'<button[^>]*hx-get="([^"]*)"', content[marker:])
+        self.assertTrue(hx_gets, 'No alphabet tree buttons in the OOB fragment')
+        for hx_get in hx_gets:
+            self.assertTrue(
+                hx_get.startswith(url),
+                f'Tree button URL {hx_get!r} does not start with {url!r}'
+            )
+
+    def test_book_list_full_page_renders_each_oob_region_once(self):
+        """A normal page load renders every out-of-band region exactly once."""
+        # Arrange / Act
+        response = self.client.get(reverse('library:book_list'))
+        content = response.content.decode()
+
+        # Assert
+        for region_id in self.OOB_REGION_IDS:
+            self.assertEqual(
+                content.count(f'id="{region_id}"'),
+                1,
+                f'Region {region_id} is not rendered exactly once'
+            )
+
     def test_alphabet_tree_respects_genre(self):
         """
         Verify alphabet tree counts and nodes respect active genre filter.

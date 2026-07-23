@@ -268,6 +268,17 @@ class BookListView(CanViewBookContextMixin, generic.ListView):
     context_object_name = 'books'
     paginate_by = settings.PAGINATE_BY
 
+    # Which out-of-band fragments an HTMX response carries, keyed by the
+    # HX-Trigger header. Anything else (alphabet tree buttons, paginators)
+    # falls back to DEFAULT_HX_OOB_FRAGMENTS.
+    HX_OOB_FRAGMENTS = {
+        'filter-form': ('alphabet_tree',),
+        'clear-langs': ('languages_filter', 'alphabet_tree'),
+        'clear-genres': ('genres_filter', 'alphabet_tree'),
+        'clear-node': ('filter_state',),
+    }
+    DEFAULT_HX_OOB_FRAGMENTS = ('filter_state',)
+
     def get_queryset(self):
         qs = Book.objects.prefetch_related('authors').distinct()
 
@@ -330,6 +341,12 @@ class BookListView(CanViewBookContextMixin, generic.ListView):
 
         if filter_val or regex_val:
             context['active_alphabet_node'] = find_alphabet_node(alphabet_tree, filter_val, regex_val)
+
+        if self.request.headers.get('HX-Request'):
+            trigger = self.request.headers.get('HX-Trigger', '')
+            context['oob'] = self.HX_OOB_FRAGMENTS.get(trigger, self.DEFAULT_HX_OOB_FRAGMENTS)
+        else:
+            context['oob'] = ()
 
         return context
 

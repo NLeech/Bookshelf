@@ -6,6 +6,8 @@
     - node_label: Label for the alphabet badge (e.g. 'Title' for books, 'Last name' for authors)
     - hx_target: OPTIONAL. When set, the clear control also gets hx-* attributes and swaps
       that target instead of doing a full page load.
+    - group_clear_target: OPTIONAL. When set, every active filter group renders its own
+      `Clear` control that swaps this selector.
 
     Read from the inherited context:
     - selected_langs, selected_genres: selected filter codes, used only to decide whether to render
@@ -22,29 +24,71 @@
         <div class="d-flex flex-wrap gap-2 align-items-center">
             <span class="fw-bold me-1">Active Filters:</span>
 
-            {% for lang in active_languages %}
-                <span class="badge bg-primary rounded-pill">
-                    Lang: {{ lang.name }}
+            {% if active_languages %}
+                <span class="d-flex align-items-center gap-2 me-3">
+                    {% for lang in active_languages %}
+                        <span class="badge bg-primary rounded-pill">
+                            Lang: {{ lang.name }}
+                        </span>
+                    {% endfor %}
+                    {% if group_clear_target %}
+                        {% querystring lang=None page=None as clear_langs_qs %}
+                        <a href="{{ clear_url }}{{ clear_langs_qs }}"
+                           id="clear-langs"
+                           class="btn btn-sm btn-link text-decoration-none p-0"
+                           hx-get="{{ clear_url }}{{ clear_langs_qs }}"
+                           hx-target="{{ group_clear_target }}"
+                           hx-swap="innerHTML"
+                           hx-push-url="true">Clear</a>
+                    {% endif %}
                 </span>
-            {% endfor %}
+            {% endif %}
 
-            {% for genre in active_genres %}
-                <span class="badge bg-secondary rounded-pill">
-                    Genre: {{ genre.name }}
+            {% if active_genres %}
+                <span class="d-flex align-items-center gap-2 me-3">
+                    {% for genre in active_genres %}
+                        <span class="badge bg-secondary rounded-pill">
+                            Genre: {{ genre.name }}
+                        </span>
+                    {% endfor %}
+                    {% if group_clear_target %}
+                        {% querystring genre=None page=None as clear_genres_qs %}
+                        <a href="{{ clear_url }}{{ clear_genres_qs }}"
+                           id="clear-genres"
+                           class="btn btn-sm btn-link text-decoration-none p-0"
+                           hx-get="{{ clear_url }}{{ clear_genres_qs }}"
+                           hx-target="{{ group_clear_target }}"
+                           hx-swap="innerHTML"
+                           hx-push-url="true">Clear</a>
+                    {% endif %}
                 </span>
-            {% endfor %}
+            {% endif %}
 
-            {% if active_alphabet_node %}
-                <span class="badge bg-info text-dark rounded-pill">
-                    {{ node_label }}: {{ active_alphabet_node.name }}
-                </span>
-            {% elif filter %}
-                <span class="badge bg-info text-dark rounded-pill">
-                    Prefix: {{ filter }}
-                </span>
-            {% elif regex %}
-                <span class="badge bg-info text-dark rounded-pill">
-                    Regex match
+            {% if active_alphabet_node or filter or regex %}
+                <span class="d-flex align-items-center gap-2 me-3">
+                    {% if active_alphabet_node %}
+                        <span class="badge bg-info text-dark rounded-pill">
+                            {{ node_label }}: {{ active_alphabet_node.name }}
+                        </span>
+                    {% elif filter %}
+                        <span class="badge bg-info text-dark rounded-pill">
+                            Prefix: {{ filter }}
+                        </span>
+                    {% elif regex %}
+                        <span class="badge bg-info text-dark rounded-pill">
+                            {{ node_label }} matches: {{ regex }}
+                        </span>
+                    {% endif %}
+                    {% if group_clear_target %}
+                        {% querystring filter=None regex=None page=None as clear_node_qs %}
+                        <a href="{{ clear_url }}{{ clear_node_qs }}"
+                           id="clear-node"
+                           class="btn btn-sm btn-link text-decoration-none p-0"
+                           hx-get="{{ clear_url }}{{ clear_node_qs }}"
+                           hx-target="{{ group_clear_target }}"
+                           hx-swap="innerHTML"
+                           hx-push-url="true">Clear</a>
+                    {% endif %}
                 </span>
             {% endif %}
 
