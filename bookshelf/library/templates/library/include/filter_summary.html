@@ -12,8 +12,8 @@
     Read from the inherited context:
     - selected_langs, selected_genres: selected filter codes, used only to decide whether to render
     - active_languages, active_genres: Language/Genre objects for the badges
-    - active_alphabet_node: the resolved alphabet tree node, if any
-    - filter, regex: raw alphabet filter values, used as a fallback badge
+    - active_alphabet_label: the display label of the active alphabet selection
+    - filter, regex: raw alphabet filter values, read by the outer guard only
 
     Pages without language/genre filtering simply leave those keys undefined; the loops
     then render nothing and the guard falls through to `filter or regex`.
@@ -66,19 +66,9 @@
 
             {% if active_alphabet_node or filter or regex %}
                 <span class="d-flex align-items-center gap-2 me-3">
-                    {% if active_alphabet_node %}
-                        <span class="badge bg-info text-dark rounded-pill">
-                            {{ node_label }}: {{ active_alphabet_node.name }}
-                        </span>
-                    {% elif filter %}
-                        <span class="badge bg-info text-dark rounded-pill">
-                            Prefix: {{ filter }}
-                        </span>
-                    {% elif regex %}
-                        <span class="badge bg-info text-dark rounded-pill">
-                            {{ node_label }} matches: {{ regex }}
-                        </span>
-                    {% endif %}
+                    <span class="badge bg-info text-dark rounded-pill">
+                        {{ node_label }}: {{ active_alphabet_label }}
+                    </span>
                     {% if group_clear_target %}
                         {% querystring filter=None regex=None page=None as clear_node_qs %}
                         <a href="{{ clear_url }}{{ clear_node_qs }}"

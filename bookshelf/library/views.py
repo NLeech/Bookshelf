@@ -27,6 +27,7 @@ from .services import (
     get_book_file_content,
     flatten_chapters,
     find_alphabet_node,
+    get_alphabet_label,
     search_entities,
     get_descendants
 )
@@ -167,7 +168,9 @@ class AuthorListView(generic.ListView):
         context['regex'] = regex_val
 
         if filter_val or regex_val:
-            context['active_alphabet_node'] = find_alphabet_node(alphabet_tree, filter_val, regex_val)
+            node = find_alphabet_node(alphabet_tree, filter_val, regex_val)
+            context['active_alphabet_node'] = node
+            context['active_alphabet_label'] = get_alphabet_label(node, filter_val, regex_val)
 
         return context
 
@@ -340,7 +343,9 @@ class BookListView(CanViewBookContextMixin, generic.ListView):
         context['regex'] = regex_val
 
         if filter_val or regex_val:
-            context['active_alphabet_node'] = find_alphabet_node(alphabet_tree, filter_val, regex_val)
+            node = find_alphabet_node(alphabet_tree, filter_val, regex_val)
+            context['active_alphabet_node'] = node
+            context['active_alphabet_label'] = get_alphabet_label(node, filter_val, regex_val)
 
         if self.request.headers.get('HX-Request'):
             trigger = self.request.headers.get('HX-Trigger', '')

@@ -152,16 +152,15 @@ class AuthorListViewTests(BaseTestCase):
         self.assertEqual(node.name, 'l')
 
     @parameterized.expand([
-        ('matched_prefix', {'filter': 'l'}, 'Last name: l'),
-        ('matched_regex', {'regex': r'^([^[:alpha:][:digit:]]|a|b)'}, 'Last name: other'),
-        ('unmatched_prefix', {'filter': 'XYZ'}, 'Prefix: XYZ'),
-        ('unmatched_regex', {'regex': '^zzz'}, 'Last name matches: ^zzz'),
+        ('matched_prefix', {'filter': 'l'}, 'Last name: L'),
+        ('matched_regex', {'regex': r'^([^[:alpha:][:digit:]]|a|b)'}, 'Last name: Other'),
+        ('unmatched_prefix', {'filter': 'XYZ'}, 'Last name: Xyz'),
+        ('unmatched_regex', {'regex': '^zzz'}, 'Last name: Other'),
     ])
     def test_author_list_view_filter_summary_parameterized(self, _name, params, expected_badge):
         """
-        Verify the filter summary badge names the alphabet node when the tree has a
-        matching one, and shows the raw filter value rather than an empty label
-        when it does not.
+        Verify the filter summary badge always reads `Last name: <label>`: the node name
+        when the tree resolves the selection, and a readable derived label when it does not.
         """
         # Act
         response = self.client.get(reverse('library:authors_list'), params)
@@ -253,7 +252,7 @@ class AuthorListViewTests(BaseTestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertIn('Last name: l', content)
+        self.assertIn('Last name: L', content)
         self.assertIn('Clear all', content)
         self.assertIn('<li class="py-1 border-bottom">', content)
         self.assertNotIn('<html', content)

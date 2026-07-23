@@ -188,7 +188,7 @@ class BookListViewTests(BaseTestCase):
         # Should show names, not just codes
         self.assertIn('Lang: English', content)
         self.assertIn('Genre: Fiction', content)
-        self.assertIn('Title: a', content)  # 'a' is capitalized to 'A' in tree, but find_alphabet_node finds it
+        self.assertIn('Title: A', content)
 
         # Test with regex node (e.g. 'other')
         # We need a book starting with non-alpha to trigger 'other' in tree
@@ -199,6 +199,46 @@ class BookListViewTests(BaseTestCase):
         response = self.client.get(reverse('library:book_list'), params)
         content = response.content.decode()
         self.assertIn('Title: * (all non-alpha)', content)
+
+    @parameterized.expand([
+        ('digits', r'^[0-9]', 'Title: 0-9'),
+        ('star_node', r'^p([^[:alpha:]].*)?$', 'Title: P*'),
+        ('unknown_regex', r'^zzz', 'Title: Other'),
+    ])
+    def test_book_list_unresolved_regex_badge_parameterized(self, _name, regex_val, expected_badge):
+        """
+        Verify the badge labels a regex the tree has no node for, instead of showing
+        the raw pattern.
+        """
+        # Act
+        response = self.client.get(reverse('library:book_list'), {'regex': regex_val})
+        content = response.content.decode()
+
+        # Assert
+        self.assertIn('Active Filters:', content)
+        self.assertIn(expected_badge, content)
+
+    def test_book_list_htmx_regex_badge_after_language_narrowing(self):
+        """
+        Verify the badge stays readable when a language filter removes the node the
+        regex came from: the English-only tree has no '0-9' node.
+        """
+        # Arrange: the only digit-titled book is Russian
+        Book.objects.create(title='1-Book', language=self.lang_ru)
+
+        # Act
+        response = self.client.get(
+            reverse('library:book_list'),
+            {'lang': ['en'], 'regex': r'^[0-9]'},
+            HTTP_HX_REQUEST='true',
+            HTTP_HX_TRIGGER='filter-form',
+        )
+        content = response.content.decode()
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Title: 0-9', content)
+        self.assertNotIn('<html', content)
 
     def test_book_list_clear_link_is_not_htmx(self):
         """
