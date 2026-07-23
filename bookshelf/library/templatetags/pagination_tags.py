@@ -1,4 +1,7 @@
+from collections.abc import Iterator
+
 from django import template
+from django.core.paginator import Page
 from django.utils.html import format_html_join
 
 register = template.Library()
@@ -22,6 +25,36 @@ def paginate_url(context, page_num, page_param="page", base_url=None):
     params[page_param] = page_num
     path = base_url or request.path
     return f"{path}?{params.urlencode()}"
+
+
+@register.simple_tag
+def elided_page_range(
+    page_obj: Page, on_each_side: int = 2, on_ends: int = 1
+) -> Iterator[int | str]:
+    """
+    Return the compact page range for a paginator ``Page``.
+
+    Wraps ``Paginator.get_elided_page_range`` so the template iterates only
+    the visible page numbers instead of the whole range. Yields page numbers
+    interleaved with ``Paginator.ELLIPSIS`` markers where pages are collapsed.
+
+    Args:
+        page_obj: The current ``Page`` object.
+        on_each_side: How many page numbers to show on each side of the
+            current page.
+        on_ends: How many page numbers to show at the first and last ends.
+
+    Returns:
+        An iterator of page numbers and ``Paginator.ELLIPSIS`` markers.
+
+    Usage::
+
+        {% elided_page_range page_obj as page_range %}
+        {% for num in page_range %}...{% endfor %}
+    """
+    return page_obj.paginator.get_elided_page_range(
+        page_obj.number, on_each_side=on_each_side, on_ends=on_ends
+    )
 
 
 @register.simple_tag(takes_context=True)

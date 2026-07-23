@@ -280,6 +280,17 @@ Verifies `library.services.can_view_book(user)`; The gating permission codename 
 ## Book List View can_view_book Context (BookListViewCanViewBookTests)
 1. **test_can_view_book_context_and_card_label** *(parameterized: with_perm, without_perm)*: The view exposes the correct `can_view_book` boolean and the book card shows `Read` for permitted users and `Preview` otherwise.
 
+## Pagination Template Tag (test_pagination_tags.py)
+### ElidedPageRangeTagTest
+- **test_returns_all_pages_when_short**: A range short enough to fit is returned in full, without ellipsis.
+- **test_collapses_middle_with_ellipsis_on_both_sides**: A middle page keeps both ends and the current window and elides the rest with two ellipsis markers.
+- **test_no_left_ellipsis_near_start**: Edge — near the first page only the right side is elided (one ellipsis).
+- **test_custom_window_args_narrow_the_range**: Edge — `on_each_side`/`on_ends` are passed through to the paginator.
+
+### PaginationPartialRenderTest
+- **test_renders_ellipsis_and_windowed_links**: The shared partial renders the ellipsis marker, both ends and the window links, and omits collapsed pages.
+- **test_current_page_is_active_and_not_a_link**: The current page renders as an active span, never as a link.
+
 ## OPDS Root Feed (tests_opds.py — OPDSRootFeedTest)
 
 No database content required; the feed is purely structural (uses plain TestCase).
