@@ -283,7 +283,7 @@ class BookListView(CanViewBookContextMixin, generic.ListView):
     DEFAULT_HX_OOB_FRAGMENTS = ('filter_state',)
 
     def get_queryset(self):
-        qs = Book.objects.prefetch_related('authors').distinct()
+        qs = Book.objects.prefetch_related('authors')
 
         selected_langs = self.request.GET.getlist('lang')
         selected_genres = self.request.GET.getlist('genre')
@@ -295,9 +295,9 @@ class BookListView(CanViewBookContextMixin, generic.ListView):
 
         if selected_genres:
             genre_ids = Genre.objects.filter(code__in=selected_genres).values_list('id', flat=True)
-
             all_genre_ids = set(genre_ids) | get_descendants(list(genre_ids))
-            qs = qs.filter(genres__id__in=all_genre_ids)
+            book_ids = Book.genres.through.objects.filter(genre_id__in=all_genre_ids).values('book_id')
+            qs = qs.filter(id__in=book_ids)
 
         if regex_string:
             qs = qs.filter(title__iregex=regex_string)
