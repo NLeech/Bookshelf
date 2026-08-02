@@ -1,6 +1,8 @@
 import re
 
 from django.db import models
+from django.db.models.functions import Upper
+from django.contrib.postgres.indexes import OpClass
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from imagekit.models import ImageSpecField
@@ -126,6 +128,17 @@ class BookSeries(BaseModel):
     class Meta:
         ordering = ['name']
         verbose_name_plural = 'Series'
+        indexes = [
+            # btree for ORDER BY name (default ordering, search)
+            models.Index(fields=['name'], name='bookseries_name_idx'),
+            # functional index for name__istartswith (OPDS series browsing),
+            # which Django renders as UPPER(name) LIKE ...; varchar_pattern_ops
+            # is required so LIKE 'x%' can use the index under a non-C collation
+            models.Index(
+                OpClass(Upper('name'), name='varchar_pattern_ops'),
+                name='bookseries_name_upper_idx',
+            ),
+        ]
 
 
 class Author(BaseModel):
@@ -188,6 +201,17 @@ class Author(BaseModel):
     class Meta:
         ordering = ['last_name', 'first_name', 'middle_name']
         verbose_name_plural = 'Authors'
+        indexes = [
+            # btree for ORDER BY last_name (default ordering, author list, search)
+            models.Index(fields=['last_name'], name='author_last_name_idx'),
+            # functional index for last_name__istartswith (alphabet browsing),
+            # which Django renders as UPPER(last_name) LIKE ...; varchar_pattern_ops
+            # is required so LIKE 'x%' can use the index under a non-C collation
+            models.Index(
+                OpClass(Upper('last_name'), name='varchar_pattern_ops'),
+                name='author_last_name_upper_idx',
+            ),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=[
@@ -270,3 +294,16 @@ class Book(BaseModel):
         else:
             size_mb = self.size / (1024 * 1024)
             return f'{size_mb:.2f} MB'
+
+    class Meta:
+        indexes = [
+            # btree for ORDER BY title (page listing)
+            models.Index(fields=['title'], name='book_title_idx'),
+            # functional index for title__istartswith, which Django renders as
+            # UPPER(title) LIKE ...; varchar_pattern_ops is required so LIKE 'x%'
+            # can use the index under a non-C collation
+            models.Index(
+                OpClass(Upper('title'), name='varchar_pattern_ops'),
+                name='book_title_upper_idx',
+            ),
+        ]
