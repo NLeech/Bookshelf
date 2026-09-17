@@ -15,4 +15,4 @@ celery -A bookshelf beat -l INFO --scheduler django_celery_beat.schedulers:Datab
 echo "Starting celery worker"
 celery -A bookshelf worker -l INFO -c 1 &
 
-exec gunicorn --timeout 60 --bind 0.0.0.0:8080 -w 3 bookshelf.wsgi
+exec gunicorn --timeout 60 --bind 0.0.0.0:8088 -w 3 bookshelf.wsgi

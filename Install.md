@@ -85,24 +85,24 @@ cd Bookshelf
 
 - Create images
 ``` bash
-docker compose pull web
-docker compose build
+sudo docker compose pull web
+sudo docker compose build
 ```
 - Run containers
 ``` bash
-docker compose up -d
+sudo docker compose up -d
 ```
 
 - Add languages using Django admin.
 
 - Load Flibusta dump
 ``` bash
-docker compose run --rm web python /Bookshelf/bookshelf/manage.py import_flibusta_dump
+sudo docker compose run --rm web python /Bookshelf/bookshelf/manage.py import_flibusta_dump
 ```
 
 - Import books
 ``` bash
-docker compose run --rm -v "/mnt/stor/Library:/import:ro" web python /Bookshelf/bookshelf/manage.py import_flibusta_books --formats fb2 epub --genres Фантастика --langs en --path /import 
+sudo docker compose run --rm -v "/mnt/stor/Library:/import:ro" web python /Bookshelf/bookshelf/manage.py import_flibusta_books --formats fb2 epub --genres Фантастика --langs en --path /import 
 ```
 
 
