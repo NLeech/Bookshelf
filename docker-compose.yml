@@ -7,7 +7,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: curl -f http://localhost:8080/ping/ || exit 1
+      test: curl -f http://localhost:8088/ping/ || exit 1
       interval: 60s
       timeout: 10s
       retries: 3
@@ -85,7 +85,7 @@ volumes:
 
 networks:
   front-tier:
-    name: proxy-network
+    name: proxy
     external: true
   back-tier:
     internal: true

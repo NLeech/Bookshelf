@@ -27,6 +27,7 @@ from .services import (
     get_book_file_content,
     flatten_chapters,
     find_alphabet_node,
+    get_alphabet_label,
     search_entities,
     get_descendants
 )
@@ -157,9 +158,20 @@ class AuthorListView(generic.ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['alphabet_tree'] = get_alphabet_tree(Author.objects.all(), 'last_name')
-        context['filter'] = self.request.GET.get('filter', '')
-        context['regex'] = self.request.GET.get('regex', '')
+
+        alphabet_tree = get_alphabet_tree(Author.objects.all(), 'last_name')
+        context['alphabet_tree'] = alphabet_tree
+
+        filter_val = self.request.GET.get('filter', '')
+        regex_val = self.request.GET.get('regex', '')
+        context['filter'] = filter_val
+        context['regex'] = regex_val
+
+        if filter_val or regex_val:
+            node = find_alphabet_node(alphabet_tree, filter_val, regex_val)
+            context['active_alphabet_node'] = node
+            context['active_alphabet_label'] = get_alphabet_label(node, filter_val, regex_val)
+
         return context
 
     def render_to_response(self, context, **response_kwargs):
@@ -259,8 +271,19 @@ class BookListView(CanViewBookContextMixin, generic.ListView):
     context_object_name = 'books'
     paginate_by = settings.PAGINATE_BY
 
+    # Which out-of-band fragments an HTMX response carries, keyed by the
+    # HX-Trigger header. Anything else (alphabet tree buttons, paginators)
+    # falls back to DEFAULT_HX_OOB_FRAGMENTS.
+    HX_OOB_FRAGMENTS = {
+        'filter-form': ('alphabet_tree',),
+        'clear-langs': ('languages_filter', 'alphabet_tree'),
+        'clear-genres': ('genres_filter', 'alphabet_tree'),
+        'clear-node': ('filter_state',),
+    }
+    DEFAULT_HX_OOB_FRAGMENTS = ('filter_state',)
+
     def get_queryset(self):
-        qs = Book.objects.prefetch_related('authors').distinct()
+        qs = Book.objects.prefetch_related('authors')
 
         selected_langs = self.request.GET.getlist('lang')
         selected_genres = self.request.GET.getlist('genre')
@@ -272,9 +295,9 @@ class BookListView(CanViewBookContextMixin, generic.ListView):
 
         if selected_genres:
             genre_ids = Genre.objects.filter(code__in=selected_genres).values_list('id', flat=True)
-
             all_genre_ids = set(genre_ids) | get_descendants(list(genre_ids))
-            qs = qs.filter(genres__id__in=all_genre_ids)
+            book_ids = Book.genres.through.objects.filter(genre_id__in=all_genre_ids).values('book_id')
+            qs = qs.filter(id__in=book_ids)
 
         if regex_string:
             qs = qs.filter(title__iregex=regex_string)
@@ -320,7 +343,15 @@ class BookListView(CanViewBookContextMixin, generic.ListView):
         context['regex'] = regex_val
 
         if filter_val or regex_val:
-            context['active_alphabet_node'] = find_alphabet_node(alphabet_tree, filter_val, regex_val)
+            node = find_alphabet_node(alphabet_tree, filter_val, regex_val)
+            context['active_alphabet_node'] = node
+            context['active_alphabet_label'] = get_alphabet_label(node, filter_val, regex_val)
+
+        if self.request.headers.get('HX-Request'):
+            trigger = self.request.headers.get('HX-Trigger', '')
+            context['oob'] = self.HX_OOB_FRAGMENTS.get(trigger, self.DEFAULT_HX_OOB_FRAGMENTS)
+        else:
+            context['oob'] = ()
 
         return context
 

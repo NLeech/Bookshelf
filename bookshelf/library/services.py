@@ -32,6 +32,16 @@ ZIPPED_MIME_TYPES = ('application/fb2+zip',)
 
 DEFAULT_CONTENT_TYPE = 'application/octet-stream'
 
+# Labels for the alphabet regexes that do not belong to a prefix node.
+# Keyed by the exact regex the tree stores on such a node.
+ALPHABET_REGEX_LABELS = {
+    r'^[0-9]': '0-9',
+    r'^[^[:alpha:][:digit:]]': '* (all non-alpha)',
+}
+
+# Matches a star node regex like '^ab([^[:alpha:]].*)?$' and captures its prefix.
+STAR_REGEX = re.compile(r'^\^(.+)\(\[\^\[:alpha:\]\]\.\*\)\?\$$')
+
 
 def _register_custom_mimetypes() -> None:
     """Register book-specific MIME types with the ``mimetypes`` module.
@@ -343,6 +353,35 @@ def find_alphabet_node(node: AlphabetTree, filter_val: str, regex_val: str) -> A
             return res
 
     return None
+
+
+def get_alphabet_label(node: AlphabetTree | None, filter_val: str, regex_val: str) -> str:
+    """Build the display label of the active alphabet selection.
+
+    When the tree resolves the selection, the node name is used.  Otherwise the
+    label is derived from the regex, or from the raw filter value when there is
+    no regex, so the badge never shows a raw pattern.
+
+    Args:
+        node: The resolved tree node, or None when the tree has no matching node.
+        filter_val: The raw ``filter`` query value.
+        regex_val: The raw ``regex`` query value.
+
+    Returns:
+        The capitalized label, or an empty string when nothing is selected.
+    """
+    if node is not None:
+        return str(node)
+
+    if regex_val:
+        label = ALPHABET_REGEX_LABELS.get(regex_val)
+        if label is None:
+            star_match = STAR_REGEX.match(regex_val)
+            label = f'{star_match.group(1)}*' if star_match else 'other'
+    else:
+        label = filter_val
+
+    return label.capitalize()
 
 
 def get_languages(queryset: QuerySet[Book]) -> QuerySet[Language]:

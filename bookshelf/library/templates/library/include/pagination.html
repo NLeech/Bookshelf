@@ -30,24 +30,25 @@
                     </li>
                 {% endif %}
 
-                <!-- Page numbers -->
-                {% for num in page_obj.paginator.page_range %}
-                    {% if page_obj.number == num %}
+                <!-- Page numbers (get_elided_page_range yields ints and Paginator.ELLIPSIS) -->
+                {% elided_page_range page_obj as page_range %}
+                {% for num in page_range %}
+                    {% if num == page_obj.paginator.ELLIPSIS %}
+                        <li class="page-item disabled">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% elif num == page_obj.number %}
                         <li class="page-item active">
                             <span class="page-link">{{ num }}</span>
                         </li>
-                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' or num == 1 or num == page_obj.paginator.num_pages %}
+                    {% else %}
                         <li class="page-item">
                             {% paginate_url num p_param current_path as page_url %}
-                            <a class="page-link" 
+                            <a class="page-link"
                                href="{{ page_url }}"
                                hx-get="{{ page_url }}"
                                hx-target="{{ current_target }}"
                                hx-swap="{{ current_swap }}">{{ num }}</a>
-                        </li>
-                    {% elif num == page_obj.number|add:'-3' or num == page_obj.number|add:'3' %}
-                        <li class="page-item disabled">
-                            <span class="page-link">...</span>
                         </li>
                     {% endif %}
                 {% endfor %}

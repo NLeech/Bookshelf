@@ -19,28 +19,30 @@
             &lt;
         </button>
 
-         <div id="authors_list_container">
-            <ul id="authors_list" class="list-unstyled">
+        <div id="authors_list">
             {% partialdef authors_list-result inline %}
+
+                <!-- Filters Summary -->
+                {% url 'library:authors_list' as clear_url %}
+                {% include "library/include/filter_summary.html" with clear_url=clear_url node_label="Last name" hx_target="#authors_list" %}
 
                 <!-- Pagination Controls (Top) -->
                 {% include 'library/include/pagination.html' %}
 
-
-                {% for author in page_obj %}
-                    <li class="py-1 border-bottom">
-                        <a href="{% url 'library:author' author.id %}">{{ author }}</a>
-                    </li>
-                {% empty %}
+                <ul class="list-unstyled">
+                    {% for author in page_obj %}
+                        <li class="py-1 border-bottom">
+                            <a href="{% url 'library:author' author.id %}">{{ author }}</a>
+                        </li>
+                    {% empty %}
                         No authors found.
-                {% endfor %}
+                    {% endfor %}
+                </ul>
 
                 <!-- Pagination Controls (Bottom) -->
                 {% include 'library/include/pagination.html' %}
 
             {% endpartialdef authors_list-result%}
-            </ul>
-
         </div>
     </main>
 </div>
